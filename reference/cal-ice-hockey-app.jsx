@@ -807,8 +807,12 @@ a.socialbtn:hover { color: var(--deep); background: var(--gold); }
 
 /* A block header inside the roster table: the same bar as a column head,
    set as a label rather than a control. */
-.gcbtgroup th { padding: 9px 16px; font-size: 11.5px; background: #EEF2F6; }
-.gcbtgroup th, .gcbt tbody .gcbtgroup th { border-top: 1px solid #E3E9EF; }
+/* A sortable table puts its padding on the button inside each header cell
+   and zeroes the cell itself - and that rule outranked this one, so the
+   block headings had none at all. Matched at the same weight, and the left
+   edge lines up with the first column of figures below it. */
+table.stats.sortable .gcbtgroup th { padding: 9px 16px; font-size: 11.5px;
+  background: #EEF2F6; border-top: 1px solid #E3E9EF; }
 .gcbt tbody:first-of-type .gcbtgroup th { border-top: 0; }
 
 .gcgrid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 20px;
