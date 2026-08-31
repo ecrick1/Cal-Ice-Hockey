@@ -2989,7 +2989,7 @@ a.faffil:hover { filter: grayscale(0); }
 /* --- Body --- */
 .aubody { padding: 26px; max-width: 1500px; width: 100%; overflow-x: auto; }
 /* Keep data columns legible on narrow windows by scrolling instead of shrinking. */
-.adminui .arow, .adminui .ahead { min-width: 1240px; }
+.adminui .arow, .adminui .ahead { min-width: 1300px; }
 .adminui .ahead span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .adminui .boxrow { min-width: 0; }
 .auhint { color: var(--au-dim); font-size: 13px; line-height: 1.55; }
@@ -3896,12 +3896,13 @@ const NAV_MORE = [
   ["alumni", "Alumni"],
 ];
 
-/* The footer's affiliate marks. Pac-8 has no site of its own yet - the domain
-   does not resolve - so it stays an unlinked mark rather than a dead link. */
+/* The footer's affiliate marks. Pac-8's own domain still does not resolve,
+   but the conference does post as @pac8hockey, so the mark points there
+   rather than nowhere. */
 const AFFILIATES = [
   { src: "/logos/footer-berkeley.svg", alt: "UC Berkeley", href: "https://www.berkeley.edu" },
   { src: "/logos/footer-acha.svg", alt: "ACHA", href: "https://www.achahockey.org", tall: true },
-  { mark: "pac8", alt: "Pac-8 Conference" },
+  { mark: "pac8", alt: "Pac-8 Conference", href: "https://www.instagram.com/pac8hockey/" },
   { src: "/logos/footer-nike.svg", alt: "Nike", href: "https://www.nike.com", short: true },
 ];
 
@@ -14144,7 +14145,7 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
      max-content column here is measured per row and the 1fr columns beside it
      absorb the difference, leaving Venue and Opponent a different width on
      every line. One badge at a time, so the original width is enough. */
-  const cols = "104px 1fr 88px 50px 1fr 108px 118px 46px 46px 64px 56px 54px 62px 66px 28px";
+  const cols = "104px 1fr 88px 50px 1fr 118px 46px 46px 64px 56px 54px 62px 66px 28px";
 
   return (
     <>
@@ -14159,7 +14160,7 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
       )}
 
       <div className="arow ahead" style={{ gridTemplateColumns: cols }}>
-        <span>Date</span><span>Opponent</span><span>Type</span><span>H/A</span><span>Venue</span><span>City</span><span>Time</span>
+        <span>Date</span><span>Opponent</span><span>Type</span><span>H/A</span><span>Venue</span><span>Time</span>
         <span>Us</span><span>Them</span><span>Ended</span><span>Final?</span><span>Live</span><span>Box</span><span>More</span><span />
       </div>
 
@@ -14200,8 +14201,6 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
               </select>
               <input value={g.venue} placeholder="Rink"
                 onChange={(e) => setGame(g.id, { venue: e.target.value })} />
-              <input value={g.location || ""} placeholder="City, ST"
-                onChange={(e) => setGame(g.id, { location: e.target.value })} />
               <input value={g.time} onChange={(e) => setGame(g.id, { time: e.target.value })} />
               <input type="number" disabled={!g.result} value={g.result ? g.result.us : ""}
                 onChange={(e) => setResult(g.id, "us", e.target.value)} />
@@ -14321,6 +14320,15 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
                     </p>
                   </div>
                 )}
+                <div className="field">
+                  <label className="h6">City</label>
+                  <input value={g.location || ""} placeholder="City, ST"
+                    onChange={(e) => setGame(g.id, { location: e.target.value })} />
+                  <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
+                    Fills itself in from the opponent when you set the side. Shown
+                    beside the venue on the schedule and the game page.
+                  </p>
+                </div>
                 <div className="field">
                   <label className="h6">Special game</label>
                   <input value={g.special || ""} placeholder="Senior Night · Alumni Game"
