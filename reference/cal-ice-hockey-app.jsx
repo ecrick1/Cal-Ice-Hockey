@@ -32,6 +32,9 @@ const STOCK_IMAGES = [
 const SITE_KEY = "cal-hockey-site";
 const RECRUITS_KEY = "cal-hockey-recruits";
 const ALUMNI_KEY = "cal-hockey-alumni";
+/* A whole working copy of the site, parked but not published. Separate from
+   SITE_KEY so the public pages never see it. */
+const PENDING_KEY = "cal-hockey-pending";
 const AUTH_KEY = "cal-hockey-authed";
 
 /* ---------------- Seed data (SAMPLE — replace via admin) ---------------- */
@@ -3223,6 +3226,20 @@ a.faffil:hover { filter: grayscale(0); }
 .adminui .austorystate.draft { color: var(--au-faint); border: 1px solid var(--au-line); }
 /* Scheduled is neither live nor abandoned, so it gets its own color
    rather than borrowing one of the other two. */
+/* Parked work. Gold rather than red: nothing is wrong, it is simply not
+   public yet. */
+.aupending { display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 12px 22px; background: rgba(245,181,68,0.09);
+  border-bottom: 1px solid var(--au-line); }
+.aupenddot { width: 8px; height: 8px; border-radius: 999px; flex: 0 0 auto;
+  background: var(--au-warn, #F5B544); }
+.aupendtext { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.aupendtext strong { font-size: 13px; font-weight: 700; color: var(--au-text); }
+.aupendsub { font-size: 12px; color: var(--au-dim); }
+.aupendwhen { display: flex; align-items: center; gap: 8px; }
+.aupendwhen .h6 { margin: 0; white-space: nowrap; }
+.aupendwhen input { width: auto; }
+
 .adminui .austorystate.scheduled { color: var(--au-warn, #F5B544);
   background: rgba(245,181,68,0.12); border: 1px solid rgba(245,181,68,0.3); }
 
@@ -4043,13 +4060,29 @@ export default function CalIceHockey() {
     try { localStorage.setItem(AUTH_KEY, authed ? "1" : "0"); } catch { /* private mode */ }
   }, [authed]);
   const loaded = useRef(false);
+  /* { site, savedAt, publishAt } or null. Held here rather than in the
+     console because the app has to look at it on load, before anyone has
+     opened the console, to see whether it is due. */
+  const [pending, setPendingState] = useState(null);
 
   /* Load persisted data once */
   useEffect(() => {
     (async () => {
-      const s = await loadKey(SITE_KEY, SEED_SITE);
+      let s = await loadKey(SITE_KEY, SEED_SITE);
       const r = await loadKey(RECRUITS_KEY, []);
       const al = await loadKey(ALUMNI_KEY, []);
+      /* A parked draft whose moment has passed goes live here, on the first
+         load after it. No timer, no cron - the same way a scheduled story
+         becomes visible. */
+      let pend = await loadKey(PENDING_KEY, null);
+      if (pend && pend.site && pend.publishAt
+          && new Date(pend.publishAt).getTime() <= Date.now()) {
+        s = { ...pend.site, rev: Number(s.rev || 0) + 1 };
+        pend = null;
+        await saveKey(SITE_KEY, s);
+        await saveKey(PENDING_KEY, null);
+      }
+      setPendingState(pend);
       if (!Array.isArray(s.news)) s.news = SEED_SITE.news;
       // v3: replace pre-EP sample seasons (fictional players/results) with real
       // EliteProspects data. Runs once; admin edits after that are preserved.
@@ -4101,6 +4134,10 @@ export default function CalIceHockey() {
   useEffect(() => { if (loaded.current && site) saveKey(SITE_KEY, site); }, [site]);
   useEffect(() => { if (loaded.current) saveKey(RECRUITS_KEY, recruits); }, [recruits]);
   useEffect(() => { if (loaded.current) saveKey(ALUMNI_KEY, alumni); }, [alumni]);
+  const setPending = useCallback((next) => {
+    setPendingState(next);
+    saveKey(PENDING_KEY, next);
+  }, []);
 
   // Public pages read the hydrated shape (opponents resolved, stats derived).
   // The admin edits `site` itself.
@@ -4305,7 +4342,7 @@ export default function CalIceHockey() {
       {view === "recruit" && <RecruitPage site={pub} onSubmit={(sub) => setRecruits((r) => [{ ...sub, id: uid(), submittedAt: new Date().toISOString() }, ...r])} />}
       {view === "admin" && (
         <Admin site={site} setSite={setSite} recruits={recruits} setRecruits={setRecruits}
-          alumni={alumni} setAlumni={setAlumni}
+          alumni={alumni} setAlumni={setAlumni} pending={pending} setPending={setPending}
           authed={authed} setAuthed={setAuthed} goto={setView} />
       )}
 
@@ -12392,6 +12429,45 @@ function DemoDataPanel({ site, setDraft }) {
   );
 }
 
+/**
+ * The strip under the console header when a draft is parked.
+ *
+ * It says three things, in this order: that what you are looking at is not
+ * what the public sees, when it will become so if a moment is set, and the
+ * two ways out.
+ */
+function PendingBar({ pending, dirty, onSchedule, onPublish, onDiscard }) {
+  const [at, setAt] = useState(pending.publishAt || "");
+  useEffect(() => { setAt(pending.publishAt || ""); }, [pending.publishAt]);
+  const due = pending.publishAt ? new Date(pending.publishAt) : null;
+  return (
+    <div className="aupending">
+      <span className="aupenddot" aria-hidden="true" />
+      <span className="aupendtext">
+        <strong>Draft saved{dirty ? ", with newer edits on screen" : ""}</strong>
+        <span className="aupendsub">
+          {due
+            ? "Goes live " + fmtDateTime(pending.publishAt) + " \u2014 on the first visit after that moment."
+            : "Not on the public site. Publish when you are ready, or set a time."}
+        </span>
+      </span>
+      <label className="aupendwhen">
+        <span className="h6">Go live at</span>
+        <input type="datetime-local" value={at}
+          onChange={(e) => { setAt(e.target.value); onSchedule(e.target.value); }} />
+      </label>
+      {at && (
+        <button className="btn bGhost bSm" onClick={() => { setAt(""); onSchedule(""); }}>
+          Clear time
+        </button>
+      )}
+      <span style={{ flex: 1 }} />
+      <button className="btn bGhost bSm" onClick={onDiscard}>Discard draft</button>
+      <button className="btn bNavy bSm" onClick={onPublish}>Publish now</button>
+    </div>
+  );
+}
+
 /* ---------------- Confirmation dialog ----------------
  * window.confirm/alert/prompt are auto-dismissed in embedded browsers — they
  * return false without ever showing anything, so every guarded delete silently
@@ -12496,7 +12572,8 @@ const ADMIN_TITLES = {
   import: "Bulk import",
 };
 
-function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni, authed, setAuthed, goto }) {
+function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
+  pending, setPending, authed, setAuthed, goto }) {
   const [tab, setTab] = useState("schedule");
   const [settingsSection, setSettingsSection] = useState("organization");
   const [statsView, setStatsView] = useState("game");
@@ -12515,8 +12592,10 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni, authed
    * and publishes in the same turn, like live scoring. That path was writing
    * the previous draft and silently dropping the change.
    */
-  const [draft, setDraftState] = useState(site);
-  const draftRef = useRef(site);
+  /* Opens on the parked draft when there is one: that is where the work
+     was left. The published site is still what everyone else sees. */
+  const [draft, setDraftState] = useState((pending && pending.site) || site);
+  const draftRef = useRef((pending && pending.site) || site);
   const setDraft = useCallback((updater) => {
     /* Computed here rather than inside the state updater: React runs an
      * updater when it processes the batch, which is after the calling code
@@ -12528,6 +12607,15 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni, authed
     setDraftState(next);
   }, []);
   useEffect(() => { draftRef.current = site; setDraftState(site); }, [site]);
+  /* A draft parked in another tab, or one that just went live, replaces
+     what is on screen - otherwise this console would keep editing a copy
+     that no longer exists anywhere. */
+  const pendingId = pending ? pending.savedAt : "";
+  useEffect(() => {
+    if (!pending || !pending.site) return;
+    draftRef.current = pending.site;
+    setDraftState(pending.site);
+  }, [pendingId]);
 
   /* One dialog for the whole console; ask() resolves when the user answers. */
   const [asking, setAsking] = useState(null);
@@ -12539,7 +12627,8 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni, authed
     setAsking((cur) => { if (cur) cur.resolve(value); return null; });
   };
 
-  const changed = useMemo(() => diffSections(site, draft), [site, draft]);
+  const baseline = (pending && pending.site) || site;
+  const changed = useMemo(() => diffSections(baseline, draft), [baseline, draft]);
   const dirty = changed.length > 0;
 
   /* Don't let a closed tab silently throw away an afternoon of roster entry. */
@@ -12602,6 +12691,13 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni, authed
      script - that write would replace those changes with a draft that never
      knew about them, and nothing would say so. The site carries a revision;
      a save whose draft was not built on the current one asks first. */
+  /* Park the working copy without publishing it. `at` is a local
+     "YYYY-MM-DDTHH:mm" - the value a datetime-local input gives - or empty
+     for a draft that waits to be published by hand. */
+  const saveDraft = (at) => {
+    setPending({ site: draftRef.current, savedAt: new Date().toISOString(), publishAt: at || null });
+  };
+
   const save = async () => {
     const next = draftRef.current;
     const stored = await loadKey(SITE_KEY, null);
@@ -12615,20 +12711,31 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni, authed
         confirmLabel: "Overwrite anyway",
         danger: true,
       });
-      if (!ok) return;
+      if (!ok) return false;
     }
     setSite({ ...next, rev: mine + 1 });
+    return true;
+  };
+
+  /* Publishing a parked draft is a save that also unparks it - but only if
+     the save actually happened. Declining the conflict prompt used to clear
+     the draft anyway, which threw it away without ever putting it up. */
+  const publish = async () => {
+    const wrote = await save();
+    if (wrote && pending) setPending(null);
   };
 
   const discard = async () => {
     const ok = await ask({
       title: "Discard changes?",
-      message: "Reverts everything back to the last save.",
+      message: pending
+        ? "Reverts everything back to the saved draft."
+        : "Reverts everything back to the last save.",
       detail: changed.join(", "),
       confirmLabel: "Discard",
       danger: true,
     });
-    if (ok) setDraft(site);
+    if (ok) setDraft(baseline);
   };
 
   const leave = async () => {
@@ -12702,13 +12809,36 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni, authed
               <span className={"austate " + (dirty ? "dirty" : "")}>
                 <span className="aupulse" />
                 <span className="austatetext">
-                  {dirty ? "Unsaved · " + changed.join(", ") : "All changes saved"}
+                  {dirty
+                    ? "Unsaved · " + changed.join(", ")
+                    : pending
+                      ? "Draft saved · not published"
+                      : "All changes saved"}
                 </span>
               </span>
               <button className="btn bGhost bSm" onClick={discard} disabled={!dirty}>Discard</button>
-              <button className="btn bNavy bSm" onClick={save} disabled={!dirty}>Save</button>
+              <button className="btn bGhost bSm" onClick={() => saveDraft(pending && pending.publishAt)}
+                disabled={!dirty}
+                title="Keep this work without putting it on the site">
+                Save draft
+              </button>
+              <button className="btn bNavy bSm" onClick={publish} disabled={!dirty && !pending}>
+                Publish
+              </button>
             </div>
           </header>
+
+          {pending && <PendingBar pending={pending} dirty={dirty}
+            onSchedule={(at) => saveDraft(at)}
+            onPublish={publish}
+            onDiscard={async () => {
+              const ok = await ask({
+                title: "Discard the saved draft?",
+                message: "Everything in it goes, and the console goes back to what is published.",
+                confirmLabel: "Discard draft", danger: true,
+              });
+              if (ok) { setPending(null); setDraft(site); }
+            }} />}
 
           <div className="aubody">
             {tab === "live" && (
