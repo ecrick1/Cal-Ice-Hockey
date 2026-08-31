@@ -1,0 +1,37 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "C:/Program Files/nodejs/node.exe",
+      "runtimeArgs": [
+        "apps/web/node_modules/next/dist/bin/next",
+        "dev",
+        "apps/web",
+        "-p",
+        "3000"
+      ],
+      "port": 3000
+    },
+    {
+      "name": "admin",
+      "runtimeExecutable": "C:/Program Files/nodejs/node.exe",
+      "runtimeArgs": [
+        "apps/admin/node_modules/next/dist/bin/next",
+        "dev",
+        "apps/admin",
+        "-p",
+        "3001"
+      ],
+      "port": 3001
+    },
+    {
+      "name": "prototype",
+      "runtimeExecutable": "C:/Program Files/nodejs/node.exe",
+      "runtimeArgs": [
+        "prototype/serve.mjs"
+      ],
+      "port": 3002
+    }
+  ]
+}

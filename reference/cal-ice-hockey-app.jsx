@@ -1,0 +1,19988 @@
+import { useState, useEffect, useMemo, useRef, useCallback, createContext, useContext } from "react";
+
+/* ============================================================
+ * CAL ICE HOCKEY — Punch design system port (React prototype)
+ * Public: Home, Schedule & Results, Roster, Coaches, Join
+ * Admin:  Schedule / Roster / Coaches editors, Season manager,
+ *         ACHA bulk-paste importer, Recruit inbox
+ * Storage: window.storage keys `cal-hockey-site`, `cal-hockey-recruits`
+ * NOTE: prototype passcode only — replace with real auth in production.
+ * ============================================================ */
+
+const ADMIN_PASSCODE = "GOBEARS"; // change me
+
+/* Team photography, used wherever a story has no cover of its own.
+ *
+ * Cropped to 16:9 and re-encoded ahead of time by prototype/photos.mjs, which
+ * applies the same treatment the console's `cover` upload preset does
+ * (1600x900, q0.78) — the originals were 1.7–8.4MB PNGs. In the built site
+ * these belong in apps/web/public, or in the media bucket if staff should be
+ * able to swap them without a deploy.
+ */
+const STOCK_IMAGES = [
+  "/photos/cal-stanford.jpg",
+  "/photos/cal-washington.jpg",
+  "/photos/cal-asu.jpg",
+  "/photos/cal-ucla.jpg",
+  "/photos/cal-usc.jpg",
+  "/photos/cal-usc-2.jpg",
+  "/photos/cal-washington-2.jpg",
+];
+
+const SITE_KEY = "cal-hockey-site";
+const RECRUITS_KEY = "cal-hockey-recruits";
+const ALUMNI_KEY = "cal-hockey-alumni";
+const AUTH_KEY = "cal-hockey-authed";
+
+/* ---------------- Seed data (SAMPLE — replace via admin) ---------------- */
+const uid = () => Math.random().toString(36).slice(2, 9);
+
+/* ---------------- Seed data ----------------
+ * Roster + season records imported from EliteProspects (team 10366,
+ * Univ. of California-Berkeley, ACHA II) on 2026-08-28.
+ * OT wins are folded into W and OT losses into L to fit W-L-T display.
+ * No per-player stats or staff are published there yet, so those start empty
+ * and are entered via the admin panel. Schedule/game log likewise.
+ * Production path: EliteProspects official API (eliteprospects.com/api). */
+const SEED_VERSION = 4;
+
+const EP = (number, name, position, shoots, height, hometown) =>
+  ({ id: uid(), number, name, position, shoots, year: "", height, weight: "", hometown,
+     highSchool: "", priorTeam: "", captain: "" });
+
+const SEED_SITE = {
+  v: SEED_VERSION,
+  currentSeason: "2025-26",
+  /* Opponents are rows so they can carry a logo; games reference them by id. */
+  opponents: [],
+  /* gameStats[gameId][playerId] = { dressed, g, a, pim, saves, ga } */
+  gameStats: {},
+  /* opponentStats[gameId] = [{ name, number, isGoalie, g, a, pim, saves, ga }] */
+  opponentStats: {},
+  /* Committed players who have not yet joined a roster. */
+  /* Copy for the Recruits page. Editable, because what a program wants to
+   * say to a prospective player changes every year. */
+  recruiting: {
+    headline: "Play hockey at Cal",
+    intro: "Cal Ice Hockey is a student-run ACHA Division II program. If you have played junior, high school or competitive club hockey and you are heading to Berkeley, we want to hear from you.",
+    league: "ACHA Division II",
+    seasonLength: "October to March",
+    tryouts: "Late September, before classes settle",
+    dues: "",
+    sections: [
+      { title: "Who plays here",
+        body: "Our roster is students first. Most players arrive from junior or high school programs and keep playing while carrying a full course load.\n\n- No athletic scholarships — this is a club program\n- Players come from across the US and abroad\n- Everyone tries out, including returners" },
+      { title: "What the season looks like",
+        body: "Around twenty-five games between October and March, plus the conference tournament.\n\n- Two practices a week, often early morning\n- Weekend series against Pac-8 opponents\n- Travel is by road, usually overnight" },
+      { title: "How to get in touch",
+        body: "Fill in the interest form and the coaching staff will follow up. Tell us where you have played and include a highlight link if you have one." },
+    ],
+  },
+  /* What the club needs help with, rather than who already helps. */
+  volunteerRoles: [],
+  /* One staff list, not one per season: a program has current staff, and
+   * rolling to a new season should not hand someone an empty page to retype. */
+  staff: [],
+  /* Filled from the console. Nothing is seeded - inventing a sponsor would be
+     putting a real company's name on a claim it never made. */
+  sponsors: [],
+  settings: {
+    ticketsUrl: "", contactEmail: "", homeVenue: "Oakland Ice Center", siteUrl: "",
+    /* The university's own giving page, with the fund already selected. */
+    donateUrl: "https://give.berkeley.edu/giftdetails?fund1=FU0852000",
+    /* The club's channel on its broadcaster, which does not change from
+       game to game. Blank falls back to whichever game has a link on it. */
+    watchUrl: "https://www.bdehockey.com/free-live.php?con=watchCAL&type=l&desc=CAL%20Hockey%20-%20University%20of%20California%20Berkeley%20FREE",
+    /* Which season a game preview describes before this one has been played:
+       "previous" falls back to last year, "current" stays on this one and
+       shows nothing until there are games. */
+    previewForm: "previous",
+    /* The three pages linked at the very bottom. Drafts describing what this
+     * site actually does - a club is not a law firm, and boilerplate copied
+     * from somewhere else would be describing somebody else's data handling.
+     * Editable under Settings, and worth a read by the university before this
+     * goes public. */
+    legal: {
+      terms:
+        "# Using this site\n" +
+        "This site is published by the Cal Ice Hockey club, a student-run team at " +
+        "the University of California, Berkeley. It is not an official University " +
+        "publication and the club is not part of Cal Athletics.\n\n" +
+        "# What is here\n" +
+        "Schedules, results, statistics and rosters are published in good faith and " +
+        "corrected when we find a mistake. Historical records are compiled from " +
+        "league and third-party sources and may be incomplete.\n\n" +
+        "# Getting in touch\n" +
+        "If something on this site is wrong, or should not be here, write to the " +
+        "program and we will look at it.",
+      privacy:
+        "# What this site collects\n" +
+        "Nothing, unless you send it. There are two forms: the recruit interest " +
+        "form and the alumni list. Both ask for a name and an email address, and " +
+        "for whatever else you choose to fill in.\n\n" +
+        "# What happens to it\n" +
+        "Submissions go to the program's own inbox. They are not published on this " +
+        "site, not sold, and not passed to anybody outside the club.\n\n" +
+        "# Removing your details\n" +
+        "Ask, and we will delete them.\n\n" +
+        "# Elsewhere\n" +
+        "Links to ticketing, streaming, giving and league sites lead off this site, " +
+        "and what those services collect is up to them.",
+      accessibility:
+        "# What we are aiming for\n" +
+        "This site is built to be usable with a keyboard and with a screen reader: " +
+        "text over solid backgrounds, real headings, labelled controls, and images " +
+        "that carry a description where one helps.\n\n" +
+        "# Where it falls short\n" +
+        "Some of it is not there yet. Statistics tables are dense, and archive " +
+        "material inherited from elsewhere may be missing descriptions.\n\n" +
+        "# Tell us\n" +
+        "If any part of this site is hard to use, write to the program and say " +
+        "which part. That is the fastest way to get it fixed.",
+    },
+    /* The home rink, for the Venue page. Everything here is published by the
+     * rink or by BART - a club site should not be guessing at somebody's
+     * opening hours or fares, so what is not known is left out. */
+    venue: {
+      name: "Oakland Ice Center",
+      address: "519 18th Street, Oakland, CA 94612",
+      phone: "(510) 268-9000",
+      website: "https://www.oaklandice.com",
+      mapUrl: "https://www.google.com/maps/dir/?api=1&destination=519+18th+Street,+Oakland,+CA+94612",
+      about:
+        "Cal plays its home games at the Oakland Ice Center, a two-sheet rink in " +
+        "downtown Oakland run by Sharks Sports & Entertainment, the company behind " +
+        "the San Jose Sharks. It opened in 1995 and has an NHL-size sheet at " +
+        "200 by 85 feet and an Olympic sheet at 200 by 100.\n\n" +
+        "It is a public rink the rest of the week, so the building is shared with " +
+        "figure skating, broomball, curling and open skate sessions.",
+      directions: [
+        { mode: "BART", icon: "train",
+          body:
+            "The 19th Street Oakland station is less than a block from the door, " +
+            "which makes this the easy way in from campus.\n\n" +
+            "From Downtown Berkeley take a Richmond-line train toward Oakland and " +
+            "get off at 19th Street - three stops, no transfer, about nine minutes. " +
+            "Trains run roughly every fifteen minutes." },
+        { mode: "AC Transit", icon: "bus",
+          body:
+            "The rink sits among the downtown Oakland bus stops. Routes and times " +
+            "are on the AC Transit site; the useful stop is whichever one puts you " +
+            "on Broadway around 19th." },
+        { mode: "Driving and parking", icon: "car",
+          body:
+            "Park at the Dalziel Garage on 16th Street between Clay and San Pablo. " +
+            "Pay through the ParkMobile app and get it validated inside - " +
+            "validation is free on weekday evenings from 4pm and on Saturdays from " +
+            "8am, both until 1am.\n\n" +
+            "The garage is closed on Sundays. Street parking and the 18th Street " +
+            "Uptown lot are free that day." },
+      ],
+    },
+    /* The school this install belongs to. One per install today; see the
+     * multi-tenant note before rolling out to more schools. */
+    /* Only the networks with a URL are shown, so a program is not forced to
+     * have an account everywhere. */
+    socials: { instagram: "", x: "", youtube: "", facebook: "" },
+    org: {
+      name: "Cal Ice Hockey",
+      /* The formal name, used where the program is named officially:
+       * printed schedules, PDF headers, calendar feeds, page titles. The short
+       * name stays for navigation and headings, where it reads better. */
+      officialName: "California Golden Bears Ice Hockey",
+      /* What appears beside an opponent on a scorebug or box score. Short
+       * enough to sit next to their name without wrapping. */
+      gameName: "California",
+      abbr: "CAL",
+      mascot: "Golden Bears",
+      logo: "/logos/cal.svg", primary: "#041E42", accent: "#FFC72C",
+    },
+  },
+  /* Per-person console settings, as opposed to the site-wide `settings` above. */
+  account: { name: "", email: "", avatar: null, density: "comfortable", defaultSeason: "", theme: "midnight", custom: { mode: "dark", base: "#101317", accent: "#6366F1" } },
+  news: [
+    { id: uid(), date: "2026-08-28", tag: "NEWS", author: "", title: "New Cal Ice Hockey Site Is Live", blurb: "Schedule, roster, stats, and season archives — all in one place, updated by the team." },
+    { id: uid(), date: "2026-08-20", tag: "NEWS", author: "", title: "Recruit Interest Form Open for 2026-27", blurb: "Incoming Bears and current students: tell the coaching staff about your game." },
+    { id: uid(), date: "2026-08-10", tag: "NEWS", author: "", title: "Season Archives Now Online", blurb: "Browse team records going back to 2017-18, imported from EliteProspects." },
+  ],
+  seasons: {
+    "2025-26": {
+      record: { w: 20, l: 10, t: 0, gf: 180, ga: 99, note: "ACHA II · 3rd in PPG rank · via EliteProspects" },
+      schedule: [],
+      roster: [
+        // Goaltenders
+        EP("1", "Yusuf Akbas", "G", "L", "6′0″", "Irvine, CA"),
+        EP("", "Allan Anaka", "G", "L", "6′0″", "Granite Bay, CA"),
+        EP("80", "Aidan Comeau", "G", "L", "5′10″", "Newport Beach, CA"),
+        EP("39", "Nikola Tomic", "G", "L", "6′0″", "Tulln, Austria"),
+        // Defensemen
+        EP("16", "Jack Burbank", "D", "L", "6′0″", "Brier, WA"),
+        EP("88", "Sean Dolim", "D", "L", "6′2″", "Manhattan Beach, CA"),
+        EP("95", "Enzo Goebel", "D", "R", "5′8″", "Arcadia, CA"),
+        EP("6", "William Hagan", "D", "L", "5′6″", "Palo Alto, CA"),
+        EP("96", "Eric Khodorenko", "D", "L", "6′1″", "Walnut Creek, CA"),
+        EP("4", "Jason Lee", "D", "R", "6′1″", "Saratoga, CA"),
+        EP("51", "Simon Mantoani", "D", "R", "6′1″", "San Diego, CA"),
+        EP("11", "Patrick Nasta", "D", "R", "6′0″", "Crystal Lake, IL"),
+        EP("8", "Ellis O'Dowd", "D", "L", "5′8″", "Santa Barbara, CA"),
+        EP("21", "Trent Teruya", "D", "R", "5′9″", "Redlands, CA"),
+        // Forwards
+        EP("12", "Brendan Baker", "F", "R", "5′8″", "South Lake Tahoe, CA"),
+        EP("15", "Bryan Bartolo", "F", "R", "5′10″", "Berkeley, CA"),
+        EP("25", "Roy Chebaclo", "F", "R", "6′0″", "Edina, MN"),
+        EP("72", "Liam Collins", "F", "R", "6′1″", "Thousand Oaks, CA"),
+        EP("20", "Henry Conlin", "F", "R", "6′2″", "Chicago, IL"),
+        EP("93", "Colten Fazio", "F", "L", "6′4″", "New York, NY"),
+        EP("23", "Lucas Fung", "F", "R", "5′10″", "Brussels, Belgium"),
+        EP("97", "Connor Kanas", "F", "", "6′0″", "California"),
+        EP("13", "Ryan Lee", "F", "R", "5′11″", "Valencia, CA"),
+        EP("81", "Tianshu Liu", "F", "R", "5′10″", "Orange, CA"),
+        EP("9", "Kodai Mizuno", "F", "R", "5′9″", "San Jose, CA"),
+        EP("24", "Arya Nahavandi", "F", "L", "5′8″", "San Diego, CA"),
+        EP("14", "Mark Rejna", "F", "L", "6′0″", "London, England"),
+        EP("19", "Kayden Roloff", "F", "L", "5′11″", "Redlands, CA"),
+        EP("3", "Dominik Sedlak-Braude", "F", "R", "6′0″", "North Potomac, MD"),
+        EP("29", "Kristian Seppanen", "F", "R", "5′8″", "Aliso Viejo, CA"),
+        EP("18", "Tyson Storr", "F", "L", "5′10″", "El Segundo, CA"),
+      ],
+      coaches: [],
+    },
+    "2024-25": { record: { w: 27, l: 1, t: 0, gf: 198, ga: 60, note: "1st in ACHA II PPG rank" }, schedule: [], roster: [], coaches: [] },
+    "2023-24": { record: { w: 15, l: 12, t: 0, gf: 173, ga: 119 }, schedule: [], roster: [], coaches: [] },
+    "2022-23": { record: { w: 14, l: 6, t: 0, gf: 129, ga: 69 }, schedule: [], roster: [], coaches: [] },
+    "2019-20": { record: { w: 14, l: 10, t: 0, gf: 98, ga: 64, note: "Playoffs canceled" }, schedule: [], roster: [], coaches: [] },
+    "2018-19": { record: { w: 18, l: 6, t: 0, gf: 128, ga: 63 }, schedule: [], roster: [], coaches: [] },
+    "2017-18": { record: { w: 16, l: 2, t: 0, gf: 121, ga: 60 }, schedule: [], roster: [], coaches: [] },
+  },
+};
+
+/* ---------------- Storage helpers ---------------- */
+async function loadKey(key, fallback) {
+  try {
+    const r = await window.storage.get(key);
+    return r && r.value ? JSON.parse(r.value) : fallback;
+  } catch {
+    return fallback; // key doesn't exist yet
+  }
+}
+async function saveKey(key, val) {
+  try {
+    await window.storage.set(key, JSON.stringify(val));
+    return { ok: true };
+  } catch (e) {
+    // Almost always the quota, and almost always images. Silently swallowing
+    // this is how someone loses a full roster while the bar reads "saved".
+    console.error("storage save failed", e);
+    return { ok: false, error: e };
+  }
+}
+
+/* ---------------- Sticky view preferences ----------------
+ * Each page unmounts when you navigate away, so plain useState resets the
+ * view every time you come back. These few choices are preferences, not
+ * transient state: if someone picked the calendar, that is how they want to
+ * read the schedule until they say otherwise.
+ *
+ * Season and filters are deliberately NOT sticky — those belong to a task, and
+ * landing on last season's roster weeks later would be a bug, not a courtesy.
+ */
+const PREFS_KEY = "cal-hockey-prefs";
+
+function readPrefs() {
+  try { return JSON.parse(localStorage.getItem(PREFS_KEY) || "{}"); } catch { return {}; }
+}
+
+function useSticky(key, fallback) {
+  const [value, setValue] = useState(() => {
+    const v = readPrefs()[key];
+    return v === undefined ? fallback : v;
+  });
+  useEffect(() => {
+    try {
+      const all = readPrefs();
+      all[key] = value;
+      localStorage.setItem(PREFS_KEY, JSON.stringify(all));
+    } catch { /* private mode; the preference just will not persist */ }
+  }, [key, value]);
+  return [value, setValue];
+}
+
+/* ---------------- Utilities ---------------- */
+const cmpDate = (a, b) => (a.date || "").localeCompare(b.date || "");
+
+/* Exhibitions are played but never counted; playoffs count toward the record
+ * and are also reported on their own, the way most programs publish it. */
+const GAME_TYPE_LABEL = { regular: "Regular season", playoff: "Playoff", exhibition: "Exhibition" };
+
+const GAME_TYPES = [["regular", "Regular"], ["playoff", "Playoff"], ["exhibition", "Exhibition"]];
+const gameType = (g) => g.gameType || "regular";
+const countsToward = (g) => !!g.result && gameType(g) !== "exhibition";
+
+function computeRecord(schedule) {
+  let w = 0, l = 0, t = 0, gf = 0, ga = 0;
+  let pw = 0, pl = 0, pt = 0;
+  for (const g of schedule) {
+    if (!countsToward(g)) continue;
+    const { us, them } = g.result;
+    gf += Number(us) || 0;
+    ga += Number(them) || 0;
+    const win = us > them, loss = us < them;
+    if (win) w++; else if (loss) l++; else t++;
+    if (gameType(g) === "playoff") {
+      if (win) pw++; else if (loss) pl++; else pt++;
+    }
+  }
+  return { w, l, t, gf, ga, playoff: { w: pw, l: pl, t: pt } };
+}
+
+/* ---------------- Derived data ----------------
+ * The admin edits a normalised shape (opponents by id, stats per game). The
+ * public pages want flat objects. hydrate() resolves both once, so every page
+ * below can keep reading `g.opponent` and `p.stats` as it always has.
+ */
+
+/**
+ * The white-on-dark version of an SVG mark.
+ *
+ * Vector source can be recoloured outright, which beats every trick available
+ * to a raster: the shape stays crisp at any size, and a two-tone crest - the
+ * Eastern Washington eagle, say - flattens to one clean silhouette rather
+ * than a soft-edged mask. Every paint that draws something becomes white.
+ * `fill="none"` is left alone because it draws nothing, and a shape with no
+ * fill attribute at all is painted black by SVG's own default, so it needs
+ * one added rather than replaced.
+ *
+ * Only SVG can be treated this way. A PNG or WebP is pixels, so the dark
+ * version of one has to be uploaded rather than derived.
+ */
+function whiteSvgMark(src) {
+  return String(src)
+    .replace(/(fill|stroke)="(?!none")[^"]*"/g, '$1="#ffffff"')
+    .replace(/(fill|stroke):\s*(?!none)[^;"']+/g, "$1:#ffffff")
+    .replace(/<(path|polygon|circle|ellipse|rect)\b(?![^>]*\bfill=)([^>]*?)(\/?)>/g,
+      '<$1 fill="#ffffff"$2$3>');
+}
+
+/* SVG text as something an <img src> will take. Encoded to UTF-8 before
+   base64 because btoa() refuses anything outside Latin-1, and a crest whose
+   file carries a copyright line or a designer's name will contain some. */
+function svgDataUrl(text) {
+  return "data:image/svg+xml;base64,"
+    + btoa(String.fromCharCode(...new TextEncoder().encode(text)));
+}
+
+/**
+ * Pick an opponent mark for the surface it will sit on, falling back to the
+ * other slot rather than showing nothing. Null means "use initials".
+ */
+function oppLogo(opponent, surface) {
+  if (!opponent) return null;
+  return surface === "dark"
+    ? opponent.logoDark || opponent.logoLight || null
+    : opponent.logoLight || opponent.logoDark || null;
+}
+
+/**
+ * "vs" or "at" for a game, and neither when nobody recorded which it was.
+ *
+ * Four states, not two. A schedule reconstructed from a third party can carry
+ * the date, the opponent and the score without saying whose rink it was
+ * played on; reading "not home" as "away" would put fifty road games on the
+ * record that nobody ever claimed, so an unset venue prints as nothing at
+ * all. A neutral site takes "vs" - nobody is the visitor at a showcase.
+ */
+const vsAt = (g) => (g.homeAway === "A" ? "at"
+  : g.homeAway === "H" || g.homeAway === "N" ? "vs" : "");
+const SIDE_LABEL = { H: "Home", A: "Away", N: "Neutral" };
+const sideClass = (g) => (g.homeAway === "H" ? "home" : g.homeAway === "N" ? "neutral" : "away");
+const vsAtSp = (g) => { const v = vsAt(g); return v ? v + " " : ""; };
+
+/** Box-score totals for one player, or null when no box score exists yet. */
+function boxScoreTotals(site, season, player) {
+  const all = site.gameStats || {};
+  let found = false;
+  const t = {
+    gp: 0, g: 0, a: 0, pim: 0, saves: 0, ga: 0,
+    ppg: 0, shg: 0, gwg: 0, minutes: 0,
+    // Goaltender decisions, taken from the result of games they dressed for.
+    w: 0, l: 0, tie: 0, so: 0,
+  };
+  for (const game of season.schedule || []) {
+    const line = (all[game.id] || {})[player.id];
+    if (!line) continue;
+    found = true;
+    if (line.dressed === false) continue;
+    /* A backup goaltender dresses for the game but does not play in it, and
+       every published goalie line counts appearances rather than nights on
+       the bench. A skater who dressed played; a keeper who never faced a shot
+       did not. */
+    if (player.position === "G"
+      && !(Number(line.minutes) || Number(line.saves) || Number(line.ga))) continue;
+    t.gp++;
+    t.g += Number(line.g) || 0;
+    t.a += Number(line.a) || 0;
+    t.pim += Number(line.pim) || 0;
+    t.ppg += Number(line.ppg) || 0;
+    t.shg += Number(line.shg) || 0;
+    if (line.gwg) t.gwg++;
+    t.saves += Number(line.saves) || 0;
+    t.ga += Number(line.ga) || 0;
+    t.minutes += Number(line.minutes) || 0;
+
+    if (player.position === "G" && game.result) {
+      const { us, them } = game.result;
+      if (us > them) t.w++; else if (us < them) t.l++; else t.tie++;
+      if ((Number(line.ga) || 0) === 0) t.so++;
+    }
+  }
+  if (found) return t;
+
+  /* An imported season has totals on the roster row and no game log to derive
+     them from. Falling back to those beats reporting zeroes for a year that
+     was actually played. `fromRow` says there was no game log behind these.
+     A won-lost record usually cannot be recovered from a bare total - but
+     some sources carry it, so it comes through when it is there and
+     `noRecord` marks the case where it genuinely is not. */
+  const st = player.stats || {};
+  const keys = ["gp", "g", "a", "pim", "ppg", "shg", "gwg", "saves", "ga", "minutes", "so",
+    "w", "l", "tie",
+    /* Rates, not counts. Some sources publish a goaltender's GAA and save
+       percentage without the saves and ice time behind them; carried through
+       so the season can show what is known instead of a row of zeroes. */
+    "gaa", "svpct"];
+  if (!keys.some((k) => Number(st[k]))) return null;
+  const out = { ...t, fromRow: true };
+  for (const k of keys) out[k] = Number(st[k]) || 0;
+  out.noRecord = !(out.w || out.l || out.tie);
+  /* Which of these the source never published. A figure nobody recorded is
+     not the same as a figure of zero, and the tables read this to say so. */
+  out.absent = keys.filter((k) => !(k in st));
+  return out;
+}
+
+/**
+ * One goaltender's line, ready to print.
+ *
+ * Saves and goals against are counts; GAA and save percentage are rates
+ * derived from them. A season that arrives as rates alone has no counts to
+ * derive from - and zero saves is not the same claim as no record of them -
+ * so those cells read as unknown while the rates print as published.
+ */
+function keeperLine(t) {
+  const sv = Number(t.saves) || 0;
+  const ga = Number(t.ga) || 0;
+  const faced = sv + ga;
+  const mins = Number(t.minutes) || 0;
+  const gp = Number(t.gp) || 0;
+  const rateOnly = !faced && (!!(Number(t.gaa) || Number(t.svpct)) || t.rateOnly === true);
+  return {
+    gp, so: Number(t.so) || 0, saves: sv, ga, faced, rateOnly,
+    svText: rateOnly ? "—" : sv,
+    gaText: rateOnly ? "—" : ga,
+    svpct: faced ? sv / faced : rateOnly ? Number(t.svpct) || null : null,
+    // Per 60 where the minutes are known, otherwise per appearance, which is
+    // what a scoresheet without a clock supports.
+    gaa: mins > 0 ? (ga * 60) / mins : rateOnly ? Number(t.gaa) || null : gp ? ga / gp : null,
+  };
+}
+
+const pctText = (v) => (v == null ? "—" : v.toFixed(3).replace(/^0/, ""));
+
+function hydrate(site) {
+  if (!site) return site;
+  const byId = {};
+  for (const o of site.opponents || []) byId[o.id] = o;
+
+  const seasons = {};
+  for (const [name, season] of Object.entries(site.seasons || {})) {
+    const schedule = (season.schedule || []).map((g) => {
+      const o = byId[g.opponentId];
+      return {
+        ...g,
+        opponent: o ? o.name : g.opponent || "",
+        /* The three or four letters a scoreboard uses. Falls back to the name
+           so a game against an opponent with no record still says something. */
+        opponentShort: (o && o.short) || g.opponent || "",
+        // Public pages sit on light surfaces; the console picks the dark mark.
+        opponentLogo: o ? oppLogo(o, "light") : null,
+        opponentLogoDark: o ? oppLogo(o, "dark") : null,
+        /* What this game is known as, if anything. */
+        specials: g.special ? [g.special] : [],
+      };
+    });
+    const roster = (season.roster || []).map((p) => {
+      const box = boxScoreTotals(site, { ...season, schedule }, p);
+      // Manual stats stay as a fallback for seasons with no box scores, the
+      // same rule seasons use for record_override.
+      return box
+        ? { ...p, stats: box, statsFromBox: true }
+        : { ...p, stats: p.stats || {}, statsFromBox: false };
+    });
+    seasons[name] = { ...season, schedule, roster };
+  }
+  return { ...site, seasons };
+}
+
+/** Career totals for a name across every season. */
+function careerTotals(site, name) {
+  const t = { gp: 0, g: 0, a: 0, pim: 0, seasons: 0 };
+  for (const season of Object.values(site.seasons || {})) {
+    const p = (season.roster || []).find((x) => x.name === name);
+    if (!p) continue;
+    t.seasons++;
+    t.gp += Number(p.stats?.gp) || 0;
+    t.g += Number(p.stats?.g) || 0;
+    t.a += Number(p.stats?.a) || 0;
+    t.pim += Number(p.stats?.pim) || 0;
+  }
+  return t;
+}
+
+/* Standard-time offsets from UTC, in minutes, by region. Daylight saving is
+   decided by the date rather than by the letter in the abbreviation, because
+   the source is not careful about which one it writes. */
+const TZ_REGION = { P: -480, M: -420, C: -360, E: -300, AK: -540, H: -600 };
+
+/* Second Sunday in March to the first Sunday in November, US rules. Compared
+   at day granularity, which is enough for a schedule - nothing faces off at
+   two in the morning. */
+function inUsDst(y, mo, d) {
+  const nth = (month, n) => {
+    const first = new Date(Date.UTC(y, month, 1)).getUTCDay();
+    return 1 + ((7 - first) % 7) + (n - 1) * 7;
+  };
+  const start = nth(2, 2);
+  const end = nth(10, 1);
+  if (mo > 3 && mo < 11) return true;
+  if (mo === 3) return d >= start;
+  if (mo === 11) return d < end;
+  return false;
+}
+
+/** A stored date and time as a real instant, or null when the zone is unknown. */
+function gameInstant(iso, time) {
+  if (!iso || !time) return null;
+  const m = String(time).trim()
+    .match(/^(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?\s+([A-Z]{2,4})$/i);
+  if (!m) return null;
+  const abbr = m[4].toUpperCase();
+  const region = abbr.startsWith("AK") ? "AK" : abbr[0];
+  const base = TZ_REGION[region];
+  if (base === undefined) return null;
+  let hour = Number(m[1]) % 12;
+  if (/p/i.test(m[3])) hour += 12;
+  const mins = Number(m[2] || 0);
+  const [y, mo, d] = iso.split("-").map(Number);
+  if (!y || !mo || !d) return null;
+  /* Arizona writes MST all year and means it. Everywhere else, the date
+     decides. */
+  const arizona = abbr === "MST" && inUsDst(y, mo, d);
+  const off = arizona ? base : base + (inUsDst(y, mo, d) ? 60 : 0);
+  /* Build the wall-clock moment as if it were UTC, then undo the zone's
+     offset to get the true instant. */
+  return new Date(Date.UTC(y, mo - 1, d, hour, mins) - off * 60000);
+}
+
+/**
+ * A game's start, in whatever zone the reader is in.
+ *
+ * Falls back to the stored string when there is nothing to convert - a time
+ * with no zone on it, or a zone this does not know - because printing it
+ * unchanged is honest and guessing is not.
+ */
+function localTime(iso, time) {
+  const at = gameInstant(iso, time);
+  if (!at) return time || "";
+  return at.toLocaleTimeString("en-US", {
+    hour: "numeric", minute: "2-digit", timeZoneName: "short",
+  }).replace(/\bAM\b/, "am").replace(/\bPM\b/, "pm");
+}
+
+/** The date a game falls on for the reader, which a late game can shift. */
+function localDate(iso, time) {
+  const at = gameInstant(iso, time);
+  if (!at) return fmtDate(iso);
+  return at.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+}
+
+function fmtDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso + "T12:00:00");
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+}
+
+function resultText(g) {
+  if (!g.result) return null;
+  const { us, them, ot } = g.result;
+  const tag = us > them ? "W" : us < them ? "L" : "T";
+  return { tag, line: `${us}–${them}${ot ? " (OT)" : ""}` };
+}
+
+/* ---------------- Design system (Punch/Cal tokens) ---------------- */
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;600&display=swap');
+
+/* Tabs differ in height, and a short one - play-by-play, most often - loses the
+   page its scrollbar. The centred layout then slides sideways by half a
+   scrollbar on every switch. Reserving the gutter keeps every page and every
+   tab on the same axis, whether or not it scrolls. */
+html { scrollbar-gutter: stable; }
+
+.chh, .chh * { box-sizing: border-box; }
+.chh {
+  --blue: #041E42; --deep: #041E42; --mid: #0B2440;
+  --gold: #FFC72C; --gold-hot: #FFD34F;
+  --ink: #10202F; --muted: #4E6072;
+  /* Marks a link. A gold block behind the words read as highlighter pen, so
+     it is a hairline under them instead: faint at rest, solid on hover. */
+  --rule: rgba(4, 30, 66, 0.30); --rule-on: rgba(4, 30, 66, 0.75);
+  --ondark: #EAF1F8; --ondark-muted: #9FB4C8;
+  --ice: #F2F5F8; --border: #DCE4EB; --border-dark: #12294A;
+  --page: #F7F9FA;
+  --win: #FFC72C; --loss: #55606B; --tie: #8A97A3;
+  --disp: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --body: "Inter", system-ui, sans-serif;
+  font-family: var(--body); color: var(--ink); background: #fff;
+  min-height: 100vh; display: flex; flex-direction: column;
+}
+/* Unclassed links take the surrounding color. Anything with a class of its
+   own keeps it — a bare .chh a rule outranks a single class, which silently
+   swallowed the color on every <a> styled as a button. */
+.chh a:not([class]) { color: inherit; }
+/* No underlines anywhere on the public site. Color and weight carry the
+   affordance; underlines read as unstyled browser default next to the
+   pill buttons and flat cards. */
+.chh a { text-decoration: none; }
+/* Form controls do not inherit the page font by default. */
+.chh select, .chh input, .chh textarea, .chh button { font-family: var(--body); }
+.chh :focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.wrap { max-width: 1160px; margin: 0 auto; padding: 0 24px; width: 100%; }
+.section { padding: clamp(48px, 7vw, 88px) 0; }
+.ice { background: var(--ice); }
+.navy { background: var(--blue); color: var(--ondark); }
+
+.h1, .h2, .h3, .h6, .eyebrow, .btn, .tab, .jersey, .statnum {
+  font-family: var(--disp); text-transform: uppercase;
+}
+.h1 { font-weight: 700; font-size: clamp(2.5rem, 6.5vw, 4.5rem); line-height: 0.95; letter-spacing: 0.01em; margin: 0; }
+.h2 { font-weight: 700; font-size: clamp(1.8rem, 3.2vw, 2.5rem); line-height: 1.1; margin: 0; }
+.h3 { font-weight: 600; font-size: 1.35rem; line-height: 1.15; letter-spacing: 0.02em; margin: 0; }
+.h6 { font-weight: 600; font-size: 0.8rem; letter-spacing: 0.14em; margin: 0; }
+.eyebrow { font-weight: 600; font-size: 0.8rem; letter-spacing: 0.22em; color: var(--gold); margin: 0; }
+.blg { font-size: 18px; line-height: 1.55; }
+.bsm { font-size: 13.5px; line-height: 1.55; }
+
+
+/* Header */
+.hdr { position: sticky; top: 0; z-index: 50; background: var(--deep); }
+.navbar { display: flex; align-items: center; gap: 28px; min-height: 74px; }
+.brand { display: flex; align-items: center; gap: 12px; cursor: pointer; background: none; border: 0; padding: 0; color: var(--ondark); text-align: left; }
+.brand .top { font-family: var(--disp); font-weight: 700; font-size: 21px; letter-spacing: 0.06em; text-transform: uppercase; display: block; }
+.brand .sub { font-family: var(--disp); font-weight: 600; font-size: 10px; letter-spacing: 0.32em; text-transform: uppercase; color: var(--gold); display: block; margin-top: 3px; }
+.navlinks { display: flex; align-items: center; gap: 22px; margin-left: auto; flex-wrap: wrap; }
+.navlink { position: relative; background: none; border: 0; cursor: pointer; color: #fff;
+  font-family: var(--body); font-weight: 700; font-size: 16.5px; letter-spacing: 0;
+  padding: 8px 0; }
+/* Colour alone marks the page you are on. The gold does the work; a rule
+   under it as well was saying the same thing twice. */
+.navlink.on { color: var(--gold); }
+.navlink:hover { color: var(--gold); }
+.navcta { background: var(--gold); color: var(--deep); padding: 10px 18px; border-radius: 999px; }
+/* Giving money is not the same act as buying a ticket, so it does not wear
+   the same gold. An outline on the navy reads as a third option rather than a
+   third shout. */
+.navcta:hover { background: var(--gold-hot); }
+
+/* Social links in the header */
+.socials { display: flex; gap: 4px; align-items: center; margin-right: 6px; }
+/* .chh a { color: inherit } is more specific than a bare class, so these
+   need the element qualifier or they inherit ink-on-navy and vanish. */
+a.socialbtn { display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 999px; color: var(--ondark-muted);
+  text-decoration: none; transition: color 0.14s, background 0.14s; }
+a.socialbtn:hover { color: var(--deep); background: var(--gold); }
+/* The gold edge under the navy bar. */
+.hdrrule { height: 8px; background: var(--gold); }
+
+/* Nav dropdown */
+.navmenu { position: relative; }
+.navdrop { position: absolute; top: calc(100% + 8px); left: -12px; z-index: 60; min-width: 208px;
+  background: #fff; border-radius: 10px; padding: 6px;
+  box-shadow: 0 16px 40px rgba(4,30,66,0.24); border: 1px solid var(--border); }
+/* An invisible bridge across the gap between button and menu. Without it the
+   pointer leaves .navmenu on the way down and the menu closes under the cursor. */
+.navdrop::before { content: ""; position: absolute; left: 0; right: 0; top: -10px; height: 10px; }
+.navdropitem { display: block; width: 100%; text-align: left; background: none; border: 0;
+  cursor: pointer; font-family: var(--body); font-weight: 650; font-size: 14.5px;
+  color: var(--ink); padding: 10px 12px; border-radius: 7px;
+  /* Some items are links out, so they need the box a button gets by default. */
+  text-decoration: none; box-sizing: border-box; }
+.navdropitem:hover { background: var(--ice); color: var(--blue); }
+.navdropitem.on { color: var(--blue); background: var(--ice); }
+
+/* ---- Live ----
+   One dot, used on the public strip, the home widget and the console. */
+.livedot { display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  background: #E4002B; margin-right: 7px; vertical-align: baseline;
+  animation: livepulse 1.6s ease-in-out infinite; }
+@keyframes livepulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(228,0,43,0.5); }
+  50% { opacity: 0.75; box-shadow: 0 0 0 4px rgba(228,0,43,0); }
+}
+/* Motion for its own sake is one thing; a pulsing dot is the only cue that a
+   number on the page is going to change under the reader. Still, honour the
+   preference and let the color carry it. */
+@media (prefers-reduced-motion: reduce) {
+  .livedot { animation: none; }
+}
+.scard.islive { border-color: #E4002B; }
+.scard.islive .sdate { color: #E4002B; font-weight: 800; }
+.sscore.live { font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+/* ---- Game center ---- */
+.gchead { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+.gctitle { margin: 0; font-family: var(--body); font-weight: 800; font-size: 1.35rem;
+  letter-spacing: -0.025em; color: var(--ink); }
+.gcbanner { position: relative; overflow: hidden; background: #fff;
+  border: 1px solid var(--border); border-radius: 14px; }
+/* The angled flashes are how a broadcast scorebug is built: each team's color
+   comes in from its own end and stops before the names. */
+.gcslash { position: absolute; top: 0; bottom: 0; width: 76px; }
+.gcslash.left { left: 0; clip-path: polygon(0 0, 100% 0, 46% 100%, 0 100%); }
+.gcslash.right { right: 0; clip-path: polygon(54% 0, 100% 0, 100% 100%, 0 100%); }
+.gcbannerinner { position: relative; display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center;
+  gap: 0; padding: 18px 84px; }
+.gcteam { display: flex; align-items: center; gap: 0; min-width: 0; }
+.gcteam.left { justify-content: flex-start; }
+.gcteam.right { justify-content: flex-end; }
+.gcid { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.gcteam.right .gcid { flex-direction: row-reverse; text-align: right; }
+.gclogo { width: 46px; height: 46px; object-fit: contain; flex: 0 0 auto; }
+.gcnames { display: grid; min-width: 0; }
+.gcabbr { font-size: 12px; font-weight: 650; color: var(--muted); line-height: 1.2; }
+.gcname { font-family: var(--body); font-weight: 800; font-size: 19px; letter-spacing: -0.02em;
+  color: var(--ink); line-height: 1.15; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; }
+/* A name is worth two lines before it is worth an ellipsis - "Long Be…" tells
+   the reader nothing. This has to cover the whole narrow range, not just the
+   phone: below 560 the code replaces the name anyway, so the band that
+   actually needs wrapping is the one above it. Sizes live with the rest of
+   the small-screen scorebug rules further down. */
+@media (max-width: 900px) {
+  .gcname { white-space: normal; overflow: visible; line-height: 1.15; }
+}
+.gcshort { display: none; }
+.gcsog { font-size: 11.5px; font-weight: 650; color: var(--muted); margin-top: 2px; }
+.gcwatchbar { display: flex; justify-content: center; margin-top: 14px; }
+.gcscore { font-family: var(--disp); font-weight: 700; font-size: 46px; line-height: 1;
+  color: var(--ink); font-variant-numeric: tabular-nums; flex: 0 0 auto;
+  /* Equal auto margins: whatever room is left over is split in half, so the
+     score is always the same distance from its crest as from the clock. */
+  margin-left: auto; margin-right: auto; }
+/* The winner carries the weight; the other number steps back rather than
+   disappearing - it is still the score. */
+.gcscore.beaten { color: var(--muted); }
+.gcmid { display: grid; justify-items: center; gap: 5px; flex: 0 0 auto; }
+.gcchip { font-family: var(--body); font-weight: 700; font-size: 11.5px; letter-spacing: 0.02em;
+  background: var(--ice); border-radius: 5px; padding: 4px 10px;
+  color: var(--ink); white-space: nowrap; }
+.gcchip.live { background: rgba(228,0,43,0.1); color: #E4002B; }
+.gcwhen { font-size: 12.5px; font-weight: 650; color: var(--muted); white-space: nowrap; }
+.gctag { font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--blue); }
+
+/* Tabs */
+.gctabs { display: flex; gap: 4px; margin: 18px 0 0; border-bottom: 1px solid var(--border); }
+.gctab { background: none; border: 0; cursor: pointer; font: inherit; font-weight: 700;
+  font-size: 14.5px; color: var(--muted); padding: 12px 16px; position: relative; }
+.gctab:hover { color: var(--ink); }
+.gctab.on { color: var(--ink); }
+.gctab.on::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: -1px;
+  height: 3px; background: var(--gold); border-radius: 3px 3px 0 0; }
+
+/* A block header inside the roster table: the same bar as a column head,
+   set as a label rather than a control. */
+.gcbtgroup th { padding: 9px 16px; font-size: 11.5px; background: #EEF2F6; }
+.gcbtgroup th, .gcbt tbody .gcbtgroup th { border-top: 1px solid #E3E9EF; }
+.gcbt tbody:first-of-type .gcbtgroup th { border-top: 0; }
+
+.gcgrid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 20px;
+  align-items: start; margin-top: 20px; }
+.gccol { display: grid; gap: 18px; min-width: 0; }
+.gccol .statcard { border: 0; box-shadow: none; }
+.gcpad { padding: 20px 22px; }
+.gcnone { color: var(--muted); margin: 0; }
+
+.gcgoals { display: grid; gap: 8px; }
+
+/* Recap */
+.gcrecaptitle { font-family: var(--body); font-weight: 800; letter-spacing: -0.025em;
+  font-size: clamp(1.4rem, 2.4vw, 1.9rem); line-height: 1.15; color: var(--ink);
+  margin: 8px 0 0; }
+.gcrecapsub { margin: 10px 0 0; font-size: 15px; line-height: 1.5; color: var(--muted);
+  font-weight: 650; }
+.gcrecapart { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block;
+  border-radius: 12px; margin: 16px 0 0; }
+.gcrecapby { margin: 14px 0 0; font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.gcrecaplede { margin: 10px 0 16px; font-size: 15.5px; line-height: 1.65; color: var(--ink); }
+
+/* Three stars */
+.gcstars { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; }
+/* Photo on the left with the placing on it, three lines of detail beside it —
+   the shape a broadcast three-stars panel uses. */
+.gcstar { display: flex; align-items: center; gap: 13px; min-width: 0; }
+.gcstarart { position: relative; flex: 0 0 auto; }
+.gcstarnum { position: absolute; left: -3px; bottom: -3px; width: 22px; height: 22px;
+  display: grid; place-items: center; border-radius: 50%; background: var(--gold);
+  color: var(--deep); font-family: var(--disp); font-weight: 700; font-size: 12px;
+  box-shadow: 0 0 0 2px #fff; }
+.gcstarbody { display: grid; gap: 2px; min-width: 0; }
+.gcstarname { font-weight: 800; font-size: 15px; color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gcstarmeta { font-size: 12px; font-weight: 650; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gcstarline { font-size: 12.5px; font-weight: 700; color: var(--muted);
+  font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Scoring */
+.gcperiod + .gcperiod { margin-top: 20px; }
+.gcperiodlab { margin: 0 0 10px; font-family: var(--body); font-weight: 700; font-size: 12px;
+  letter-spacing: 0; text-transform: none; color: var(--muted); }
+.gcgoal { display: flex; align-items: center; gap: 14px; border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px 14px; }
+.gcgoal + .gcgoal { margin-top: 8px; }
+.gcgoal > img, .gcgoal > svg { flex: 0 0 auto; }
+.gcgoalnum { font-weight: 700; color: var(--muted); }
+.gcgoalmark { width: 17px; height: 17px; object-fit: contain; vertical-align: -3px;
+  margin-right: 6px; }
+.gcgoalwho { flex: 1 1 auto; min-width: 0; display: grid; gap: 3px; }
+.gcgoalname { font-weight: 800; font-size: 15px; color: var(--ink);
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.gcstrength { font-family: var(--body); font-weight: 700; font-size: 9.5px; letter-spacing: 0.02em;
+  background: rgba(228,0,43,0.1); color: #E4002B; border-radius: 4px; padding: 2px 6px; }
+.gcgoalassist { font-size: 13px; color: var(--muted); display: flex; align-items: center; }
+/* Who scored gets the first line to itself; the score and clock go
+   underneath. Neither is worth hiding the other. */
+@media (max-width: 560px) {
+  .gcgoal { flex-wrap: wrap; gap: 8px 12px; padding: 12px; }
+  .gcgoalwho { flex: 1 1 55%; }
+  .gcgoalcell { justify-items: start; text-align: left; }
+}
+
+.gcgoalcell { flex: 0 0 auto; display: grid; justify-items: center; gap: 2px;
+  background: var(--ice); border-radius: 8px; padding: 7px 12px; min-width: 74px; }
+.gccellval { font-weight: 800; font-size: 13.5px; color: var(--ink);
+  font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gccelllab { font-size: 10px; font-weight: 650; color: var(--muted); }
+
+/* Shootout, shot by shot. One column down the middle with each team on its
+   own side: which end a row sits at is what says whose attempt it was. */
+.solist { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.sorow { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
+.sorow.us { justify-content: flex-start; }
+/* row-reverse runs the axis right to left, so its "start" is the right edge -
+   flex-end would pack the row back over to the left. */
+.sorow.them { flex-direction: row-reverse; justify-content: flex-start; }
+.soface { flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%; overflow: hidden;
+  background: var(--ice); display: grid; place-items: center; }
+.soface > * { width: 100%; height: 100%; }
+.sooppmark { object-fit: contain; padding: 7px; }
+.sobody { display: grid; gap: 2px; min-width: 0; }
+.sorow.them .sobody { justify-items: end; text-align: right; }
+.soname { font-weight: 800; font-size: 15px; color: var(--ink); }
+.someta { display: flex; align-items: center; gap: 8px; font-size: 12.5px;
+  font-weight: 650; color: var(--muted); }
+.sorow.them .someta { flex-direction: row-reverse; }
+.soshot { color: var(--ink); }
+.sooutcome { color: var(--muted); }
+.socount { font-variant-numeric: tabular-nums; }
+/* Green for the one that went in, grey for the rest - the column of marks is
+   the quickest read of how the round went. The icons draw their own disc, so
+   the mark carries a colour and nothing else. */
+.somark { display: grid; place-items: center; }
+.somark.in { color: #1B8A3F; }
+.somark.out { color: #C3CBD4; }
+@media (max-width: 560px) {
+  .sorow { gap: 9px; }
+  .soface { width: 34px; height: 34px; }
+  .soname { font-size: 13.5px; }
+  .someta { font-size: 11.5px; gap: 6px; }
+}
+
+/* Penalties, linescore, shots */
+.gcpen, .gcline { width: 100%; }
+/* Sentence case, no letter-spacing: spaced capitals were the "mono" look. */
+.gcgrid table.stats th, .gcbox table.stats th {
+  text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 650; }
+.gcpen th, .gcline th { font-size: 12px; }
+table.stats.gcline { table-layout: fixed; min-width: 0; }
+table.stats.gcline th, table.stats.gcline td { padding: 8px 4px; text-align: center; }
+table.stats.gcline th:first-child, table.stats.gcline td:first-child {
+  text-align: left; width: 34%; padding-left: 0; }
+table.stats.gcline th:last-child, table.stats.gcline td:last-child { padding-right: 0; }
+/* Off-screen but still read aloud - the column keeps its name for anyone
+   who cannot see the crest sitting under it. */
+.sronly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* Each period is its own table, so left to itself every one sizes its columns
+   from its own rows and the headings land in a different place in each. Fixed
+   widths make the three read as one list. */
+table.stats.gcpen { min-width: 0; table-layout: fixed; }
+table.stats.gcpen th:nth-child(2), table.stats.gcpen td:nth-child(2) { width: 68px; }
+/* As narrow as its own heading allows - the cells hold a crest, so the word
+   "Team" is the only thing setting the width. */
+table.stats.gcpen th.gcpenteam, table.stats.gcpen td.gcpenteam {
+  width: 52px; white-space: nowrap; text-align: center; }
+.gcpenlogo { width: 18px; height: 18px; object-fit: contain; display: block; margin: 0 auto; }
+table.stats.gcpen th, table.stats.gcpen td { padding: 9px 8px; }
+table.stats.gcpen th:first-child, table.stats.gcpen td:first-child { padding-left: 0; }
+.gclinename { font-weight: 800; color: var(--ink); }
+.gclineteam { display: inline-flex; align-items: center; gap: 7px; }
+.gclineth { display: inline-flex; align-items: center; gap: 5px; justify-content: center; }
+.gclinelogo { width: 18px; height: 18px; object-fit: contain; flex: 0 0 auto; }
+.gclinetotal { font-weight: 800; color: var(--ink); }
+
+/* Comparison bars */
+.gcstatshead { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+.gcstatshead .statsec { flex: 1 1 auto; text-align: center; }
+.gcstatslogo { width: 30px; height: 30px; object-fit: contain; flex: 0 0 auto; }
+
+.gcbar { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px;
+  align-items: baseline; padding-bottom: 14px; margin-bottom: 14px;
+  border-bottom: 1px solid var(--border); }
+.gcbar:last-of-type { border-bottom: 0; }
+.gcbarval { font-family: var(--body); font-weight: 800; font-size: 22px; letter-spacing: -0.02em;
+  color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.gcbarval.right { text-align: right; }
+.gcbarlab { text-align: center; font-size: 12.5px; font-weight: 650; color: var(--muted);
+  align-self: center; }
+.gcbartrack { grid-column: 1 / -1; display: flex; height: 9px; margin-top: 8px; }
+/* The two bars meet on a slant rather than a seam, the way a broadcast
+   comparison is drawn. */
+.gcbarfill { display: block; }
+.gcbarfill.left { clip-path: polygon(0 0, 100% 0, calc(100% - 7px) 100%, 0 100%); }
+.gcbarfill.right { clip-path: polygon(7px 0, 100% 0, 100% 100%, 0 100%); }
+/* Not counted, so there is nothing to compare — a flat neutral track rather
+   than two bars implying a result. */
+.gcbarnone { flex: 1 1 auto; background: var(--ice); }
+.gcbar.unrecorded .gcbarval { color: var(--muted); font-weight: 700; }
+
+/* Season series */
+.gcserieslead { float: right; font-family: var(--body); font-size: 12px; font-weight: 700;
+  color: var(--muted); letter-spacing: 0; text-transform: none; }
+.gcseries { display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); gap: 10px; }
+.gcmeeting { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px 0;
+  background: #fff; }
+.gcmeeting.on { border-color: var(--blue); box-shadow: inset 0 0 0 1px var(--blue); }
+.gcmrow { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.gcmlogo { width: 20px; height: 20px; object-fit: contain; flex: 0 0 auto; }
+.gcmteam { font-weight: 800; font-size: 13.5px; color: var(--ink); letter-spacing: -0.01em; }
+.gcmscore { margin-left: auto; font-weight: 800; font-size: 15px; color: var(--ink);
+  font-variant-numeric: tabular-nums; }
+/* The team that lost recedes, so the winner reads first. */
+.gcmrow.lost .gcmteam, .gcmrow.lost .gcmscore { color: var(--muted); font-weight: 700; }
+.gcmrow.lost .gcmlogo { opacity: 0.55; }
+.gcmfoot { display: flex; justify-content: space-between; gap: 8px; margin: 8px -12px 0;
+  padding: 7px 12px; border-top: 1px solid var(--border);
+  font-family: var(--body); font-weight: 600; font-size: 11.5px; letter-spacing: 0;
+  color: var(--muted); }
+
+/* Venue page */
+.veneyebrow { font-family: var(--body); font-weight: 700; font-size: 12px;
+  color: var(--muted); margin: 0 0 6px; }
+.venfacts { display: flex; flex-wrap: wrap; gap: 10px 26px; margin: 18px 0 0; }
+.venfact { display: inline-flex; align-items: center; gap: 9px; color: var(--ink);
+  font-weight: 600; font-size: 14.5px; text-decoration: none; }
+.venfact svg { color: var(--blue); flex: 0 0 auto; }
+.venfact:hover { color: var(--blue); }
+.venabout { margin-top: 22px; max-width: 68ch; }
+.venabout p { color: var(--ink); line-height: 1.7; }
+.venhead { font-family: var(--disp); font-weight: 700; font-size: 26px; letter-spacing: 0.01em;
+  color: var(--ink); margin: 38px 0 4px; }
+.vengrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px; margin-top: 18px; }
+.vencard { border: 1px solid var(--border); border-radius: 12px; background: #fff;
+  padding: 18px 20px 6px; }
+.venmode { display: flex; align-items: center; gap: 10px; }
+/* The gold disc is the one bit of colour on the card, so the eye finds the
+   three ways in before it reads any of them. */
+.venicon { display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 999px; background: var(--gold);
+  color: var(--deep); flex: 0 0 auto; }
+.venmodename { margin: 0; font-size: 16px; font-weight: 800; color: var(--ink);
+  letter-spacing: -0.01em; }
+.venbody p { color: var(--muted); font-size: 14px; line-height: 1.65; }
+.venmapbtn { margin-top: 26px; }
+@media (max-width: 640px) {
+  .venfacts { flex-direction: column; gap: 10px; }
+  .venhead { font-size: 22px; margin-top: 30px; }
+}
+
+/* Power play / penalty kill tag */
+.strtag { display: inline-flex; align-items: center; gap: 7px; vertical-align: middle;
+  border-radius: 999px; padding: 3px 10px; font-size: 11px; font-weight: 800;
+  letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
+/* Gold for the advantage, a plain outline for the kill: an advantage is worth
+   celebrating on the team's own site, being a man down is not. */
+.strtag.pp { background: var(--gold); color: var(--deep); }
+.strtag.pk { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px var(--border); }
+.strtagclock { font-variant-numeric: tabular-nums; opacity: 0.85; }
+.strtag.sm { padding: 1px 7px; font-size: 10px; gap: 5px; margin-left: 8px; }
+/* On the navy strip the outline has to lift off the dark, not sink into it. */
+.sboard .strtag.pk { color: var(--muted); box-shadow: inset 0 0 0 1px var(--border); }
+.hnext .strtag { margin-left: 10px; }
+
+.statloghead { display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  margin-bottom: 14px; }
+.statloghead .rsel { margin-left: auto; min-width: 220px; }
+
+/* ---- Player page ---- */
+.l5row { cursor: pointer; }
+.l5row:hover td { background: var(--ice); }
+/* The row is the target, but a tint alone does not say "click me" - the
+   opponent picks up the same hairline every other link on the site uses. */
+.l5row:hover .l5opp span, .l5row:focus-visible .l5opp span {
+  text-decoration: underline; text-decoration-thickness: 1px;
+  text-underline-offset: 3px; text-decoration-color: var(--rule-on); }
+.l5row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+.pptop { overflow: hidden; padding: 0; }
+.pphead { display: flex; align-items: center; gap: 16px; padding: 18px 24px; flex-wrap: wrap; }
+.ppname { margin: 0; font-family: var(--body); font-weight: 800; font-size: 30px;
+  letter-spacing: -0.02em; color: var(--ink); }
+.ppdiv { width: 1px; align-self: stretch; min-height: 26px; background: var(--border); }
+.ppnum, .pppos { font-family: var(--body); font-weight: 800; font-size: 24px; color: var(--ink); }
+.ppjump { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+.ppsiblings { margin-left: auto; display: flex; gap: 18px; }
+.pprosterlab { font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--muted); }
+.ppjump select { appearance: none; -webkit-appearance: none; min-width: 200px;
+  padding: 9px 34px 9px 13px; font-family: var(--body); font-size: 14px; font-weight: 600;
+  color: var(--ink); background-color: #fff; border: 1px solid var(--border); border-radius: 8px;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1.5L6 6.5L11 1.5' stroke='%234E6072' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat; background-position: right 12px center; }
+.ppbanner { height: 240px; background: linear-gradient(180deg, #0B2440 0%, #041E42 55%, #02101F 100%); }
+.ppbanner img { width: 100%; height: 100%; object-fit: cover; object-position: center 30%; display: block; }
+/* The headshot rides the seam between the photo and the card below it. */
+.ppinfo { display: grid; grid-template-columns: auto 1fr; gap: 0 26px; padding: 0 24px 24px;
+  align-items: start; }
+/* Half the portrait overlaps the banner, so the negative margin is always
+   half the size - change one and the other has to follow. */
+.ppshot { display: block; width: 148px; height: 148px; margin-top: -74px; border-radius: 50%;
+  overflow: hidden; background: var(--ice); box-shadow: 0 0 0 4px #fff; }
+.ppshot img, .ppshot svg { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ppvitals { grid-column: 1; padding-top: 16px; font-size: 13.5px; line-height: 1.55; }
+.ppvitals p { margin: 0; color: var(--ink); white-space: nowrap; }
+.ppvitals b { font-weight: 700; color: var(--ink); }
+.ppsocials { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 12px; }
+.ppsocial { display: inline-flex; align-items: center; gap: 6px; color: var(--blue);
+  font-size: 12.5px; font-weight: 650; white-space: nowrap; }
+.ppsocial:hover .ppsocialtxt { text-decoration: underline; text-decoration-thickness: 1px;
+  text-underline-offset: 3px; text-decoration-color: var(--rule-on); }
+.ppcards { grid-column: 2; grid-row: 1 / span 2; display: grid; gap: 12px;
+  align-content: start; padding-top: 18px; min-width: 0; }
+.ppcard { display: flex; align-items: center; gap: 8px; background: var(--ice);
+  border-radius: 12px; padding: 14px 18px; }
+.ppcardname { flex: 1 1 auto; min-width: 0; font-weight: 800; font-size: 16px; color: var(--ink); }
+.ppcell { flex: 0 0 auto; display: grid; justify-items: center; gap: 2px; min-width: 54px; }
+.ppcellk { font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--muted); }
+.ppcellv { font-family: var(--disp); font-weight: 700; font-size: 24px; line-height: 1;
+  color: var(--ink); font-variant-numeric: tabular-nums; }
+@media (max-width: 760px) {
+  .ppinfo { grid-template-columns: 1fr; }
+  .ppcards, .ppvitals { grid-column: 1; grid-row: auto; }
+  .ppname { font-size: 24px; }
+  .ppjump { margin-left: 0; width: 100%; }
+}
+
+/* ---- The player page on a phone ----
+ * Banner, then the portrait sitting over its edge, then the name, then the
+ * badge line - the order a player card reads in. On a wide screen the name
+ * comes first because it sits beside the portrait; stacked, a headline above
+ * an empty gradient is just a caption for nothing.
+ *
+ * Setting .ppinfo to display:contents is what makes that possible without a second
+ * markup path: its children become children of .pptop for layout, so the
+ * portrait can be ordered between the banner and the name while the desktop
+ * grid is left exactly as it was.
+ */
+@media (max-width: 560px) {
+  .pptop { display: flex; flex-direction: column; }
+  .ppinfo { display: contents; }
+
+  .ppbanner { order: 1; height: 190px; }
+  .ppshot { order: 2; }
+  .pphead { order: 3; }
+  .ppvitals { order: 4; }
+  .ppcards { order: 5; }
+
+  /* .ppinfo's padding goes with its box, so its children carry their own. */
+  .ppvitals, .ppcards { padding-left: 16px; padding-right: 16px; }
+  .ppcards { padding-bottom: 20px; }
+
+  .ppshot { width: 116px; height: 116px; margin: -58px auto 0; }
+  /* PlayerAvatar is handed a pixel size and writes it inline, which the
+     container's 100% cannot outrank. The circle's size is the container's
+     business, so it says so. */
+  .ppshot img, .ppshot svg { width: 100% !important; height: 100% !important; }
+
+  /* The name takes the whole line; the crest, number and position read across
+     underneath it. */
+  .pphead { padding: 12px 16px 14px; gap: 8px; flex-wrap: wrap;
+    justify-content: center; text-align: center; }
+  .ppname { flex: 1 0 100%; font-size: 26px; }
+  .ppnum, .pppos { font-size: 17px; }
+  .pphead .ppdiv { min-height: 16px; }
+  /* No rule before the crest - it opens the line. */
+  .pphead .ppdiv:first-of-type { display: none; }
+  /* Both ways of stepping to another player go on a phone: Back to Roster is
+     the way back, and a list of thirty names in a select is not navigation. */
+  .ppjump, .ppsiblings { display: none; }
+
+  .ppvitals { padding-top: 6px; }
+  .ppvitals p { white-space: normal; }
+  /* The stat rows wrap onto as many lines as they need instead of running off
+     the edge - every figure stays on screen without a sideways swipe. */
+  .ppcard { flex-wrap: wrap; gap: 10px 4px; padding: 12px 14px; }
+  .ppcardname { flex: 1 0 100%; font-size: 15px; }
+  .ppcell { min-width: 0; flex: 1 1 auto; }
+  .ppcellv { font-size: 20px; }
+}
+
+/* Game info */
+/* Everything used to be set at the same near-bold weight, which left no
+   difference between a label and its answer and made the whole card shout.
+   The label steps back; the value carries the emphasis. */
+.gcinfo { display: grid; grid-template-columns: auto 1fr; gap: 11px 22px; margin: 0;
+  font-size: 13.5px; align-items: baseline; }
+.gcinfo dt { font-weight: 500; color: var(--muted); white-space: nowrap; }
+.gcinfo dd { margin: 0; font-weight: 600; color: var(--ink); min-width: 0;
+  overflow-wrap: anywhere; }
+.gcinfo a { color: var(--blue); }
+.gcinfo a { text-decoration: underline; text-decoration-thickness: 1px;
+  text-underline-offset: 3px; text-decoration-color: var(--rule); }
+.gcinfo a:hover { text-decoration-color: var(--rule-on); }
+
+/* The team toggle sat flush against the tabs above and the table below. */
+.gcbox { margin-top: 22px; }
+/* No card around each group: the heading and the table are enough, and the
+   outline was a box drawn inside another box. */
+.gcboxsec { padding-left: 0; padding-right: 0; }
+.gcboxsec + .gcboxsec { border-top: 1px solid var(--border); }
+.gcbox .gpsides { margin-bottom: 18px; }
+.gcbox .gpside { padding: 10px 20px; }
+
+/* Box score tables */
+.gcbt { width: 100%; }
+.gcbtspot { font-weight: 500; color: var(--ink); }
+.gcbtname { font-weight: 700; }
+.gcbtpts { font-weight: 800; color: var(--ink); }
+
+/* Play by play */
+.gcpbp { margin-top: 20px; }
+.gcplays { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: #fff; }
+.pbrow { display: flex; align-items: center; gap: 14px; padding: 17px 16px;
+  border-top: 1px solid var(--border); }
+.gcplays > *:first-child .pbrow, .gcplays > .pbrow:first-child { border-top: 0; }
+.pbtime { display: grid; justify-items: center; gap: 3px; flex: 0 0 48px; }
+.pbclock { background: #fff; border: 1px solid var(--border); border-radius: 5px;
+  padding: 2px 7px; font-weight: 800; font-size: 12px; font-variant-numeric: tabular-nums;
+  color: var(--ink); }
+.pbper { font-size: 10.5px; font-weight: 700; color: var(--muted); }
+.pblogo { width: 26px; height: 26px; object-fit: contain; flex: 0 0 auto; }
+.pbwhistle { width: 26px; display: grid; place-items: center; color: var(--muted); flex: 0 0 auto; }
+.pbbody { min-width: 0; display: grid; gap: 2px; }
+.pbtitle { font-weight: 800; font-size: 14.5px; color: var(--ink); }
+.pbdetail { font-size: 13px; font-weight: 600; color: var(--muted); }
+.pbstr { margin-left: 8px; font-size: 10.5px; font-weight: 800; letter-spacing: 0.06em;
+  border: 1px solid currentColor; border-radius: 4px; padding: 1px 5px; vertical-align: middle; }
+/* A goal is announced, not listed: the band carries the score at that moment
+   in the colours of whoever scored. */
+.pbgoal { border-top: 1px solid var(--border); }
+.gcplays > .pbgoal:first-child { border-top: 0; }
+.pbgoalbar { position: relative; overflow: hidden; display: grid; place-items: center;
+  padding: 12px 14px; color: #fff; }
+/* The scoring team's crest, blown up and turned almost all the way down - it
+   colours the band without competing with the score sitting on top of it. */
+/* The crest, blown up and turned almost all the way down. A team's logo is
+   shown as it actually is - no recolouring to a silhouette, which reads as a
+   different mark rather than a faded one. */
+.pbgoalwatermark { position: absolute; left: -20px; top: 50%; transform: translateY(-50%);
+  width: 116px; height: 116px; display: grid; place-items: center;
+  pointer-events: none; opacity: 0.22; }
+.pbgoalwatermark img { width: 100%; height: 100%; object-fit: contain; }
+.pbgoalwatermark svg { width: 100%; height: auto; }
+.pbgoalcore { position: relative; display: grid; justify-items: center; gap: 5px; }
+.pbgoalscore { display: flex; align-items: center; gap: 30px; }
+/* The side that did not score is dimmed rather than hidden: the score is only
+   readable as a score if both halves of it are there. */
+.pbgoalside { display: inline-flex; align-items: center; gap: 16px; opacity: 0.5; }
+.pbgoalside.on { opacity: 1; }
+.pbgoallogo { width: 24px; height: 24px; object-fit: contain; }
+.pbgoalnum { font-family: var(--disp); font-weight: 700; font-size: 25px; line-height: 1; }
+.pbgoallight { width: 26px; height: 26px; border-radius: 50%; background: #E4002B;
+  display: grid; place-items: center; flex: 0 0 auto;
+  box-shadow: 0 0 0 4px rgba(228, 0, 43, 0.22); }
+.pbgoallab { font-size: 11.5px; font-weight: 800; letter-spacing: 0.13em; text-transform: uppercase; }
+.pbrow.goal { border-top: 0; color: #fff; padding-top: 18px; padding-bottom: 18px; }
+.pbrow.goal .pbtitle { color: #fff; font-size: 15px; }
+.pbrow.goal .pbdetail { color: rgba(255, 255, 255, 0.85); }
+.pbrow.goal .pbper { color: rgba(255, 255, 255, 0.75); }
+.pbrow.goal .pbstr { border-color: rgba(255, 255, 255, 0.6); }
+
+.gcfilters { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; }
+.gcfilter { display: grid; gap: 6px; min-width: 168px; }
+.gcfilter .h6 { color: var(--muted); }
+/* The browser's own select control looks nothing like the rest of the site, so
+   the arrow is drawn here and the native one hidden. */
+.gcfilter select {
+  width: 100%; appearance: none; -webkit-appearance: none;
+  background: #fff; border: 1px solid var(--border); border-radius: 10px;
+  padding: 11px 38px 11px 14px; font: inherit; font-size: 14.5px; font-weight: 650;
+  color: var(--ink); cursor: pointer; line-height: 1.2;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%234E6072' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 14px center;
+}
+.gcfilter select:hover { border-color: var(--blue); }
+.gcfilter select:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.gcplays { display: grid; }
+.gcplay { display: flex; align-items: center; gap: 16px; padding: 13px 4px;
+  border-bottom: 1px solid var(--border); }
+.gcplaytime { flex: 0 0 auto; display: grid; justify-items: center; gap: 2px; width: 58px; }
+.gcplayclock { font-weight: 800; font-size: 13px; color: var(--ink); border: 1px solid var(--border);
+  border-radius: 6px; padding: 3px 8px; font-variant-numeric: tabular-nums; }
+.gcplayper { font-size: 10.5px; font-weight: 650; color: var(--muted); }
+.gcplaybody { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
+.gcplaykind { font-weight: 800; font-size: 14.5px; color: var(--ink); }
+.gcplaytext { font-size: 13.5px; color: var(--muted); }
+.gcplay.us .gcplayclock { border-color: var(--blue); }
+
+/* ---- The scorebug stays horizontal at every width ----
+ * Crest, name, score, the status, then the other team mirrored - the shape a
+ * scoreboard has everywhere. Stacking the two teams turned it into a list and
+ * lost the read-at-a-glance comparison that is the whole point of it, so
+ * nothing here changes the arrangement: it only shrinks. The slashes stay too;
+ * they are absolutely positioned, so narrowing them costs no layout width,
+ * only the padding that keeps the names clear of them.
+ */
+@media (max-width: 900px) {
+  .gcgrid { grid-template-columns: 1fr; }
+  /* One column means one stack, and the columns should stop dividing it -
+     transparent to the grid, every card is placed directly and the roster,
+     the longest card by a distance, can take an order that puts it last
+     instead of third. */
+  .gcgrid > .gccol { display: contents; }
+  .gcroster { order: 2; }
+  .gcbannerinner { gap: 0; padding: 16px 48px; }
+  .gcslash { width: 46px; }
+  .gcid { gap: 9px; }
+  .gclogo { width: 38px; height: 38px; }
+  .gcname { font-size: 15.5px; }
+  .gcscore { font-size: 34px; }
+}
+
+/* ---- The phone scorebug ----
+ * Still three columns across - team, score, status, score, team - but each
+ * team is a small stack: crest, three-letter code, shots. A full school name
+ * and a mascot line cannot both fit beside a score at this width, and the
+ * code is what a scoreboard uses anyway.
+ */
+@media (max-width: 560px) {
+  /* The crest and the opposing crest were sitting on the card edge once the
+     slashes came off; this gives both ends something to breathe against. */
+  .gcbannerinner { gap: 0; padding: 14px 30px; }
+  /* No room for the flashes once the blocks are stacked, and the reference
+     scorebug at this size does without them. */
+  .gcslash { display: none; }
+  .gcid, .gcteam.right .gcid { flex-direction: column; align-items: center; gap: 5px; }
+  .gcnames { justify-items: center; text-align: center; }
+  .gcabbr, .gcname { display: none; }
+  .gcshort { display: block; font-family: var(--body); font-weight: 800; font-size: 17px;
+    letter-spacing: 0.01em; color: var(--ink); line-height: 1.1; }
+  .gclogo { width: 34px; height: 34px; }
+  .gcsog { font-size: 9.5px; margin-top: 1px; }
+  .gcscore { font-size: 30px; }
+  .gcchip { font-size: 9.5px; padding: 3px 8px; letter-spacing: 0.06em; }
+  .gcwhen { font-size: 10px; }
+  .gcmid { gap: 4px; }
+}
+
+/* ---- Game center: live ---- */
+.gpstatus.livenow { color: #E4002B; }
+
+/* ---- Scoresheet ---- */
+.gcsheetbtn { display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; margin-top: 18px; padding: 10px 14px; cursor: pointer;
+  background: #fff; border: 1px solid var(--border); border-radius: 999px;
+  font-family: var(--body); font-size: 13px; font-weight: 700; color: var(--blue); }
+.gcsheetbtn:hover { border-color: var(--blue); background: var(--ice); }
+/* Deliberately plainer than the rest of the site: this is a document, and it
+   should read like one on paper as well as on screen. */
+.ssheet { font-family: var(--body); color: #111; }
+.sshtop { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+  gap: 20px; border-bottom: 2px solid #111; padding-bottom: 14px; }
+.sshteam { display: grid; justify-items: center; gap: 6px; }
+.sshrole { margin: 0; font-size: 11px; font-weight: 800; letter-spacing: 0.14em; }
+.sshlogo { width: 54px; height: 54px; object-fit: contain; }
+.sshscore { margin: 0; font-family: var(--disp); font-weight: 700; font-size: 40px; line-height: 1; }
+.sshmid { text-align: center; }
+.sshmid p { margin: 0 0 2px; font-size: 12px; }
+.sshtitle { font-weight: 800; font-size: 15px !important; margin-bottom: 6px !important; }
+.sshfinal { font-weight: 800; margin-top: 6px !important; }
+.sshtag { color: #555; }
+.sshnames { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0 0; }
+.sshnames p { margin: 0; font-weight: 800; font-size: 13px; text-align: center;
+  border: 1px solid #111; padding: 5px; }
+.sshband { margin: 18px 0 0; background: #E8E8E8; border: 1px solid #999; padding: 3px 8px;
+  font-size: 11px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase;
+  text-align: center; }
+.sstab { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.sstab th { background: #F4F4F4; border: 1px solid #BBB; padding: 3px 6px;
+  font-weight: 800; text-align: center; white-space: nowrap; }
+.sstab td { border: 1px solid #DDD; padding: 3px 6px; text-align: center; }
+.sstab td.ssname { text-align: left; white-space: nowrap; }
+.sstab tfoot td { background: #F4F4F4; font-weight: 700; text-align: left; }
+.ssnone { color: #777; font-style: italic; }
+.sshsplit { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.sshhalf { min-width: 0; }
+.sshcap { margin: 8px 0 4px; font-size: 11px; font-weight: 800; letter-spacing: 0.08em; }
+.sshfoot { margin-top: 16px; }
+.sslist { margin: 0; padding-left: 18px; font-size: 12px; }
+.sslist li { margin-bottom: 3px; }
+.ssoff { margin: 0; font-size: 12px; }
+.sshcopy { margin: 22px 0 0; font-size: 10.5px; color: #666; text-align: center;
+  border-top: 1px solid #DDD; padding-top: 8px; }
+
+/* ---- Pre-game lineup ---- */
+.alu { display: grid; gap: 16px; }
+.aluhead { display: flex; align-items: flex-start; gap: 14px; }
+.alubar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.alusteps { display: flex; gap: 8px; }
+.alustep { display: inline-flex; align-items: center; gap: 9px; cursor: pointer;
+  border: 1px solid var(--au-line); background: none; color: var(--au-dim);
+  border-radius: 999px; padding: 7px 15px 7px 7px; font: inherit; font-size: 13px;
+  font-weight: 650; }
+.alustep .alustepnum { display: grid; place-items: center; width: 21px; height: 21px;
+  border-radius: 50%; background: var(--au-line); color: var(--au-text);
+  font-size: 11px; font-weight: 700; }
+.alustep.on { color: var(--au-text); border-color: var(--au-primary); }
+.alustep.on .alustepnum { background: var(--au-primary); color: #fff; }
+.alustep:disabled { opacity: 0.45; cursor: not-allowed; }
+.alustepof { font-weight: 600; color: var(--au-faint); font-size: 13px; }
+.aluchip { font-size: 12px; font-weight: 700; padding: 4px 11px; border-radius: 999px;
+  background: var(--au-raised); color: var(--au-text); white-space: nowrap; }
+.aluchip.warn { background: rgba(224,168,0,0.16); color: var(--au-warn); }
+.alupick.blocked { cursor: not-allowed; }
+.alupick.blocked .alunum, .alupick.blocked .aluname { opacity: 0.3; }
+.alucols { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px; align-items: start; }
+.alugroup { border: 1px solid var(--au-line); border-radius: 10px; overflow: hidden; }
+.alugrouphead { display: flex; justify-content: space-between; gap: 10px;
+  padding: 9px 12px; background: var(--au-raised); font-size: 10.5px; font-weight: 700;
+  letter-spacing: 0.09em; text-transform: uppercase; color: var(--au-dim); }
+.alurow { display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+  border-top: 1px solid var(--au-line); }
+/* A scratch stays legible - it is still a name someone reads down the list. */
+.alurow.out .alunum, .alurow.out .aluname { opacity: 0.45; }
+.alupick { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0;
+  cursor: pointer; }
+.alunum { width: 30px; flex: 0 0 auto; font-weight: 700; color: var(--au-dim);
+  font-variant-numeric: tabular-nums; font-size: 12.5px; }
+.aluname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 13.5px; font-weight: 600; }
+.alustart { flex: 0 0 auto; border: 1px solid var(--au-line); background: none;
+  color: var(--au-dim); border-radius: 999px; font-size: 10.5px; font-weight: 700;
+  letter-spacing: 0.04em; text-transform: uppercase; padding: 3px 10px; cursor: pointer; }
+.alustart:hover { color: var(--au-text); }
+.alustart.on { background: var(--gold); border-color: var(--gold); color: #171717; }
+.alunet { display: flex; align-items: center; gap: 6px; flex: 0 0 auto;
+  font-size: 11px; font-weight: 700; color: var(--au-dim); cursor: pointer;
+  text-transform: uppercase; letter-spacing: 0.04em; }
+.alufoot { display: flex; align-items: center; justify-content: flex-end; gap: 14px;
+  border-top: 1px solid var(--au-line); padding-top: 16px; }
+.aluwarn { font-size: 12.5px; font-weight: 650; color: var(--au-warn); }
+
+/* ---- Quick look: goals inside a schedule row ---- */
+/* A row, not a stack. Six goals stacked pushed the rest of the schedule off
+   the screen; across, the whole game reads at a glance and scrolls sideways
+   when there are more than fit. */
+.qlstrip { min-width: 0; }
+/* The scrollbar is hidden because the arrows and segments below say the same
+   thing and say it in the site's own shapes. Dragging still works. */
+.qlgoals { display: flex; gap: 10px; min-width: 0; overflow-x: auto;
+  scroll-snap-type: x mandatory; scrollbar-width: none; }
+.qlgoals::-webkit-scrollbar { display: none; }
+/* As wide as it needs to be: an unassisted goal is a short card, one with two
+   assists and a long name is a wide one. They were all 258px, which padded
+   the short ones with empty space and squeezed the long ones. */
+.qlgoal { flex: 0 0 auto; max-width: 100%; scroll-snap-align: start;
+  display: flex; align-items: center; gap: 12px;
+  background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 10px 13px; }
+.qlpager { display: flex; align-items: center; justify-content: center; gap: 14px;
+  margin-top: 12px; }
+.qlarrow { display: grid; place-items: center; width: 26px; height: 26px; padding: 0;
+  background: none; border: 0; border-radius: 50%; cursor: pointer; color: var(--ink); }
+.qlarrow:not(:disabled):hover { background: var(--ice); }
+.qlarrow:disabled { color: #C6CFD8; cursor: default; }
+.qldots { display: flex; align-items: center; gap: 7px; }
+.qldot { width: 24px; height: 3px; padding: 0; border: 0; border-radius: 999px;
+  background: #D7DDE4; cursor: pointer; }
+.qldot:not(.on):hover { background: #B6C0CB; }
+.qldot.on { background: var(--deep); }
+/* Sized by its widest line rather than allowed to shrink under it. With
+   min-width: 0 the text simply overflowed and was clipped at the card edge,
+   which looked like the cards were still a fixed width. */
+.qlbody { display: grid; gap: 2px; min-width: max-content; }
+/* One line each. Wrapping made every card settle at roughly the same width
+   with the text folded inside it, which is the thing that made them all look
+   the same length. Let the line run and the card takes the width it needs. */
+.qlname { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap;
+  white-space: nowrap; font-weight: 800; font-size: 14.5px; color: var(--ink); }
+.qlnum { font-weight: 700; color: var(--muted); }
+.qlassist { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.qlscore { font-size: 12.5px; font-weight: 700; color: var(--ink);
+  font-variant-numeric: tabular-nums; white-space: nowrap; }
+.qlwhen { font-weight: 600; color: var(--muted); margin-left: 7px; }
+
+/* ---- Game center: scoring summary ---- */
+.gpplays { display: grid; gap: 8px; }
+.gpplay { display: flex; align-items: baseline; gap: 12px; padding: 9px 12px;
+  border: 1px solid var(--border); border-radius: 8px; }
+.gpplay.us { border-left: 3px solid var(--blue); }
+.gpplay.them { border-left: 3px solid var(--border); }
+.gpplaywhen { flex: 0 0 auto; font-size: 11.5px; font-weight: 700; color: var(--muted);
+  font-variant-numeric: tabular-nums; }
+.gpplaybody { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; min-width: 0; }
+.gpplaykind { font-family: var(--disp); font-weight: 700; font-size: 10px; letter-spacing: 0.08em;
+  border-radius: 4px; padding: 2px 6px; }
+.gpplaykind.goal { color: var(--blue); background: rgba(255,199,44,0.28); }
+.gpplaykind.pen { color: var(--muted); background: var(--ice); }
+.gpplaywho { font-size: 14px; font-weight: 800; color: var(--ink); }
+.gpplayassist { font-size: 13px; color: var(--muted); }
+
+/* ---- Home: next home game ----
+   Its own card in the page, not a strip welded to the navy header — it is
+   content that changes weekly, and it should read that way. */
+.hnext { display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  background: #fff; border: 1px solid var(--border); border-left: 4px solid var(--gold);
+  border-radius: 12px; padding: 16px 20px; }
+.hnextteams { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
+.hnextlogo { width: 42px; height: 42px; object-fit: contain; }
+.hnextlogo.fallback { display: grid; place-items: center; border-radius: 999px;
+  background: var(--ice); color: var(--blue); font-weight: 800; font-size: 17px; }
+.hnextvs { font-family: var(--disp); font-weight: 700; font-size: 12px; letter-spacing: 0.06em;
+  color: var(--muted); }
+/* Once there is a score, the score is what sits between the two marks. */
+.hnextscore { font-family: var(--disp); font-weight: 700; font-size: 26px; line-height: 1;
+  color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hnextdash { color: var(--border); margin: 0 5px; }
+.hnext.live { border-left-color: #E4002B; }
+.hnext.live .hnextlabel { color: #E4002B; }
+.hnext.final .hnextlabel { color: var(--muted); }
+.hnextinfo { display: grid; gap: 2px; min-width: 0; }
+/* Sentence case in the body face. The condensed display face earns its keep
+   in tracked caps; set as words it just reads narrow, and the two lines under
+   it are Inter already. */
+.hnextlabel { font-family: var(--body); font-weight: 700; font-size: 12px;
+  letter-spacing: 0; color: var(--blue); }
+.hnextopp { font-weight: 800; font-size: 17px; letter-spacing: -0.015em; color: var(--ink); }
+.hnextwhen { font-size: 13px; color: var(--muted); font-weight: 600; }
+.hnextactions { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.hnextactions .btn { text-decoration: none; }
+/* .btn sets no family of its own, so a link inherited the condensed face
+   from the banner while a button fell back to the body one - the same pair
+   of buttons in two typefaces, decided by which element each happened to be.
+   Both bars declare it. */
+.hnextactions .btn, .gpbar .btn { font-family: var(--body); }
+
+@media (max-width: 720px) {
+  .hnextactions { margin-left: 0; width: 100%; }
+}
+
+/* ---- Home: hero + top stories ---- */
+/* stretch, not start: the rail wrapper has no height of its own and needs
+   the row to give it one. The hero opts out of the stretch so it keeps 16:9. */
+.hherorow { display: grid; grid-template-columns: minmax(0, 2.1fr) minmax(0, 1fr); gap: 22px;
+  align-items: stretch; }
+/* One aspect for every story image on the site. A grid item stretches in
+   both axes by default, which silently defeats aspect-ratio, so each of
+   these also has to opt out of the vertical stretch. */
+.hhero { position: relative; border-radius: 14px; overflow: hidden; cursor: pointer;
+  aspect-ratio: 16 / 9; align-self: start; background: var(--deep); display: block; }
+.hhero img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+/* A scrim, not a flat tint: the title has to hold over whatever the photo does. */
+.hheroscrim { position: absolute; inset: 0; transition: background 0.18s;
+  background: linear-gradient(180deg, rgba(4,30,66,0) 38%, rgba(4,30,66,0.82) 100%); }
+.hherotext { position: absolute; left: 0; right: 0; bottom: 0; padding: 28px 30px; }
+.hherotitle { font-family: var(--body); font-weight: 800; font-size: clamp(1.6rem, 2.8vw, 2.4rem);
+  line-height: 1.1; letter-spacing: -0.025em; color: #fff; margin: 10px 0 0; }
+.hheroblurb { font-size: 15.5px; line-height: 1.5; color: rgba(255,255,255,0.86); margin: 10px 0 0;
+  max-width: 60ch; }
+/* Gold on a photograph is unreadable at any scrim strength. The hover
+   deepens the scrim instead, so the white headline gains contrast. */
+.hhero:hover .hheroscrim { background: linear-gradient(180deg,
+  rgba(4,30,66,0.12) 30%, rgba(4,30,66,0.92) 100%); }
+
+/* The hero is the only item with an intrinsic height, so it alone sizes the
+   row; the rail is taken out of flow and told to fill that height exactly.
+   Otherwise the two columns end at different places, because eight headlines
+   are taller than a 16:9 image. */
+.htopwrap { position: relative; min-height: 0; }
+.htop { position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden;
+  background: #fff; border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; }
+.htophead { border-bottom: 2px solid var(--gold); padding-bottom: 10px; margin-bottom: 6px; }
+.htoplist { list-style: none; margin: 0; padding: 0; flex: 1 1 auto; min-height: 0; }
+.htoplist li { border-bottom: 1px solid var(--border); }
+.htoplist li:last-child { border-bottom: 0; }
+.htoplink { display: block; width: 100%; text-align: left; background: none; border: 0;
+  cursor: pointer; font: inherit; font-size: 14.5px; font-weight: 650; line-height: 1.35;
+  color: var(--ink); padding: 12px 0; }
+.htoplink:hover { color: var(--blue); }
+.htopall { margin-top: 12px; flex: 0 0 auto; background: none; border: 0; cursor: pointer; font: inherit;
+  font-size: 13px; font-weight: 700; color: var(--blue); display: inline-flex; align-items: center;
+  gap: 6px; padding: 0; }
+
+/* .newstag is absolutely positioned for card artwork; in the hero it belongs
+   in the text flow above the title. */
+.hherotext .newstag { position: static; display: inline-block; margin-bottom: 4px; }
+
+/* The hero text is absolutely positioned against the bottom edge, so on a
+   narrow screen a three-line headline grew upward and out of a box locked to
+   16:9 - the tag was clipped clean off the top. Here the text sits in flow and
+   the hero takes whatever height it needs; the image is already absolute, so
+   it just covers more of it. */
+@media (max-width: 560px) {
+  .hhero { aspect-ratio: auto; min-height: 210px; display: flex; align-items: flex-end; }
+  /* relative, not static: the image and scrim are absolutely positioned, so a
+     static sibling paints underneath both of them and the headline vanishes.
+     It still sits in flow and still gives the hero its height. */
+  .hherotext { position: relative; z-index: 1; width: 100%; padding: 20px 18px; }
+  .hherotitle { font-size: 1.5rem; }
+  /* The lead story's subheader goes on a phone. On a wide hero it sits under
+     the headline with room to breathe; at this width it is three or four
+     lines of small type over a photo, pushing the headline up and competing
+     with it. The headline and the tag carry the story, and the subheader is
+     the first thing on the article page itself. */
+  .hheroblurb { display: none; }
+}
+
+/* ---- Home: story cards ---- */
+.hcards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
+.hcard { display: grid; gap: 10px; background: none; border: 0; padding: 0; cursor: pointer;
+  font: inherit; text-align: left; }
+.hcardart { position: relative; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden;
+  background: var(--ice); display: block; }
+.hcardart img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.hcardtitle { font-weight: 800; font-size: 17px; line-height: 1.25; letter-spacing: -0.015em;
+  color: var(--ink); }
+.hcard:hover .hcardtitle { color: var(--blue); }
+.hcardmeta { font-size: 12px; font-weight: 700; color: var(--muted); }
+
+/* ---- Home: section headers ---- */
+.hsechead { display: inline-flex; align-items: center; gap: 8px; background: none; border: 0;
+  padding: 0; cursor: pointer; color: var(--ink); margin-bottom: 18px; }
+.hsechead:hover { color: var(--blue); }
+.hsectitle { font-family: var(--body); font-weight: 800; font-size: 1.4rem; letter-spacing: -0.025em;
+  color: inherit; margin: 0; }
+
+/* ---- Home: upcoming fixtures ---- */
+.hfixtures { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; }
+.hfix { background: #fff; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.hfixart { position: relative; display: grid; grid-template-columns: 1fr 1fr; height: 132px; }
+.hfixhalf { display: grid; place-items: center; padding: 12px; }
+.hfixhalf img { max-width: 74px; max-height: 66px; object-fit: contain; }
+.hfixours { filter: brightness(0) invert(1); }
+.hfixvs { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  font-family: var(--disp); font-weight: 700; font-size: 13px; letter-spacing: 0.06em;
+  color: var(--deep); background: #fff; border-radius: 4px; padding: 2px 8px; }
+.hfixbody { padding: 14px 16px 16px; text-align: center; }
+.hfixdate { margin: 0; font-weight: 800; font-size: 15px; color: var(--ink); }
+.hfixbar { color: var(--border); margin: 0 4px; }
+.hfixopp { margin: 6px 0 12px; font-size: 12.5px; color: var(--muted); font-weight: 600; }
+.hfixactions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.hfixactions .btn { text-decoration: none; }
+
+.btn.bGhostNavy { background: #fff; border: 1px solid var(--border); color: var(--blue);
+  border-radius: 999px; padding: 10px 22px; font-weight: 700; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 7px; }
+.btn.bGhostNavy:hover { border-color: var(--blue); }
+
+@media (max-width: 900px) {
+  .hherorow { grid-template-columns: 1fr; }
+  /* Stacked, there is no second column to line up with. */
+  .htopwrap, .htop { position: static; }
+  .htoplist { overflow-y: visible; }
+}
+
+/* ---- Roster: position groups ---- */
+.posgroup { display: flex; align-items: center; gap: 10px; margin: 0 0 12px;
+  font-family: var(--body); font-weight: 750; font-size: 1.15rem; letter-spacing: -0.015em;
+  text-transform: none; color: var(--blue);
+  border-bottom: 2px solid var(--gold); padding-bottom: 10px; }
+.posgroupn { font-family: var(--body); font-size: 12px; font-weight: 700; letter-spacing: 0;
+  color: var(--muted); background: var(--ice); border-radius: 999px; padding: 2px 9px; }
+
+/* ---- Stats: the name column ---- */
+.statname { display: inline-flex; align-items: center; gap: 10px; background: none; border: 0;
+  padding: 0; cursor: pointer; font: inherit; font-weight: 700; color: var(--blue);
+  text-align: left; }
+.statname span { white-space: nowrap; }
+.statname:hover span { text-decoration: underline; text-decoration-thickness: 1px;
+  text-underline-offset: 3px; text-decoration-color: var(--rule); text-decoration-color: var(--rule-on); }
+/* The avatar is decoration next to a name that is already a link, so it must
+   not add height to a dense table row. */
+.stats .statname img, .stats .statname svg { flex: 0 0 auto; }
+.stats td:has(.statname) { padding-top: 6px; padding-bottom: 6px; }
+
+/* ---- Staff page ---- */
+/* The photo column carries its own height. Sized by the text beside it, a
+   head coach with no bio on file squashed a square portrait into a letterbox
+   strip and left the rest of the block white. */
+.leadstaff { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 0; background: #fff;
+  border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+.leadphoto { position: relative; background: var(--ice); min-height: 340px; }
+.leadbody { padding: 30px 34px; align-self: center; }
+.leadname { font-family: var(--body); font-weight: 800; font-size: clamp(1.6rem, 2.6vw, 2.2rem);
+  letter-spacing: -0.02em; color: var(--ink); margin: 6px 0 4px; }
+.leadsince { font-size: 13px; font-weight: 600; color: var(--muted); margin: 0 0 14px; }
+.leadbio .artp { font-size: 15px; }
+/* Labelled rows rather than a loose line of details: two facts with their
+   names on them fill the space honestly where three words did not. */
+.leadcontact { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 18px;
+  margin: 18px 0 0; padding-top: 16px; border-top: 1px solid var(--border); max-width: 420px; }
+.leadcontact dt { font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--muted); align-self: center; }
+.leadcontact dd { margin: 0; font-size: 14px; font-weight: 650; }
+.leadcontact a { color: var(--blue); text-decoration: none; }
+.leadcontact a:hover { text-decoration: underline; text-decoration-thickness: 1px;
+  text-underline-offset: 3px; text-decoration-color: var(--rule-on); }
+
+/* ---- Recruits ---- */
+.recintro { font-size: 16.5px; line-height: 1.65; color: var(--muted); margin: 10px 0 28px;
+  max-width: 680px; }
+.recgrid2 { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 20px;
+  align-items: start; }
+.reccard { background: #fff; border: 1px solid var(--border); border-radius: 12px;
+  padding: 24px 26px; margin-bottom: 14px; }
+.rectitle { font-family: var(--body); font-weight: 800; font-size: 1.2rem; letter-spacing: -0.02em;
+  color: var(--ink); margin: 0 0 10px; }
+.recbody .artp { font-size: 15px; }
+.recbody .artlist li { font-size: 15px; }
+.recside { position: sticky; top: 96px; }
+.recfacts { display: grid; grid-template-columns: auto 1fr; gap: 9px 16px; margin: 0; font-size: 14px; }
+.recfacts dt { color: var(--muted); font-weight: 600; }
+.recfacts dd { margin: 0; color: var(--ink); font-weight: 700; }
+.reccta { border-left: 4px solid var(--gold); }
+
+@media (max-width: 860px) {
+  .recgrid2 { grid-template-columns: 1fr; }
+  .recside { position: static; }
+}
+
+/* ---- Volunteers ---- */
+.volintro { font-size: 16.5px; line-height: 1.65; color: var(--muted); margin: 10px 0 28px; max-width: 640px; }
+.volgrid { display: grid; gap: 14px; }
+.volcard { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 22px 24px; }
+.volhead { display: flex; align-items: center; gap: 12px; }
+.voltitle { font-family: var(--body); font-weight: 800; font-size: 1.15rem; letter-spacing: -0.015em;
+  color: var(--ink); margin: 0; }
+.volopen { margin-left: auto; font-family: var(--disp); font-weight: 700; font-size: 10.5px;
+  letter-spacing: 0.12em; text-transform: uppercase; background: var(--gold); color: var(--deep);
+  border-radius: 999px; padding: 3px 11px; }
+.volsummary { font-size: 15px; line-height: 1.6; color: var(--ink); margin: 10px 0 0; }
+.voldesc { margin-top: 6px; }
+.voldesc .artp { font-size: 14px; margin-bottom: 10px; }
+.volmeta { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 12px; font-size: 13px;
+  font-weight: 600; color: var(--muted); }
+.volapply { margin-top: 16px; text-decoration: none; display: inline-flex; align-items: center; gap: 7px; }
+.volfoot { margin-top: 34px; padding: 24px; background: #fff; border: 1px dashed var(--border);
+  border-radius: 12px; }
+
+/* ---- News index ---- */
+.newslist { display: grid; gap: 14px; margin-top: 24px; }
+.newsrow { display: grid; grid-template-columns: 220px 1fr; gap: 0; background: #fff;
+  border: 1px solid var(--border); border-radius: 12px; overflow: hidden; cursor: pointer; }
+.newsrow:hover { border-color: var(--blue); }
+.newsrow.lead { grid-template-columns: 380px 1fr; }
+.newsrowart { position: relative; aspect-ratio: 16 / 9; align-self: start;
+  background: var(--ice); border-radius: 12px; overflow: hidden; margin: 14px 0 14px 14px; }
+.newsrowart img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.newsrowbody { padding: 22px 26px; display: flex; flex-direction: column; justify-content: center; gap: 8px; }
+.newsrowtitle { font-family: var(--body); font-weight: 800; font-size: 1.2rem; letter-spacing: -0.018em;
+  line-height: 1.24; color: var(--ink); margin: 0; }
+.newsrow.lead .newsrowtitle { font-size: 1.6rem; }
+.newsrowblurb { font-size: 14.5px; line-height: 1.55; color: var(--muted); margin: 0; }
+.newsrowmeta { font-size: 12px; font-weight: 700; color: var(--muted); margin: 0; }
+
+@media (max-width: 860px) {
+  .hfeature, .leadstaff, .newsrow, .newsrow.lead { grid-template-columns: 1fr; }
+  .hfeatureart { min-height: 210px; }
+  .newsrowart { margin: 14px 14px 0; }
+  .hgrow { grid-template-columns: 1fr; gap: 10px; justify-items: center; }
+  .hgside:last-child { justify-content: center; }
+}
+
+/* Staff cards: portrait over name, the same shape the roster's card view
+   uses, so the two pages are recognisably the same site. */
+.staffsec { margin-top: 36px; }
+.staffseclab { font-family: var(--body); font-weight: 750; font-size: 1.15rem; letter-spacing: -0.015em;
+  text-transform: none; color: var(--blue); margin: 0 0 14px; padding-bottom: 10px;
+  border-bottom: 2px solid var(--gold); display: flex; align-items: center; gap: 10px; }
+.staffsecn { font-family: var(--body); font-weight: 700; font-size: 11.5px; letter-spacing: 0;
+  color: var(--muted); background: var(--ice); border-radius: 999px; padding: 2px 9px; }
+.staffgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 18px; }
+.staffcard { background: #fff; border: 1px solid var(--border); border-radius: 10px;
+  overflow: hidden; }
+.staffwell { position: relative; height: 230px; background: var(--ice); }
+.stphoto { width: 100%; height: 100%; object-fit: cover; object-position: center top;
+  display: block; background: var(--ice); }
+.leadphoto .stphoto { position: absolute; inset: 0; }
+/* Initials, where there is no photograph. Set large and faint: it fills the
+   well without pretending to be a portrait. */
+.stmono { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-family: var(--body); font-weight: 800; font-size: 46px; letter-spacing: 0.02em;
+  color: var(--blue); opacity: 0.26; background: var(--ice); }
+.staffbody { padding: 15px 16px 17px; }
+/* No portraits: names and roles, packed tighter. A gold edge stands in for
+   the photograph so the card still has a side to start from. */
+.staffgrid.roll { grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 12px; }
+.staffcard.noface { border-left: 3px solid var(--gold); }
+.staffcard.noface .staffbody { padding: 13px 15px 14px; }
+.staffname { margin: 0; font-weight: 800; font-size: 16.5px; color: var(--ink); line-height: 1.25; }
+.stafftitle { margin: 4px 0 0; font-size: 12.5px; font-weight: 700; color: var(--blue);
+  line-height: 1.35; }
+.staffbio { margin: 8px 0 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
+/* Email then phone: inline-block would sit them side by side, and they read
+   as two separate ways to reach someone, not one line. */
+.staffcard .staffmail + .staffmail { display: block; margin-top: 2px; }
+.staffmail { display: block; margin-top: 8px; font-size: 12.5px; font-weight: 700;
+  color: var(--blue); text-decoration: none; overflow-wrap: anywhere; }
+.staffmail:hover { text-decoration: underline; text-decoration-thickness: 1px;
+  text-underline-offset: 3px; text-decoration-color: var(--rule); text-decoration-color: var(--rule-on); }
+.prospectcount { display: inline-block; margin-left: 10px; font-family: var(--au-mono, monospace);
+  font-size: 12px; font-weight: 700; color: var(--muted); background: var(--ice);
+  border-radius: 999px; padding: 2px 9px; vertical-align: middle; }
+.emptybox { border: 1px dashed var(--border); border-radius: 10px; padding: 34px 24px;
+  text-align: center; background: #fff; }
+
+/* Gold pill CTAs in the navy bar (Tickets / Give / Shop analog) */
+.goldpill { background: var(--gold); color: var(--deep); border: 0; cursor: pointer;
+  text-decoration: none;
+  font-family: var(--body); font-weight: 700; font-size: 14px; padding: 9px 20px;
+  border-radius: 999px; }
+.goldpill:hover { background: var(--gold-hot); }
+
+/* Inline text-link buttons (game info, etc.) */
+/* Watch link — gold pill on the public site, matching the Tickets CTA. */
+.watchbtn .livedot { margin-right: 0; }
+.watchbtn { display: inline-flex; align-items: center; gap: 7px; text-decoration: none;
+  background: var(--blue); color: #fff; font-family: var(--body); font-weight: 700;
+  font-size: 14px; padding: 8px 16px; border-radius: 999px; }
+.watchbtn:hover { background: var(--mid); }
+.watchbtn.sm { font-size: 11.5px; padding: 3px 10px; gap: 5px; }
+/* On navy the marker has to carry its own light. Gold rather than white, so
+   it reads as a marker and not as a full stop after the word. */
+.watchdot { width: 7px; height: 7px; border-radius: 999px; background: var(--gold);
+  flex: 0 0 auto; opacity: 0.9; }
+/* A live game gets a pulsing marker; a replay is a static dot. */
+.watchdot.live { background: #D7263D; opacity: 1; animation: watchpulse 1.8s ease-out infinite; }
+@keyframes watchpulse {
+  0% { box-shadow: 0 0 0 0 rgba(215,38,61,0.55); }
+  70% { box-shadow: 0 0 0 6px rgba(215,38,61,0); }
+  100% { box-shadow: 0 0 0 0 rgba(215,38,61,0); }
+}
+@media (prefers-reduced-motion: reduce) { .watchdot.live { animation: none; } }
+
+/* ---- Game page ---- */
+.gpbanner { position: relative; background: #fff; border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden; }
+/* Angled color flashes at each end, the way a broadcast scorebug is built. */
+.gpslash { position: absolute; top: 0; bottom: 0; width: 130px; }
+.gpslash.left { left: 0; clip-path: polygon(0 0, 100% 0, 62% 100%, 0 100%); }
+.gpslash.right { right: 0; clip-path: polygon(38% 0, 100% 0, 100% 100%, 0 100%); }
+.gpbannerinner { position: relative; display: grid; grid-template-columns: 1fr auto 1fr;
+  align-items: center; gap: 18px; padding: 22px 150px; }
+.gpteam { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.gpteam.right { justify-content: flex-end; }
+.gplogo { width: 54px; height: 54px; object-fit: contain; flex: 0 0 auto; }
+.gpteamtext { font-family: var(--body); font-weight: 750; font-size: 17px; color: var(--ink);
+  letter-spacing: -0.015em; line-height: 1.2; }
+.gpteam.right .gpteamtext { text-align: right; }
+.gpscore { font-family: var(--disp); font-weight: 700; font-size: 40px; color: var(--blue);
+  line-height: 1; font-variant-numeric: tabular-nums; }
+.gpmiddle { display: grid; justify-items: center; gap: 4px; text-align: center; }
+.gpstatus { font-family: var(--disp); font-weight: 700; font-size: 13px; letter-spacing: 0.12em;
+  text-transform: uppercase; padding: 4px 12px; border-radius: 999px; }
+.gpstatus.win { background: var(--gold); color: var(--deep); }
+.gpstatus.loss { background: #EDF1F4; color: var(--muted); }
+.gpstatus.tie { background: #EDF1F4; color: var(--muted); }
+.gptime { font-family: var(--disp); font-weight: 700; font-size: 20px; color: var(--blue); }
+.gpdate { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+.gptag { font-family: var(--disp); font-weight: 600; font-size: 10.5px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--blue); border: 1px solid var(--blue);
+  border-radius: 4px; padding: 2px 8px; margin-top: 3px; }
+.gpactions { display: flex; justify-content: center; gap: 12px; margin-top: 16px; }
+
+.gpgrid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 18px; margin-top: 18px; align-items: start; }
+table.stats.gpstats { min-width: 0; }
+table.stats.gpstats th:not(:first-child), table.stats.gpstats td:not(:first-child) {
+  text-align: right; width: 62px; }
+
+/* Result tag: a win is the thing worth spotting when scanning a schedule. */
+.rtag { font-weight: 800; }
+/* The team yellow, plain, everywhere. */
+.rtag.W { color: var(--gold); }
+.rtag.L { color: var(--loss); }
+.rtag.T { color: var(--tie); }
+
+/* Team toggle on the game page, mirroring a broadcast box score */
+.gpsides { display: inline-flex; background: #fff; border: 1px solid var(--border);
+  border-radius: 10px; padding: 3px; gap: 2px; }
+.gpside { display: inline-flex; align-items: center; gap: 8px; background: none; border: 0;
+  cursor: pointer; border-radius: 8px; padding: 8px 15px; font: inherit; font-weight: 650;
+  font-size: 13.5px; color: var(--muted); }
+.gpside:hover { color: var(--ink); }
+.gpside.on { background: var(--blue); color: #fff; }
+
+/* Player cell with a headshot, in the box score tables */
+.gpplayer { display: flex; align-items: center; gap: 10px; background: none; border: 0;
+  padding: 0; cursor: pointer; font: inherit; text-align: left; }
+.gpplayer > span { display: grid; }
+.gpplayername { font-weight: 700; font-size: 14px; color: var(--blue); line-height: 1.2; }
+.gpplayer:hover .gpplayername { text-decoration: underline; text-decoration-thickness: 1px;
+  text-underline-offset: 3px; text-decoration-color: var(--rule); text-decoration-color: var(--rule-on); }
+.gpplayermeta { font-size: 11.5px; color: var(--muted); font-weight: 600; }
+
+/* Preview: players to watch */
+/* Players to watch rides the Game stats bar: same grid, same slanted meeting
+   of the two team colours, with a face at each end above it. */
+/* Portrait, name, figure, category, figure, name, crest. Each side reads
+   outward from the middle, so the two marks bookend the row. */
+.h2hbar { grid-template-columns:
+  auto minmax(0, 1fr) auto minmax(74px, auto) auto minmax(0, 1fr) auto;
+  gap: 4px 12px; align-items: center; }
+.h2hbar > .h2hpic { grid-area: 1 / 1 / 2 / 2; }
+.h2hbar > .h2hwho { grid-area: 1 / 2 / 2 / 3; }
+.h2hbar > .h2hnum { grid-area: 1 / 3 / 2 / 4; }
+.h2hbar > .gcbarlab { grid-area: 1 / 4 / 2 / 5; }
+.h2hbar > .h2hnum.right { grid-area: 1 / 5 / 2 / 6; }
+.h2hbar > .h2hwho.right { grid-area: 1 / 6 / 2 / 7; }
+.h2hbar > .h2hpic.right { grid-area: 1 / 7 / 2 / 8; }
+.h2hbar > .gcbartrack { grid-area: 2 / 1 / 3 / 8; margin-top: 10px; }
+.h2hnum { font-family: var(--body); font-weight: 800; font-size: 28px; letter-spacing: -0.02em;
+  color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1; text-align: right; }
+.h2hnum.right { text-align: left; }
+/* Nothing to divide, so no rail under it. */
+.gcbar.norail { padding-bottom: 12px; }
+.h2hpic { display: flex; align-items: center; background: none; border: 0; padding: 0;
+  cursor: pointer; }
+.h2hpic.right { cursor: default; }
+.h2hmark { width: 38px; height: 38px; object-fit: contain; flex: 0 0 auto; }
+.h2hwho { display: flex; flex-direction: column; gap: 1px; min-width: 0; background: none;
+  border: 0; padding: 0; cursor: pointer; text-align: left; align-items: flex-start; }
+.h2hwho.right { cursor: default; text-align: right; align-items: flex-end; }
+.h2hname { display: flex; flex-direction: column; line-height: 1.2; min-width: 0;
+  max-width: 100%; }
+.h2hfirst { font-size: 12px; font-weight: 500; color: var(--muted); }
+.h2hlast { font-size: 14.5px; font-weight: 800; color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; }
+.h2hwho.unknown .h2hlast { color: var(--muted); font-weight: 700; }
+button.h2hwho:hover .h2hlast, .h2hpic:hover + .h2hwho .h2hlast { color: var(--blue); }
+.h2hpos { font-size: 11px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.gpseason { margin: -4px 0 16px; }
+.gpnote { margin-top: 14px; }
+
+/* Goaltending: a band of team totals, then that team's keepers under it,
+   then the visitors the same way. One column, so the two blocks are read in
+   order rather than compared cell by cell - the comparison is the bars
+   above. */
+.gtblock + .gtblock { margin-top: 22px; }
+.gtrow { display: grid; grid-template-columns: minmax(0, 1fr) repeat(4, minmax(52px, 74px));
+  align-items: center; gap: 10px; }
+.gtband { padding: 4px 2px 8px; }
+.gtbandmark { display: flex; align-items: center; gap: 10px; }
+.gtbandmark img { height: 26px; width: auto; max-width: 42px; object-fit: contain; display: block; }
+.gtbandname { font-weight: 800; font-size: 13px; color: var(--muted); }
+.gtrow { width: 100%; text-align: left; background: none; border: 0;
+  border-bottom: 1px solid var(--border); padding: 12px 16px; }
+.gtrow:last-child { border-bottom: 0; }
+button.gtrow { cursor: pointer; }
+button.gtrow:hover { background: var(--page); }
+.gtwho { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.gtmark { width: 44px; height: 44px; object-fit: contain; flex: 0 0 auto; }
+.gtnames { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
+/* Given name light, surname bold under it - a team sheet, not a sentence. */
+.gtfirst { font-size: 12.5px; font-weight: 500; color: var(--muted); }
+.gtlast { font-size: 15px; font-weight: 800; color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; }
+.gtnum { font-size: 11px; font-weight: 600; color: var(--muted); margin-top: 2px; }
+.gtstat { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.gtstat strong { font-family: var(--body); font-weight: 800; font-size: 17px; color: var(--ink);
+  letter-spacing: -0.02em; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.gtstatlab { font-size: 10px; font-weight: 700; color: var(--muted); margin-top: 2px; }
+
+@media (max-width: 620px) {
+  /* Four stat columns will not fit beside a name, so the name takes the row
+     and the numbers sit under it. */
+  .gtrow { grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 12px 4px; }
+  .gtwho { grid-column: 1 / -1; }
+}
+@media (max-width: 620px) {
+  /* The names will not fit beside the figures at this width, so they drop
+     under the bar - portraits and figures on top, the split beneath them,
+     a name at each edge below that. */
+  .h2hbar { grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr) auto;
+    gap: 6px 8px; align-items: center; }
+  .h2hbar > .h2hpic { grid-area: 1 / 1 / 2 / 2; }
+  .h2hbar > .h2hnum { grid-area: 1 / 2 / 2 / 3; text-align: center; }
+  .h2hbar > .gcbarlab { grid-area: 1 / 3 / 2 / 4; }
+  .h2hbar > .h2hnum.right { grid-area: 1 / 4 / 2 / 5; text-align: center; }
+  .h2hbar > .h2hpic.right { grid-area: 1 / 5 / 2 / 6; }
+  .h2hbar > .gcbartrack { grid-area: 2 / 1 / 3 / 6; margin-top: 8px; }
+  .h2hbar > .h2hwho { grid-area: 3 / 1 / 4 / 4; }
+  .h2hbar > .h2hwho.right { grid-area: 3 / 4 / 4 / 6; }
+  .h2hnum, .h2hnum.right { font-size: 26px; }
+  .h2hpos { white-space: normal; }
+}
+
+/* Two columns of numbers with the label between them, so the eye compares
+   across rather than reading two lists. */
+.cmprow { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+  gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.cmprow:last-of-type { border-bottom: 0; }
+.cmphead { font-weight: 800; font-size: 13px; color: var(--ink); padding-top: 0; }
+.cmphead span:first-child { text-align: left; }
+.cmphead span:last-child { text-align: right; }
+.cmplab { font-size: 11.5px; font-weight: 700; color: var(--muted); text-align: center;
+  white-space: nowrap; }
+.cmpval { font-family: var(--disp); font-weight: 700; font-size: 20px; color: var(--muted);
+  font-variant-numeric: tabular-nums; }
+.cmprow .cmpval:first-child { text-align: left; }
+.cmprow .cmpval:last-child { text-align: right; }
+/* The better of the two carries the ink; the other recedes. */
+.cmpval.on { color: var(--ink); }
+
+/* The row between the banner and the preview: the two things somebody
+   reading a preview of a game that has not happened actually wants. */
+/* Centred, with the same air above and below - the two things somebody
+   reading a preview of a game that has not happened actually wants. */
+.gpbar { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center;
+  padding: 20px 0; margin: 0; }
+/* A pair, so they are cut to one size rather than to the width of whatever
+   each one happens to say. */
+.gpbar .btn { flex: 0 0 auto; display: inline-flex; align-items: center;
+  justify-content: center; gap: 9px; min-width: 210px; }
+.gpbar .btn .livedot { margin-right: 0; }
+/* Which of the three a player leads. */
+.gpwatchlab { font-family: var(--body); font-weight: 800; font-size: 10.5px;
+  color: var(--deep); background: var(--gold); border-radius: 999px;
+  padding: 2px 9px; margin-top: 2px; }
+.gpwatch { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.gpwatchcard { display: grid; justify-items: center; gap: 4px; text-align: center;
+  background: #fff; border: 1px solid var(--border); border-radius: 10px;
+  padding: 16px 12px; cursor: pointer; font: inherit; }
+.gpwatchcard:hover { border-color: var(--blue); }
+.gpwatchcard .pcard-photo, .gpwatchcard img, .gpwatchcard svg { border-radius: 999px; }
+.gpwatchname { font-weight: 700; font-size: 14px; color: var(--blue); margin-top: 6px; }
+.gpwatchmeta { font-size: 11.5px; color: var(--muted); font-weight: 600; }
+.gpwatchline { display: grid; gap: 2px; margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+.gpwatchline strong { font-family: var(--disp); font-size: 26px; color: var(--ink);
+  line-height: 1; font-variant-numeric: tabular-nums; }
+.gpwatchsub { font-size: 11.5px; }
+
+.gpseries { display: grid; gap: 8px; }
+.gpseriesitem { display: flex; align-items: baseline; gap: 10px; padding: 9px 11px;
+  border: 1px solid var(--border); border-radius: 8px; font-size: 13px; }
+.gpseriesitem.on { border-color: var(--blue); background: #F7F9FB; }
+.gpseriesdate { color: var(--muted); font-weight: 600; }
+.gpserieswhere { color: var(--muted); }
+.gpseriesres { margin-left: auto; font-weight: 700; color: var(--blue);
+  font-variant-numeric: tabular-nums; }
+
+.gpinfo { display: grid; grid-template-columns: auto 1fr; gap: 9px 16px; margin: 0; font-size: 13.5px; }
+.gpinfo dt { color: var(--muted); font-weight: 600; }
+.gpinfo dd { margin: 0; color: var(--ink); font-weight: 600; }
+
+@media (max-width: 900px) {
+  .gpgrid { grid-template-columns: 1fr; }
+  .gpbannerinner { padding: 20px 16px; grid-template-columns: 1fr auto 1fr; gap: 10px; }
+  .gpslash { width: 60px; }
+  .gpteamtext { font-size: 14px; }
+  .gplogo { width: 40px; height: 40px; }
+  .gpscore { font-size: 30px; }
+}
+
+/* ---- Schedule calendar ---- */
+/* No frame: the grid sits straight on the page, so the cells are the only
+   boxes on screen. The stat tiles this replaces carried a 28px top margin;
+   without it the calendar sits flush against the control bar. */
+.cal { margin-top: 28px; }
+.calbar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.calnav { display: flex; align-items: center; gap: 6px; }
+.calnavbtn { width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--border);
+  background: #fff; color: var(--blue); cursor: pointer; display: inline-flex;
+  align-items: center; justify-content: center; }
+.calnavbtn:hover:not(:disabled) { border-color: var(--blue); }
+.calnavbtn:disabled { opacity: 0.35; cursor: default; }
+.calmonth { font-family: var(--body); font-weight: 750; font-size: 17px; letter-spacing: -0.015em;
+  color: var(--ink); min-width: 170px; text-align: center; }
+.callegend { margin-left: auto; display: flex; gap: 16px; font-size: 12.5px; color: var(--muted);
+  font-weight: 600; }
+.callegend span { display: inline-flex; align-items: center; gap: 7px; }
+.calkey { width: 13px; height: 13px; border-radius: 3px; }
+.calkey.home { background: var(--deep); }
+.calkey.away { background: #fff; box-shadow: inset 0 0 0 1px var(--border); }
+
+.calhead, .calgrid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.calhead { margin-bottom: 6px; }
+.calhead span { font-family: var(--body); font-weight: 700; font-size: 12px; color: var(--muted);
+  padding: 0 4px; }
+.calabbr { display: none; }
+
+/* The day cell is the swatch: no card inside it, no borders on the color. */
+/* A fixed height, not a minimum: rows otherwise size to their content, so a
+   month containing a playoff cell (which carries an extra tag line) came out
+   taller than one without. */
+.calcell { position: relative; height: 156px; overflow: hidden; background: var(--ice);
+  border-radius: 8px; padding: 5px 6px 6px; display: flex; flex-direction: column; gap: 2px; }
+.calcell.empty { background: transparent; }
+.calcell.has.home { background: var(--deep); }
+/* White on a white card has no edge of its own. An inset ring rather than a
+   border, so home and away cells stay exactly the same size. */
+.calcell.has.away { background: #FFFFFF; box-shadow: inset 0 0 0 1px var(--border); }
+.calcell.has.mixed { background: #E8EDF2; }
+.calcell.has { cursor: pointer; }
+.calcell.has:hover { filter: brightness(0.97); }
+.caldate { font-family: var(--body); font-weight: 700; font-size: 12px; color: var(--muted); }
+/* Everything on a navy cell is white: the date reads quietly, the score
+   and the rink read plainly. */
+.calcell.has.home .caldate { color: rgba(255,255,255,0.6); }
+.calcell.has.home .calresult,
+.calcell.has.home .caltime { color: #fff; }
+.calcell.has.home .calact { color: #fff; }
+.calcell.has.home .calact:hover { color: var(--gold); }
+
+/* Content sits to the top with the box-score label pinned to the bottom;
+   centring the lot left it looking like it had slipped down the cell. */
+/* Crest at the top, actions on the floor, the score sharing out the space
+   between them - so it sits clear of both rather than hanging off the crest. */
+.calgame { flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: space-between; gap: 2px; padding: 2px 2px 0; text-align: center;
+  min-height: 0; }
+.calacts { display: flex; align-items: center; justify-content: center; gap: 6px; }
+/* No chrome around it - the mark is the button. */
+.calact { display: grid; place-items: center; padding: 2px; border: 0; background: none;
+  border-radius: 6px; color: var(--deep); cursor: pointer; opacity: 0.75; }
+.calact:hover { opacity: 1; color: var(--blue); }
+.calact:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; opacity: 1; }
+
+.caltag { font-family: var(--disp); font-weight: 600; font-size: 8.5px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--deep); opacity: 0.7; }
+.callogo { display: grid; place-items: center; width: 50px; height: 50px; }
+.callogo img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.caltime { font-size: 12.5px; font-weight: 700; color: var(--deep); }
+/* The score is the whole point of a played cell, so it is the biggest thing
+   in it after the crest. */
+.calcode { display: none; }
+.calresult { font-size: 16px; font-weight: 800; color: var(--ink); line-height: 1.1;
+  font-variant-numeric: tabular-nums; }
+/* The letter is part of the score here, not a badge, so it takes the colour
+   of the numbers beside it. The cell's own background already says how the
+   game went. */
+.calresult .rtag { color: inherit; }
+.calfoot { margin: 14px 0 0; color: var(--muted); }
+
+
+@media (max-width: 780px) {
+  .calfull { display: none; }
+  .calabbr { display: inline; }
+  /* A column is a seventh of the screen here - about fifty pixels. A crest
+     and two icon buttons cannot live in that, and shrinking them until they
+     do makes all three illegible. The code and the line under it are what a
+     phone can actually show, so that is all it shows. */
+  .calhead, .calgrid { gap: 3px; }
+  .calhead span { padding: 0; text-align: center; }
+  /* Two short lines and a date - the cell needs no more height than that. */
+  .calcell { height: 58px; padding: 3px 1px; }
+  .caldate { padding: 2px 0 0 4px; }
+  .calgame { justify-content: center; gap: 3px; }
+  .callogo, .calacts { display: none; }
+  .calcode { display: block; font-family: var(--body); font-weight: 800; font-size: 13px;
+    line-height: 1.1; color: var(--ink); letter-spacing: -0.01em;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+  .calcell.has.home .calcode { color: #fff; }
+  /* Nowrap: "W 14-1" breaking across two lines in a cell this short pushed
+     the code out of it. */
+  .calresult, .caltime { font-size: 11px; font-weight: 700; white-space: nowrap;
+    letter-spacing: -0.02em; }
+  .calcode { font-size: 12px; }
+}
+
+/* Seven columns of a phone screen leave about forty pixels each, and a
+   two-digit score - "W 14-1" - needs every one of them. At 375px it measured
+   a pixel wider than its own cell and was clipped at both ends, so the score
+   steps down again as the screen narrows rather than holding one size all
+   the way to 320. */
+@media (max-width: 430px) {
+  .calresult, .caltime { font-size: 10px; }
+  .calcode { font-size: 11.5px; }
+  .cal { padding: 12px; }
+}
+
+@media (max-width: 360px) {
+  .calresult, .caltime { font-size: 8px; letter-spacing: -0.03em; }
+  .calcode { font-size: 10px; }
+  /* Every pixel of side padding is one a 33px cell cannot spare - the date
+     carries its own inset rather than the cell carrying it for everything. */
+  .calcell { padding-left: 0; padding-right: 0; }
+  .caldate { padding-left: 3px; }
+}
+
+/* Public box score, inside Game Info */
+.pbox { border-top: 1px solid #EEF1F4; padding: 16px 22px 18px; background: #FBFCFD;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px 34px; }
+.pbox.stack { display: block; }
+.pbox.stack .pboxhead { margin-bottom: 10px; }
+.pboxsec { min-width: 0; }
+.pboxhead { font-family: var(--body); font-weight: 700; font-size: 11.5px; letter-spacing: 0;
+  text-transform: uppercase; color: var(--muted); margin: 0 0 9px; }
+.pboxlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.pboxlist li { display: flex; align-items: baseline; gap: 10px; }
+.pboxname { background: none; border: 0; padding: 0; cursor: pointer; font: inherit;
+  font-size: 14px; font-weight: 700; color: var(--blue); text-align: left; }
+.pboxname:hover { text-decoration: underline; text-decoration-thickness: 1px;
+  text-underline-offset: 3px; text-decoration-color: var(--rule); text-decoration-color: var(--rule-on); }
+.pboxstat { margin-left: auto; font-size: 13px; font-weight: 600; color: var(--muted);
+  font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pboxfoot { grid-column: 1 / -1; margin: 0; font-size: 12.5px; color: var(--muted);
+  border-top: 1px solid #EEF1F4; padding-top: 12px; }
+
+/* Article body */
+.artcover { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block;
+  margin-top: 22px; border-radius: 18px; }
+/* Larger and lighter than the body, dark enough to be read rather than
+   skipped. It carries the sentence the headline had no room for. */
+.artdeck { font-size: 20px; line-height: 1.45; font-weight: 500; color: var(--ink);
+  margin: 0 0 14px; max-width: 62ch; }
+@media (max-width: 560px) { .artdeck { font-size: 17.5px; } }
+
+.article { margin-top: 26px; }
+.artp { font-size: 17px; line-height: 1.68; color: var(--ink); margin: 0 0 18px; }
+.arth3 { font-family: var(--disp); font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em;
+  font-size: 1.3rem; color: var(--blue); margin: 30px 0 12px; }
+.artlist { margin: 0 0 18px; padding-left: 22px; }
+.artlist li { font-size: 17px; line-height: 1.6; color: var(--ink); margin-bottom: 7px; }
+/* A mentioned player links to their page. Bold navy against body grey does
+   most of the work; a hairline underneath finishes it without turning the
+   sentence into highlighted text. */
+/* Gold behind body text is the one place the accent earns a solid fill, so
+   it is kept weak enough to read through and never used for anything else. */
+.artmark { background: rgba(255, 199, 44, 0.42); color: inherit; padding: 0 2px;
+  border-radius: 2px; }
+.article u { text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.artmention { background: none; border: 0; padding: 0; cursor: pointer;
+  font: inherit; color: var(--blue); font-weight: 700; text-decoration: underline; text-decoration-thickness: 1px;
+  text-underline-offset: 3px; text-decoration-color: var(--rule); }
+.artmention:hover { text-decoration-color: var(--rule-on); }
+.artmore { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left;
+  background: #fff; border: 1px solid var(--border); border-radius: 2px; padding: 10px 14px 10px 10px;
+  cursor: pointer; font: inherit; }
+.artmore:hover { border-color: var(--blue); }
+/* 16:9 to match the cover above it and the cards on the news index - a
+   headline list that crops differently from everything else reads as a
+   different site. */
+.artmorethumb { flex: 0 0 auto; width: 104px; aspect-ratio: 16 / 9; overflow: hidden;
+  border-radius: 2px; background: var(--wash); display: block; }
+.artmorethumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.artmoretext { display: grid; gap: 3px; min-width: 0; }
+.artmoretag { font-family: var(--disp); font-weight: 600; font-size: 11px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--blue); }
+.artmoretitle { font-weight: 700; font-size: 15px; color: var(--ink); line-height: 1.35; }
+.artmoredate { margin-left: auto; padding-left: 10px; font-size: 13px; font-weight: 600;
+  color: var(--muted); white-space: nowrap; }
+@media (max-width: 560px) {
+  .artmorethumb { width: 76px; }
+  .artmoredate { display: none; }
+}
+
+/* Share */
+.artshare { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px;
+  margin-top: 40px; border-top: 1px solid var(--border); padding-top: 18px; }
+.artsharelabel { margin: 0; font-family: var(--disp); font-weight: 600; font-size: 11px;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.artsharebtns { display: flex; flex-wrap: wrap; gap: 8px; }
+.sharebtn { display: inline-flex; align-items: center; gap: 7px; padding: 7px 14px;
+  border: 1px solid var(--border); border-radius: 999px; background: #fff; cursor: pointer;
+  font: inherit; font-size: 13.5px; font-weight: 700; color: var(--deep);
+  text-decoration: none; line-height: 1; }
+.sharebtn:hover { border-color: var(--blue); color: var(--blue); }
+/* The confirmation is the whole point of the button, so it has to be visible
+   without being an alert. */
+.sharebtn.ok, .sharebtn.ok:hover { border-color: var(--blue); background: var(--blue); color: #fff; }
+
+.gb-link { background: none; border: 0; cursor: pointer; color: var(--deep);
+  font-family: var(--body); font-weight: 600; font-size: 15px; padding: 4px 0; }
+.gb-link:hover { text-decoration: underline; text-decoration-thickness: 1px;
+  text-underline-offset: 3px; text-decoration-color: var(--rule); text-decoration-color: var(--rule-on); }
+
+/* Scoreboard — white strip above the nav */
+.sboard { background: #fff; border-bottom: 1px solid var(--border); padding: 14px 0; }
+.sboard-inner { display: flex; align-items: center; gap: 10px; padding: 0 16px; }
+.sboard-row { display: flex; gap: 12px; overflow-x: auto; scroll-behavior: smooth;
+  scrollbar-width: none; -ms-overflow-style: none; flex: 1 1 auto; padding: 4px 2px; }
+.sboard-row::-webkit-scrollbar { display: none; }
+.chev { background: none; border: 0; cursor: pointer; color: var(--ink); font-size: 26px;
+  line-height: 1; padding: 4px 6px; flex: 0 0 auto; }
+.chev:hover { color: var(--blue); }
+.calbtn { background: var(--blue); color: #fff; border: 0; cursor: pointer; flex: 0 0 auto;
+  font-family: var(--body); font-weight: 700; font-size: 14.5px; padding: 13px 24px;
+  border-radius: 999px; display: inline-flex; gap: 8px; align-items: center; }
+.calbtn:hover { background: var(--mid); }
+@media (max-width: 760px) {
+  .sboard-inner { padding: 0 12px; gap: 8px; }
+  .sboard-inner .chev { display: none; }
+  .sboard-row { padding: 6px 0; scroll-snap-type: x mandatory; }
+  .sboard-row > * { scroll-snap-align: start; }
+}
+@media (max-width: 560px) {
+  /* A card no longer has to fit a whole 280px: near-full width with the next
+     one peeking is what tells you the row scrolls. */
+  .scard { min-width: min(280px, 82vw); }
+}
+
+.scard { flex: 0 0 auto; min-width: 280px; text-align: left; cursor: pointer;
+  background: #fff; border: 1px solid #E7EBEF; border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(4, 30, 66, 0.06); padding: 12px 16px 14px;
+  display: flex; flex-direction: column; gap: 12px; }
+.scard:hover { border-color: var(--border); box-shadow: 0 2px 8px rgba(4, 30, 66, 0.1); }
+.scard-top { display: flex; align-items: center; gap: 7px; }
+.scode { font-family: var(--body); font-weight: 800; font-size: 12.5px; color: var(--blue); }
+.sdot { color: var(--gold); font-size: 14px; }
+.sdate { font-family: var(--body); font-size: 12.5px; color: var(--muted); }
+.sdots { margin-left: auto; color: #B6C0C9; letter-spacing: 1px; font-weight: 700; }
+.scard-main { display: flex; align-items: center; gap: 9px; }
+.vsbadge { width: 26px; height: 26px; border-radius: 50%; background: var(--gold); color: var(--deep);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--body); font-weight: 700; font-size: 11.5px; flex: 0 0 auto; }
+/* Home carries the team color; away is deliberately recessive, so a glance
+   down the schedule separates the two without reading the words. */
+.vsbadge.home { background: var(--blue); color: #FFFFFF; }
+.vsbadge.away { background: #DBE0E6; color: #46505A; }
+/* Neither team's building: gold, so a tournament weekend reads as its own
+   thing rather than as a run of home games. */
+.vsbadge.neutral { background: var(--gold); color: var(--deep); }
+.sopp { font-family: var(--body); font-weight: 600; font-size: 14.5px; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sscore { margin-left: auto; font-family: var(--body); font-weight: 800; font-size: 14.5px;
+  color: var(--blue); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* Buttons */
+.btn { display: inline-block; border: 0; cursor: pointer; text-decoration: none;
+  font-weight: 600; font-size: 14.5px; letter-spacing: 0.1em; padding: 13px 26px; border-radius: 999px; }
+.bGold { background: var(--gold); color: var(--deep); }
+.bGold:hover { background: var(--gold-hot); }
+.bGhost { background: transparent; color: var(--ondark); box-shadow: inset 0 0 0 2px var(--gold); }
+.bGhost:hover { background: rgba(255,199,44,0.12); }
+.bNavy { background: var(--blue); color: #fff; }
+.bNavy:hover { background: var(--mid); }
+.bDanger { background: #fff; color: var(--blue); box-shadow: inset 0 0 0 1.5px var(--border); padding: 8px 12px; font-size: 12.5px; }
+.bDanger:hover { box-shadow: inset 0 0 0 1.5px var(--blue); }
+.bSm { padding: 9px 14px; font-size: 13px; }
+
+/* Page head */
+.phead { background: var(--blue); color: var(--ondark); padding: 44px 0; }
+.phead .blg { color: var(--ondark-muted); max-width: 640px; margin: 10px 0 0; }
+
+/* Tables */
+.twrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 6px;
+  scrollbar-width: none; -ms-overflow-style: none; }
+.twrap::-webkit-scrollbar { display: none; }
+/* ---- Statistics page ----
+ * .statcard / .stattab / .statsec were used in the markup but never defined,
+ * so the page fell back to raw browser styling. */
+.statcard { background: #fff; border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(16,32,47,0.04); margin-top: 22px; overflow: hidden; }
+
+/* Tabs: an underline rail rather than boxed buttons. */
+.stattabs { display: flex; gap: 4px; padding: 0 8px; border-bottom: 1px solid var(--border);
+  overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
+
+/* A table wider than the phone is unavoidable - ten stat columns do not fit in
+   375px and abbreviating them further would cost more than it saves. What is
+   avoidable is not knowing it scrolls. The bar is always visible on touch
+   rather than fading out, because a hint you have to move to discover is no
+   hint at all; it also shows how much is left, which a gradient cannot. */
+/* A table that already scrolls sideways should not also wrap: "Dominik
+   Sedlak-Braude" over three lines makes the row tall AND still needs a swipe.
+   Let the columns keep their width and let the swipe do the work. */
+@media (max-width: 760px) {
+  .twrap th, .twrap td { white-space: nowrap; }
+}
+
+@media (max-width: 760px) {
+  .twrap, .stattabs, .gctabs {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(4, 30, 66, 0.3) transparent;
+  }
+  .twrap::-webkit-scrollbar, .stattabs::-webkit-scrollbar, .gctabs::-webkit-scrollbar {
+    display: block; height: 4px; -webkit-appearance: none;
+  }
+  .twrap::-webkit-scrollbar-thumb, .stattabs::-webkit-scrollbar-thumb,
+  .gctabs::-webkit-scrollbar-thumb {
+    background: rgba(4, 30, 66, 0.3); border-radius: 999px;
+  }
+  .twrap::-webkit-scrollbar-track, .stattabs::-webkit-scrollbar-track,
+  .gctabs::-webkit-scrollbar-track { background: transparent; }
+}
+@media (max-width: 560px) {
+  .stattab { font-size: 13px; }
+  /* Three tabs on one line beats three tabs on six. */
+  .gctab { font-size: 13px; white-space: nowrap; }
+}
+.stattabs::-webkit-scrollbar { display: none; }
+.stattab { position: relative; background: none; border: 0; cursor: pointer; white-space: nowrap;
+  font-family: var(--body); font-weight: 650; font-size: 14px; color: var(--muted);
+  padding: 15px 14px; letter-spacing: -0.01em; }
+.stattab:hover { color: var(--ink); }
+.stattab.on { color: var(--blue); }
+.stattab.on::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: -1px;
+  height: 3px; background: var(--gold); border-radius: 3px 3px 0 0; }
+
+/* Filter row: a segmented control, not two stretched native selects. */
+.statfilter { display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 16px 20px; background: #FBFCFD; border-bottom: 1px solid var(--border); }
+.statseg { display: inline-flex; background: var(--ice); border: 1px solid var(--border);
+  border-radius: 9px; padding: 3px; gap: 2px; }
+.statsegbtn { background: none; border: 0; cursor: pointer; border-radius: 7px;
+  font-family: var(--body); font-weight: 600; font-size: 13px; color: var(--muted);
+  padding: 7px 15px; white-space: nowrap; }
+.statsegbtn:hover { color: var(--ink); }
+.statsegbtn.on { background: #fff; color: var(--blue);
+  box-shadow: 0 1px 2px rgba(16,32,47,0.12); }
+.statfilterlab { font-family: var(--body); font-weight: 600; font-size: 12px;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+
+.statsec { font-family: var(--body); font-weight: 750; font-size: 1.15rem; letter-spacing: -0.015em;
+  color: var(--blue); margin: 0 0 16px; text-transform: none; }
+
+/* Glossary, now at the foot of the page. */
+.glosswrap { margin-top: 22px; border-top: 1px solid var(--border); padding-top: 18px; }
+.glossbar { display: inline-flex; align-items: center; gap: 8px; background: none; border: 0;
+  cursor: pointer; font-family: var(--body); font-weight: 650; font-size: 13.5px;
+  color: var(--muted); padding: 4px 0; }
+.glossbar:hover { color: var(--blue); }
+.glossgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 10px 26px; margin-top: 14px; }
+.glossitem { font-size: 13px; color: var(--muted); line-height: 1.5; }
+.glossitem strong { color: var(--ink); font-weight: 700; }
+/* A footnote under a table, for a figure the source could not fully support. */
+.statnote { margin: 10px 2px 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+table.stats { width: 100%; border-collapse: collapse; min-width: 620px; background: #fff; }
+table.stats th { background: #F4F7F9; color: var(--blue); font-family: var(--body);
+  font-weight: 600; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase;
+  text-align: left; padding: 11px 14px; }
+/* Sortable headers: the whole cell is the target, with a caret that only
+   goes solid on the active column. */
+table.stats.sortable th { padding: 0; }
+.sortbtn { display: inline-flex; align-items: center; gap: 6px; width: 100%;
+  background: none; border: 0; cursor: pointer; font: inherit; color: inherit;
+  padding: 12px 16px; letter-spacing: inherit; text-transform: inherit; }
+.sortbtn:hover { color: var(--blue); background: rgba(4,30,66,0.04); }
+.sortcaret { font-size: 9px; opacity: 0.28; line-height: 1; }
+.sortbtn.on { color: var(--blue); }
+.sortbtn.on .sortcaret { opacity: 1; color: var(--gold); }
+.sortbtn:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+
+table.stats td { padding: 13px 16px; border-top: 1px solid #EDF1F4; font-size: 14.5px; }
+
+/* A sortable table is the wide one - fourteen columns on the skater page.
+   At 16px a side that is 448px of padding before a single figure, which
+   pushed the table past its container and left a wide screen scrolling
+   sideways for no reason. The numbers need very little room, so they get
+   very little, and the name column takes everything left over. */
+table.stats.sortable td { padding-left: 6px; padding-right: 6px; }
+table.stats.sortable .sortbtn { padding-left: 6px; padding-right: 6px; gap: 4px; }
+/* The caret is an affordance, not a glyph anyone reads - it can be small. */
+table.stats.sortable .sortcaret { font-size: 8px; }
+table.stats.sortable th:nth-child(2), table.stats.sortable td:nth-child(2) { width: 100%; }
+table.stats.sortable td:first-child { padding-left: 16px; }
+table.stats.sortable td:last-child { padding-right: 16px; }
+table.stats.sortable th:first-child .sortbtn { padding-left: 16px; }
+table.stats.sortable th:last-child .sortbtn { padding-right: 16px; }
+/* Figures line up column to column; names stay proportional. */
+table.stats td:not(:nth-child(2)) { font-variant-numeric: tabular-nums; }
+/* A hyphen is a break opportunity, and the name column above takes all the
+   free width - so every other column is squeezed to its minimum content
+   width, and for a hyphenated value that minimum is one chunk. That is what
+   stacked the header "W-L-T" into three rows and a goaltender's "17-8-0"
+   into two. A column label and a figure are single tokens; neither reads
+   better broken. Names are column two and keep wrapping. */
+table.stats th { white-space: nowrap; }
+table.stats.sortable td:not(:nth-child(2)) { white-space: nowrap; }
+table.stats tbody tr:nth-child(even) { background: #FAFBFC; }
+table.stats tbody tr:hover { background: #F1F5F8; }
+table.stats tbody tr:last-child td { border-bottom: 0; }
+.jersey { font-weight: 700; font-size: 17px; color: var(--blue); font-variant-numeric: tabular-nums; }
+
+/* Cards */
+.cards { display: grid; gap: 22px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+.card { background: #fff; border: 1px solid var(--border); border-top: 4px solid var(--gold);
+  border-radius: 6px; padding: 22px; }
+.statnum { font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+
+/* Stat slab */
+.slab { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 22px; text-align: center; }
+.slab .statnum { font-size: clamp(2.8rem, 7vw, 5rem); color: var(--gold); }
+.slab .h6 { color: var(--ondark-muted); margin-top: 8px; }
+
+/* Tabs */
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.tab { font-weight: 600; font-size: 14.5px; letter-spacing: 0.08em; cursor: pointer;
+  padding: 9px 18px; border: 1px solid var(--border); border-radius: 999px; background: #fff; color: var(--ink); }
+.tab.on { background: var(--blue); color: #fff; border-color: var(--blue); }
+.tabs.dark .tab { background: transparent; color: var(--ondark); border-color: var(--border-dark); }
+.tabs.dark .tab.on { background: var(--gold); color: var(--deep); border-color: var(--gold); }
+
+/* Forms */
+.fgrid { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; }
+.fgrid .full { grid-column: 1 / -1; }
+.field label { display: block; margin-bottom: 5px; }
+.field input, .field select, .field textarea, .ta {
+  width: 100%; padding: 10px 12px; font: inherit; font-size: 14.5px; color: var(--ink);
+  border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+.field select { appearance: none; -webkit-appearance: none; cursor: pointer;
+  padding-right: 34px; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1.5L6 6.5L11 1.5' stroke='%234E6072' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat; background-position: right 12px center; }
+.field input:focus, .field select:focus, .field textarea:focus, .ta:focus {
+  outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(4,30,66,0.18); }
+
+/* Admin */
+.arow { display: grid; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.arow input, .arow select { padding: 7px 9px; font: inherit; font-size: 13.5px;
+  border: 1px solid var(--border); border-radius: 3px; width: 100%; }
+.arow input:focus, .arow select:focus { outline: none; border-color: var(--blue); }
+.ahead { font-family: var(--disp); font-weight: 600; font-size: 11.5px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--muted); }
+.adminbar { background: var(--deep); border-bottom: 4px solid var(--gold); color: var(--ondark); padding: 14px 0; }
+
+/* Unread dot, reused by the recruit inbox. Recolored inside the console. */
+.savedot { width: 9px; height: 9px; border-radius: 999px; background: var(--tie); flex: 0 0 auto; }
+.savedot.on { background: var(--gold); box-shadow: 0 0 0 3px rgba(255,199,44,0.28); }
+.btn:disabled { opacity: 0.4; cursor: default; }
+
+/* Box score panel inside the schedule editor */
+.boxscore { background: var(--ice); border: 1px solid var(--border); border-left: 3px solid var(--gold);
+  padding: 14px 16px; margin: 4px 0 14px; }
+.boxrow { display: grid; gap: 8px; align-items: center; padding: 5px 0;
+  grid-template-columns: 40px 1fr 52px 48px 48px 48px 48px 48px 48px 40px; }
+.boxrow.head { font-family: var(--disp); font-weight: 600; font-size: 11.5px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--border); padding-bottom: 7px; }
+.boxrow input { padding: 5px 7px; font: inherit; font-size: 13px; border: 1px solid var(--border); background: #fff; }
+.boxrow.scratched { opacity: 0.45; }
+
+/* Opponent logo chip in the editor */
+.opplogo { width: 40px; height: 40px; object-fit: contain; background: #fff;
+  border: 1px solid var(--border); }
+.derived { background: var(--ice) !important; color: var(--muted); cursor: not-allowed; }
+
+/* Headlines grid (Sidearm news cards) */
+.newsgrid { display: grid; gap: 20px; grid-template-columns: repeat(4, 1fr); }
+.newscard { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: #fff; display: flex; flex-direction: column; }
+.newscard.feat { grid-column: span 2; grid-row: span 2; }
+.newsart { position: relative; aspect-ratio: 16 / 9; background: var(--mid); overflow: hidden; }
+.newscard.feat .newsart { aspect-ratio: 16 / 10; }
+.newstag { position: absolute; left: 10px; bottom: 10px; background: var(--gold); color: var(--deep);
+  font-family: var(--disp); font-weight: 700; font-size: 11.5px; letter-spacing: 0.12em;
+  text-transform: uppercase; padding: 3px 10px; border-radius: 999px; }
+.newsbody { padding: 14px 16px 16px; }
+@media (max-width: 980px) { .newsgrid { grid-template-columns: 1fr 1fr; } .newscard.feat { grid-column: span 2; grid-row: auto; } }
+@media (max-width: 620px) { .newsgrid { grid-template-columns: 1fr; } .newscard.feat { grid-column: auto; } }
+
+/* Schedule page (Sidearm sport-schedule layout) */
+.stitle { font-family: var(--body); font-weight: 800; font-size: clamp(1.5rem, 3vw, 2rem);
+  color: var(--ink); margin: 0 0 26px; padding-left: 16px; border-left: 5px solid var(--blue); }
+.sctrl { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.iconbtn { width: 46px; height: 46px; border-radius: 999px; border: 1.5px solid var(--deep);
+  background: #fff; color: var(--deep); cursor: pointer; display: inline-flex;
+  align-items: center; justify-content: center; }
+.iconbtn:hover { background: var(--ice); }
+.ghostbtn { display: inline-flex; gap: 8px; align-items: center; border: 0; cursor: pointer;
+  background: #EEF1F4; color: var(--ink); font-family: var(--body); font-weight: 700;
+  font-size: 14.5px; padding: 13px 22px; border-radius: 999px; }
+.ghostbtn.on { background: var(--deep); color: #fff; }
+.vtbtn { width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--border);
+  background: #fff; color: var(--muted); cursor: pointer; display: inline-flex;
+  align-items: center; justify-content: center; }
+.vtbtn.on { background: var(--deep); color: #fff; border-color: var(--deep); }
+/* Full width, the same as the schedule rows and the stats table underneath
+   it - a 960px cap left it floating short of everything it sits above. */
+.recgrid { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: 28px;
+  border: 1px solid #E7EBEF; border-radius: 4px; background: #fff; }
+.reccell { padding: 26px 12px; text-align: center; border-right: 1px solid #E7EBEF;
+  border-bottom: 1px solid #E7EBEF; display: flex; flex-direction: column; gap: 8px;
+  align-items: center; justify-content: center; }
+.reccell:nth-child(4n) { border-right: 0; }
+.reccell:nth-child(n+5) { border-bottom: 0; }
+.reclab { font-family: var(--body); font-weight: 600; font-size: 14px; color: var(--muted); margin: 0; }
+.recnum { font-family: var(--body); font-weight: 800; font-size: 26px; color: var(--ink); margin: 0; }
+.gamecard { background: #fff; border: 1px solid #E7EBEF; border-left: 5px solid var(--deep);
+  border-radius: 8px; box-shadow: 0 1px 3px rgba(4, 30, 66, 0.06); min-width: 0; }
+.gamemain { display: flex; align-items: center; gap: 18px; padding: 20px 22px; flex-wrap: wrap; }
+.gameresult { margin-left: auto; text-align: right; flex: 0 0 auto; }
+/* The block beside the crest sizes itself from its content, so one long venue
+   string made the row too wide and dropped the whole block to a second line -
+   leaving the crest stranded on its own. Shrinking from zero keeps the crest
+   and the opponent together whatever the venue happens to say. The roster rows
+   set their own flex inline and are unaffected. */
+@media (max-width: 560px) {
+  .gamemain { gap: 10px 12px; padding: 16px; }
+  /* Crest and opponent share the first line. Basis zero, not auto: with auto
+     the block is as wide as its longest line - a wordy venue was enough to
+     bump the whole thing below the crest on some cards and not others, so no
+     two rows in the list lined up. */
+  .gamemain > span + div { flex: 1 1 0; min-width: 0; }
+  /* The score and date take a line of their own rather than competing for
+     the first one - squeezed into the same row they turned a three-word
+     opponent into three stacked words. */
+  .gameresult { flex: 1 0 100%; }
+}
+.gamefoot { border-top: 1px solid #EEF1F4; padding: 10px 22px; display: flex; }
+/* Replay and Game center, on their own line inside the card rather than
+   under the rule. A full-width flex item, so they break to a row of their
+   own however the rest of the card has wrapped. */
+.gameacts { flex: 1 0 100%; display: flex; flex-wrap: wrap; gap: 10px; }
+button.watchbtn { border: 0; cursor: pointer; }
+.gameinfo { border-top: 1px solid #EEF1F4; padding: 14px 22px; display: flex; gap: 20px;
+  flex-wrap: wrap; color: var(--ink); background: #FAFBFC; border-radius: 0 0 8px 8px; }
+@media (max-width: 720px) { .recgrid { grid-template-columns: 1fr 1fr; }
+  .reccell:nth-child(4n) { border-right: 1px solid #E7EBEF; }
+  .reccell:nth-child(2n) { border-right: 0; }
+  .reccell:nth-child(n+5) { border-bottom: 1px solid #E7EBEF; }
+  .reccell:nth-child(n+7) { border-bottom: 0; } }
+
+/* Roster list/card extras */
+.numbadge { position: absolute; left: -6px; bottom: -4px; width: 26px; height: 26px;
+  border-radius: 50%; background: var(--deep); color: #fff; display: inline-flex;
+  align-items: center; justify-content: center; font-family: var(--body); font-weight: 700;
+  font-size: 12px; border: 2px solid #fff; }
+.numbadge-lg { left: 12px; top: 12px; bottom: auto; width: 36px; height: 36px; font-size: 15px; }
+.fullbio { background: none; border: 0; cursor: pointer; color: var(--blue);
+  font-family: var(--body); font-weight: 800; font-size: 15px; margin-left: auto;
+  display: inline-flex; gap: 8px; align-items: center; flex: 0 0 auto; }
+.fullbio:hover { text-decoration: underline; text-decoration-thickness: 1px;
+  text-underline-offset: 3px; text-decoration-color: var(--rule); text-decoration-color: var(--rule-on); }
+.expbtn { background: none; border: 0; cursor: pointer; color: var(--ink);
+  margin-left: auto; display: inline-flex; padding: 2px; }
+.expbtn:hover { color: var(--blue); }
+.pcard-name { position: absolute; left: 0; right: 0; bottom: 0; padding: 26px 16px 12px;
+  color: #fff; font-family: var(--body); font-weight: 800; font-size: 17px;
+  background: linear-gradient(transparent, rgba(4, 30, 66, 0.75)); }
+.iconbtn-solid { background: var(--deep); color: #fff; }
+.iconbtn-solid:hover { background: var(--mid); }
+
+/* Player bio page */
+.biohero { display: flex; gap: 30px; padding: 0 34px; position: relative; flex-wrap: wrap; }
+.biohero > div:first-child { box-shadow: 0 4px 16px rgba(4, 30, 66, 0.18); }
+.bionum { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px;
+  background: var(--blue); color: #fff; font-family: var(--body); font-weight: 800; font-size: 19px;
+  border-radius: 10px; }
+.biofields { display: grid; grid-template-columns: 1fr 1fr; gap: 0 40px; padding: 30px 40px 0; }
+@media (max-width: 640px) { .biofields { grid-template-columns: 1fr; } .biohero { padding: 0 20px; } }
+
+/* PDF preview overlay */
+.pdfoverlay { position: fixed; inset: 0; z-index: 200; background: rgba(4, 30, 66, 0.55);
+  overflow: auto; padding: 26px 16px 60px; }
+.pdfbar { max-width: 820px; margin: 0 auto 16px; display: flex; gap: 12px; justify-content: flex-end; }
+.pdfbar .ghostbtn { background: #fff; }
+.pdfsheet { max-width: 820px; min-height: 1000px; margin: 0 auto; background: #fff;
+  border-radius: 4px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4); padding: 52px 56px; }
+.pdftable { width: 100%; border-collapse: collapse; margin-top: 22px; }
+.pdftable th { text-align: left; font-family: var(--body); font-weight: 800; font-size: 12.5px;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--blue);
+  border-bottom: 2px solid var(--blue); padding: 8px 10px; }
+.pdftable td { padding: 9px 10px; font-size: 14px; border-bottom: 1px solid #EEF1F4; }
+
+@media print {
+  .sboard, .hdr, footer, .sctrl, .adminbar, .pdfbar, .gamefoot { display: none !important; }
+  .chh { background: #fff; }
+  .pdfoverlay { position: static; background: none; padding: 0; overflow: visible; }
+  .pdfsheet { box-shadow: none; max-width: none; padding: 0; min-height: 0; }
+  #chh-root:has(.pdfoverlay) main, #chh-root:has(.pdfoverlay) footer { display: none !important; }
+}
+
+/* Roster (Sidearm list / card / table views) */
+.rbar { background: var(--ice); border-bottom: 1px solid var(--border); }
+/* These used the condensed display face in uppercase, which made every
+   dropdown look like it came from a different site than the text around it.
+   One treatment for every select, in the body font, with our own chevron so
+   the control does not fall back to the operating system's. */
+.rsel { appearance: none; -webkit-appearance: none;
+  padding: 9px 34px 9px 13px; font-family: var(--body); font-weight: 600; font-size: 14px;
+  letter-spacing: 0; text-transform: none; color: var(--ink); cursor: pointer;
+  border: 1px solid var(--border); border-radius: 8px; background-color: #fff;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1.5L6 6.5L11 1.5' stroke='%234E6072' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat; background-position: right 12px center; }
+.rsel:hover { border-color: #B9C6D2; }
+.rsel:focus-visible { outline: none; border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(4,30,66,0.16); }
+.plist { display: flex; gap: 18px; align-items: center; padding: 16px 0;
+  border-bottom: 1px solid var(--border); }
+.plist:last-child { border-bottom: 0; }
+.pcard { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: #fff; }
+/* Fixed height on the frame rather than the child: the placeholder is an <svg>
+   and an uploaded headshot is an <img>, so sizing the child left cards with
+   photos taller than cards without. */
+.pcard-photo { position: relative; background: var(--ice); height: 210px; }
+.pcard-photo svg, .pcard-photo img { width: 100%; height: 100%; display: block;
+  object-fit: cover; object-position: center top; }
+.pcard-num { position: absolute; right: 10px; bottom: 10px; background: var(--blue); color: var(--gold);
+  font-family: var(--disp); font-weight: 700; font-size: 16px; padding: 3px 11px; border-radius: 999px; }
+
+/* Footer affiliates */
+.affil { font-family: var(--disp); font-weight: 600; font-size: 12px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--ondark-muted); border: 1px solid var(--border-dark);
+  border-radius: 999px; padding: 7px 14px; }
+
+/* Category leaders: the one at the top is the answer to the question the
+   card asks, so it is set at size and the chasing pack sits under a rule. */
+.cleadcat { margin: 0 0 14px; font-weight: 800; font-size: 17px; color: var(--blue); }
+.cleadtop { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  background: none; border: 0; padding: 0 0 14px; margin-bottom: 12px; cursor: pointer;
+  border-bottom: 1px solid var(--border); }
+.cleadtopwho { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.cleadtopname { font-weight: 800; font-size: 16px; color: var(--ink); line-height: 1.2;
+  overflow: hidden; text-overflow: ellipsis; }
+.cleadtop:hover .cleadtopname { color: var(--blue); }
+.cleadtopmeta { font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.cleadtopval { font-family: var(--body); font-weight: 800; font-size: 30px; color: var(--blue);
+  letter-spacing: -0.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+.cleadrow { display: flex; align-items: center; gap: 10px; margin: 8px 0; font-weight: 600; }
+.cleadrank { color: var(--muted); width: 22px; flex: 0 0 auto; }
+/* A long hyphenated name ran straight into its figure on a narrow screen. */
+.cleadrow .statname { min-width: 0; }
+.cleadrow .statname span { overflow: hidden; text-overflow: ellipsis; }
+.cleadval { font-weight: 800; color: var(--blue); font-variant-numeric: tabular-nums;
+  flex: 0 0 auto; }
+
+/* A game that goes by a name. Gold, because it is the thing on the schedule
+   worth spotting from across the page. */
+.spectag { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px;
+  background: var(--gold); color: var(--deep); padding: 2px 10px;
+  font-family: var(--body); font-weight: 800; font-size: 11.5px;
+  letter-spacing: 0; white-space: nowrap; }
+.spectags { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 5px; }
+.caltag.spec { background: var(--gold); color: var(--deep); }
+/* On navy the gold would shout over the score, so it outlines instead. */
+.hnext .spectag, .sboard .spectag { background: transparent; color: var(--gold);
+  box-shadow: inset 0 0 0 1.5px var(--gold); }
+
+/* The footer pages: a column of plain prose, nothing else on the screen. */
+.legalbody { margin-top: 18px; }
+/* renderArticle sets its headings in tracked caps, which suits a match report
+   and not a page of plain prose. Sentence case here. */
+.legalbody .arth3 { font-family: var(--body); font-weight: 800; font-size: 18px;
+  letter-spacing: -0.01em; text-transform: none; color: var(--ink);
+  margin: 30px 0 8px; }
+.legalbody .arth3:first-child { margin-top: 0; }
+.legalbody p { color: var(--ink); line-height: 1.75; margin: 0 0 14px; }
+
+/* Console: the logo preview beside a sponsor's fields. Checkered so a mark
+   on transparency is obviously on transparency. */
+.spprev { height: 74px; border: 1px solid var(--au-line); border-radius: 8px;
+  display: flex; align-items: center; justify-content: center; padding: 8px;
+  background: #fff;
+  background-image: linear-gradient(45deg, #EEF1F5 25%, transparent 25%),
+    linear-gradient(-45deg, #EEF1F5 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #EEF1F5 75%),
+    linear-gradient(-45deg, transparent 75%, #EEF1F5 75%);
+  background-size: 12px 12px;
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0; }
+.spprev img { max-height: 100%; max-width: 100%; object-fit: contain; }
+
+/* Sponsors — their own band, directly above the copyright line. Paler than
+   the affiliate row below it so the two do not read as one long list of
+   logos, and each mark keeps its own colour: a sponsor pays to be seen. */
+.fband-sponsors { background: #fff; border-top: 1px solid var(--border);
+  padding: 24px 24px 26px; }
+.fsponsorlead { margin: 0 0 14px; text-align: center; font-family: var(--body);
+  font-weight: 700; font-size: 12px; color: var(--muted); }
+.fsponsors { display: flex; flex-wrap: wrap; align-items: center;
+  justify-content: center; gap: 18px 40px; }
+.fsponsor { display: inline-flex; align-items: center; text-decoration: none; }
+.fsponsormark { display: block; height: 38px; width: auto; max-width: 190px;
+  object-fit: contain; }
+.fsponsorname { font-family: var(--body); font-weight: 800; font-size: 16px;
+  color: var(--ink); }
+a.fsponsor:hover { opacity: 0.75; }
+@media (max-width: 640px) {
+  .fband-sponsors { padding: 20px 16px; }
+  .fsponsors { gap: 16px 26px; }
+  .fsponsormark { height: 30px; max-width: 140px; }
+}
+
+/* Footer — Sidearm band stack */
+.fband-navy { background: var(--deep); margin-top: auto; }
+.fpartner { color: #fff; font-family: var(--body); font-weight: 800; font-size: 17px;
+  letter-spacing: 0.02em; opacity: 0.95; }
+.fband-gold { background: var(--gold); padding: 16px 24px; }
+.fband-gray { background: #fff; display: flex; justify-content: center; flex-wrap: wrap;
+  border-bottom: 1px solid var(--border); }
+.faffil { color: #8A94A0; font-family: var(--body); font-weight: 700; font-size: 15px;
+  padding: 34px 30px; border-left: 1px solid var(--border); filter: grayscale(1);
+  display: inline-flex; align-items: center; text-decoration: none; }
+a.faffil:hover { filter: grayscale(0); }
+.faffil:first-child { border-left: 0; }
+/* One height for every mark, so the row reads as a line rather than a set of
+   separate logos. The ACHA wordmark carries a band of fine print under it and
+   needs the extra height to stay legible at the same optical weight. */
+.faffilmark { display: block; height: 26px; width: auto; opacity: 0.5; }
+.faffilmark.tall { height: 34px; }
+/* The swoosh is a single wide glyph with no descender text under it, so it
+   matches the others on weight rather than on box height. */
+.faffilmark.short { height: 20px; }
+.fpartners { display: flex; gap: 46px; align-items: center; justify-content: center;
+  flex-wrap: wrap; padding: 38px 24px; }
+.fcopy { margin: 0; font-weight: 700; color: var(--deep); text-align: center; font-size: 14.5px; }
+.flegalrow { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 26px 24px 34px; }
+.flegallinks { display: flex; gap: 0; align-items: center; flex-wrap: wrap; }
+.flegalitem { display: inline-flex; align-items: center; }
+.fsep { color: var(--border); margin: 0 14px; }
+.flegallink { color: var(--ink); font-weight: 600; }
+.flegalbtn { background: none; border: 0; cursor: pointer; padding: 0; }
+.flegalmark { margin-left: auto; display: flex; gap: 14px; align-items: center; }
+.flegalmark span { color: var(--muted); font-weight: 600; }
+
+/* ---- Footer on a phone ----
+ * Everything here was a centred row that wrapped: the partners broke after
+ * the first name, the affiliate rules left a hairline hanging under a
+ * half-empty row, and the legal separators wrapped to the head of a line so
+ * it opened with a bare pipe. Stacked and centred, with the separators gone
+ * and gaps doing their job instead.
+ */
+@media (max-width: 640px) {
+  .fpartners { flex-direction: column; gap: 16px; padding: 28px 20px; text-align: center; }
+  .fpartner { font-size: 15.5px; }
+  .fband-gold { padding: 14px 18px; }
+  .fcopy { font-size: 13px; line-height: 1.5; }
+  .fband-gray { gap: 0 22px; padding: 18px 16px; }
+  .faffil { padding: 6px 0; border-left: 0; font-size: 13.5px; }
+  .faffilmark { height: 22px; }
+  .faffilmark.tall { height: 28px; }
+  .faffilmark.short { height: 16px; }
+  .flegalrow { flex-direction: column; align-items: center; gap: 18px;
+    padding: 22px 16px 28px; text-align: center; }
+  .flegallinks { justify-content: center; gap: 8px 18px; }
+  .fsep { display: none; }
+  .flegalmark { margin-left: 0; justify-content: center; }
+}
+
+.navactions { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+/* Two equal buttons filling the row. As loose pills they floated under a
+   stack of full-width rows and read as an afterthought. */
+.navpanelcta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  padding: 18px 24px 22px; border-top: 1px solid rgba(255,255,255,0.09); }
+.navpanelcta .goldpill { padding: 13px 14px; text-align: center; font-size: 15px;
+  font-weight: 800; }
+.vtgroup { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+/* ---- Mobile navigation ----
+ * Above the breakpoint the links sit in the bar and this is all inert. Below
+ * it the bar is one line - logo, the two calls to action, and the button -
+ * and everything else moves into a panel underneath.
+ */
+.navburger { display: none; width: 38px; height: 38px; padding: 0; border: 0; cursor: pointer;
+  background: none; place-items: center; align-content: center;
+  gap: 4px; justify-items: center; }
+.navburger span { display: block; width: 17px; height: 2px; border-radius: 2px; background: #fff;
+  transition: transform 0.18s, opacity 0.14s; }
+.navburger.on span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+.navburger.on span:nth-child(2) { opacity: 0; }
+.navburger.on span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+
+.navpanel { display: none; }
+.navpanelitem { display: flex; align-items: center; justify-content: space-between; width: 100%;
+  background: none; border: 0; cursor: pointer; font-family: var(--body); font-weight: 700;
+  font-size: 16px; color: #fff; text-align: left; padding: 13px 24px; }
+.navpanelitem + .navpanelitem, .navpanelsub + .navpanelitem {
+  border-top: 1px solid rgba(255,255,255,0.09); }
+.navpanelitem.on { color: var(--gold); }
+.navpanelitem.group svg { transition: transform 0.18s; }
+.navpanelitem.group.open svg { transform: rotate(180deg); }
+.navpanelsub { background: rgba(0,0,0,0.22); }
+.navpanelitem.child { font-size: 15px; font-weight: 650; padding-left: 40px;
+  color: rgba(255,255,255,0.82); }
+.navpanelitem.child.on { color: var(--gold); }
+.navpanelsocials { display: flex; gap: 6px; padding: 14px 24px 18px;
+  border-top: 1px solid rgba(255,255,255,0.09); }
+
+@media (max-width: 860px) {
+  .fgrid { grid-template-columns: 1fr; }
+  /* Keep .wrap's side padding: the shorthand used to drop it. */
+  .navbar { padding: 8px 24px; gap: 12px; min-height: 0; flex-wrap: nowrap; }
+  .navlinks { display: none; }
+  .navactions .socials { display: none; }
+  .navburger { display: grid; }
+  .navpanel { display: block; }
+  /* Both live in the menu at this width. */
+  .navcta { display: none; }
+  .brand svg, .brand img { height: 38px; width: auto; }
+}
+
+@media (max-width: 560px) {
+  .navbar { padding: 8px 16px; gap: 8px; }
+  .goldpill { font-size: 13px; padding: 9px 14px; }
+  .navpanelcta { padding-left: 16px; padding-right: 16px; }
+  /* The control reads as part of the row of filters above it rather than
+     drifting off to the right on its own. */
+  .vtgroup { margin-left: 0; }
+  /* The schedule already prints from the browser; a PDF button is a desktop
+     affordance and the toolbar has no room for it. */
+  .sctrl .ghostbtn { display: none; }
+  .brand svg, .brand img { height: 34px; width: auto; }
+  .navpanelitem { padding-left: 16px; padding-right: 16px; }
+  .navpanelitem.child { padding-left: 32px; }
+  .navpanelsocials { padding-left: 16px; padding-right: 16px; }
+}
+
+/* ================================================================
+ * ADMIN CONSOLE — deliberately NOT the public brand.
+ * Everything here is scoped to .adminui so the public site is untouched.
+ * Dark neutral surfaces, indigo primary, 6px radii, tabular numerals.
+ * The point is that you always know which side of the app you are on.
+ * ================================================================ */
+.adminui {
+  --au-bg: #0B0D10;
+  --au-panel: #101317;
+  --au-surface: #14181D;
+  --au-raised: #1A1F26;
+  --au-line: #232932;
+  --au-line-soft: #1B2027;
+  --au-text: #E7EAF0;
+  --au-dim: #949DAC;
+  --au-faint: #6B7482;
+  --au-primary: #6366F1;
+  --au-primary-hot: #7C7FF5;
+  --au-warn: #F5A524;
+  --au-danger: #F0616D;
+  --au-ok: #34D399;
+  --au-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  /* Themed surfaces. Only the sidebar and accent change between themes so that
+     dense data always sits on a neutral, readable background. */
+  --au-sidebar: #101317;
+  --au-sidebar-line: #1B2027;
+  --au-sidebar-text: #E7EAF0;
+  --au-sidebar-dim: #949DAC;
+  --au-on-primary: #FFFFFF;
+  --au-topbar: rgba(11,13,16,0.82);
+
+  background: var(--au-bg);
+  color: var(--au-text);
+  font-family: var(--body);
+  min-height: 100vh;
+  flex: 1;
+}
+.adminui *, .adminui *::before, .adminui *::after { box-sizing: border-box; }
+.adminui ::selection { background: rgba(99,102,241,0.35); }
+.adminui :focus-visible { outline: 2px solid var(--au-primary); outline-offset: 1px; }
+
+/* --- Shell: fixed sidebar, scrolling content --- */
+.aushell { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; align-items: stretch; }
+.ausidebar { background: var(--au-sidebar); border-right: 1px solid var(--au-sidebar-line);
+  color: var(--au-sidebar-text);
+  display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; }
+.aumain { min-width: 0; display: flex; flex-direction: column; }
+
+/* --- Brand block: a neutral mark, not the Cal script --- */
+.aubrand { display: flex; align-items: center; gap: 10px; padding: 18px 16px;
+  border-bottom: 1px solid var(--au-sidebar-line); }
+.aumark { width: 30px; height: 30px; border-radius: 7px; flex: 0 0 auto;
+  background: var(--au-primary); color: var(--au-on-primary);
+  font-family: var(--au-mono); font-size: 12px; font-weight: 700;
+  display: grid; place-items: center; letter-spacing: -0.02em; }
+/* An uploaded school mark is shown as-is — no crop, no tint. */
+.aulogo { width: 30px; height: 30px; flex: 0 0 auto; object-fit: contain; border-radius: 5px; }
+.aubrandtext { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+.auname { font-size: 13.5px; font-weight: 650; letter-spacing: -0.01em;
+  color: var(--au-sidebar-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.auenv { font-family: var(--au-mono); font-size: 10.5px; color: var(--au-sidebar-dim);
+  letter-spacing: 0.02em; opacity: 0.85; }
+
+/* --- Nav --- */
+.aunav { padding: 14px 10px; overflow-y: auto; flex: 1; }
+.aunavgroup + .aunavgroup { margin-top: 26px; }
+.augroup { font-size: 10px; font-weight: 700; letter-spacing: 0.11em; text-transform: uppercase;
+  color: var(--au-sidebar-dim); opacity: 0.75; margin: 0 8px 7px; }
+.aulink { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
+  background: none; border: 0; cursor: pointer; color: var(--au-sidebar-dim);
+  font: inherit; font-size: 13.5px; font-weight: 500;
+  padding: 7px 9px; border-radius: 6px; margin-bottom: 1px; }
+.aulink:hover { background: rgba(127,127,127,0.14); color: var(--au-sidebar-text); }
+.aulink.on { background: rgba(127,127,127,0.2); color: var(--au-sidebar-text); font-weight: 600; }
+.aulink.on .audot { background: var(--au-primary); }
+.audot { width: 5px; height: 5px; border-radius: 999px; background: transparent; flex: 0 0 auto; }
+.aubadge { margin-left: auto; font-family: var(--au-mono); font-size: 10.5px; font-weight: 700;
+  background: var(--au-primary); color: var(--au-on-primary); border-radius: 999px; padding: 1px 6px; }
+.ausidefoot { border-top: 1px solid var(--au-sidebar-line); padding: 12px 10px; }
+
+/* --- Account button in the sidebar footer --- */
+.auacct { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
+  background: none; border: 0; cursor: pointer; color: var(--au-dim); font: inherit;
+  font-size: 13px; padding: 6px 8px; border-radius: 7px; margin-bottom: 2px; }
+.auacct { color: var(--au-sidebar-dim); }
+.auacct:hover { background: rgba(127,127,127,0.14); color: var(--au-sidebar-text); }
+.auacct.on { background: rgba(127,127,127,0.2); color: var(--au-sidebar-text); }
+.auacctname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 550; }
+.auavatar { width: 24px; height: 24px; border-radius: 999px; flex: 0 0 auto;
+  object-fit: cover; background: var(--au-raised); }
+.auavatar.fallback { display: grid; place-items: center; font-family: var(--au-mono);
+  font-size: 9.5px; font-weight: 700; color: var(--au-on-primary);
+  background: var(--au-primary); }
+.auavatar.lg { width: 60px; height: 60px; }
+.auavatar.lg.fallback { font-size: 19px; }
+
+/* --- Opponent logo slots: preview each mark on the surface it is for --- */
+.auslot { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.auswatch { width: 46px; height: 40px; flex: 0 0 auto; display: grid; place-items: center;
+  border: 1px solid var(--au-line); border-radius: 6px; overflow: hidden; }
+.auswatch.light { background: #FFFFFF; }
+.auswatch.dark { background: #0E1116; }
+.auswatch img { max-width: 84%; max-height: 84%; object-fit: contain; }
+.auslotctl { display: flex; align-items: center; gap: 5px; min-width: 0; }
+
+/* --- Compact density: same information, about a third more rows on screen --- */
+.adminui.compact .arow { padding: 3px 0; }
+.adminui.compact .arow input, .adminui.compact .arow select { padding: 3px 6px; font-size: 12.5px; }
+.adminui.compact .aubody { padding: 18px 20px; }
+.adminui.compact .auswatch { height: 32px; width: 38px; }
+.adminui.compact .boxrow { padding: 2px 0; }
+
+/* --- Top bar --- */
+.autop { display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 14px 26px; border-bottom: 1px solid var(--au-line);
+  background: var(--au-topbar); backdrop-filter: blur(8px);
+  position: sticky; top: 0; z-index: 30; }
+.autitle { font-family: var(--body); font-size: 16px; font-weight: 650;
+  letter-spacing: -0.015em; text-transform: none; margin: 0; color: var(--au-text); }
+.auactions { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+/* --- Save state --- */
+.austate { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--au-dim);
+  border: 1px solid var(--au-line); border-radius: 999px; padding: 4px 11px 4px 8px;
+  max-width: 460px; }
+.austate.dirty { color: var(--au-warn); border-color: rgba(245,165,36,0.32);
+  background: rgba(245,165,36,0.07); }
+.austatetext { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aupulse { width: 7px; height: 7px; border-radius: 999px; background: var(--au-faint); flex: 0 0 auto; }
+.austate.dirty .aupulse { background: var(--au-warn); box-shadow: 0 0 0 3px rgba(245,165,36,0.18); }
+
+/* --- Body --- */
+.aubody { padding: 26px; max-width: 1500px; width: 100%; overflow-x: auto; }
+/* Keep data columns legible on narrow windows by scrolling instead of shrinking. */
+.adminui .arow, .adminui .ahead { min-width: 1240px; }
+.adminui .ahead span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.adminui .boxrow { min-width: 0; }
+.auhint { color: var(--au-dim); font-size: 13px; line-height: 1.55; }
+
+/* --- Buttons (square-ish; the public site's pills are the contrast) --- */
+.adminui .btn { border-radius: 6px; font-family: var(--body); text-transform: none;
+  letter-spacing: 0; font-weight: 550; font-size: 13px; padding: 7px 13px;
+  border: 1px solid var(--au-line); background: var(--au-surface); color: var(--au-text);
+  box-shadow: none; cursor: pointer; transition: background 0.12s, border-color 0.12s; }
+/* Unread dot in the inbox, on the console palette rather than Cal gold. */
+.adminui .savedot { background: var(--au-faint); }
+.adminui .savedot.on { background: var(--au-primary); box-shadow: 0 0 0 3px rgba(99,102,241,0.2); }
+.adminui .btn:hover:not(:disabled) { background: var(--au-raised); border-color: #2C333D; }
+.adminui .btn:disabled { opacity: 0.38; cursor: not-allowed; }
+.adminui .btn.bNavy { background: var(--au-primary); border-color: var(--au-primary);
+  color: var(--au-on-primary); font-weight: 600; }
+.adminui .btn.bNavy:hover:not(:disabled) { background: var(--au-primary-hot); border-color: var(--au-primary-hot); }
+/* A file input cannot be styled, so the label is the button and the input
+   is parked out of sight behind it - still in the DOM, still focusable, still
+   the thing the click reaches. */
+.adminui .auupload { display: inline-flex; align-items: center; justify-content: center;
+  padding: 5px 11px; border-radius: 999px; cursor: pointer; white-space: nowrap;
+  font-family: var(--body); font-size: 11px; font-weight: 600; letter-spacing: 0.01em;
+  border: 1px solid var(--au-line); background: transparent; color: var(--au-dim); }
+.adminui .auupload:hover { color: var(--au-text); background: var(--au-raised);
+  border-color: #2C333D; }
+.adminui .auupload:focus-within { outline: 2px solid var(--au-primary); outline-offset: 1px; }
+.adminui .auupload input[type="file"] { position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); border: 0; }
+
+.adminui .btn.bGhost { background: transparent; color: var(--au-dim); }
+.adminui .btn.bGhost:hover:not(:disabled) { color: var(--au-text); background: var(--au-surface); }
+.adminui .btn.bDanger { background: transparent; border-color: transparent; color: var(--au-faint);
+  padding: 5px 8px; }
+.adminui .btn.bDanger:hover:not(:disabled) { color: var(--au-danger); background: rgba(240,97,109,0.1); }
+.adminui .btn.bSm { font-size: 12.5px; padding: 6px 11px; }
+
+/* --- Segmented controls (season picker, filters) --- */
+.adminui .tabs { gap: 4px; }
+.adminui .tab { border-radius: 6px; border: 1px solid transparent; background: transparent;
+  color: var(--au-dim); font-family: var(--body); font-size: 12.5px; font-weight: 550;
+  text-transform: none; letter-spacing: 0; padding: 5px 11px; cursor: pointer; }
+.adminui .tab:hover { color: var(--au-text); background: var(--au-surface); }
+.adminui .tab.on { background: var(--au-raised); border-color: var(--au-line);
+  color: var(--au-text); font-weight: 600; }
+
+/* --- Data rows --- */
+.adminui .arow { border-bottom: 1px solid var(--au-line-soft); padding: 7px 0; }
+.adminui .arow:hover { background: rgba(255,255,255,0.014); }
+.adminui .ahead { font-family: var(--body); font-size: 10.5px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--au-faint);
+  border-bottom: 1px solid var(--au-line); padding-bottom: 8px; background: transparent; }
+.adminui .arow input, .adminui .arow select,
+.adminui input, .adminui select, .adminui textarea {
+  background: var(--au-surface); border: 1px solid var(--au-line); color: var(--au-text);
+  border-radius: 5px; padding: 6px 8px; font: inherit; font-size: 13px; width: 100%; }
+.adminui input[type="number"] { font-family: var(--au-mono); font-variant-numeric: tabular-nums; }
+.adminui input::placeholder, .adminui textarea::placeholder { color: var(--au-faint); }
+.adminui input:focus, .adminui select:focus, .adminui textarea:focus {
+  outline: none; border-color: var(--au-primary); box-shadow: 0 0 0 3px rgba(99,102,241,0.16); }
+.adminui input:disabled, .adminui select:disabled { opacity: 0.4; }
+.adminui input[type="checkbox"] { width: auto; accent-color: var(--au-primary); }
+.adminui input[type="date"] { font-family: var(--au-mono); font-size: 12px; }
+.adminui .derived { background: var(--au-panel) !important; color: var(--au-faint);
+  border-style: dashed; cursor: not-allowed; }
+
+/* --- Cards / panels --- */
+.adminui .card { background: var(--au-surface); border: 1px solid var(--au-line);
+  border-top: 1px solid var(--au-line); border-radius: 9px; padding: 18px; }
+.adminui .ta { background: var(--au-surface); border: 1px solid var(--au-line);
+  color: var(--au-text); border-radius: 6px; }
+.adminui .boxscore { background: var(--au-panel); border: 1px solid var(--au-line);
+  border-left: 2px solid var(--au-primary); border-radius: 0 8px 8px 0; padding: 14px 16px; }
+.adminui .boxrow { border-bottom: 1px solid var(--au-line-soft); }
+.adminui .boxrow.head { font-family: var(--body); font-size: 10.5px; color: var(--au-faint);
+  border-bottom-color: var(--au-line); }
+
+.adminui .oppcolor { width: 100%; height: 32px; padding: 2px; cursor: pointer;
+  border: 1px solid var(--au-line); border-radius: 6px; background: var(--au-surface); }
+
+/* Opponent scoring, inside the console box score */
+.adminui .oppbox { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--au-line); }
+.adminui .opprow { display: grid; gap: 8px; align-items: center; padding: 4px 0;
+  grid-template-columns: 52px 1fr 56px 56px 56px 30px; }
+.adminui .opprow.oppsheetrow { grid-template-columns: 52px 1fr 64px 30px; }
+.adminui .opprow.head { font-family: var(--body); font-size: 10.5px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--au-faint);
+  border-bottom: 1px solid var(--au-line); padding-bottom: 7px; }
+.adminui .opprow input { padding: 5px 7px; font-size: 13px; }
+
+/* Box score header, reconciliation chips and footer */
+.adminui .boxhead { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
+.adminui .boxchecks { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.adminui .boxcheck { font-size: 11.5px; font-weight: 600; border-radius: 999px; padding: 2px 9px;
+  border: 1px solid transparent; white-space: nowrap; }
+.adminui .boxcheck.ok { color: var(--au-ok); border-color: rgba(52,211,153,0.28); background: rgba(52,211,153,0.08); }
+/* Red is a contradiction: two records of this game disagree. Amber is work
+   not done yet. They were the same colour, which made an unfinished sheet
+   look like a broken one. */
+.adminui .boxcheck.bad { color: #F7A6AD; border-color: rgba(240,97,109,0.35); background: rgba(240,97,109,0.10); }
+.adminui .boxcheck.todo { color: var(--au-warn); border-color: rgba(245,165,36,0.32); background: rgba(245,165,36,0.09); }
+.adminui .boxcheck.muted { color: var(--au-faint); border-color: var(--au-line); }
+.adminui .boxfoot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--au-line); }
+
+/* Expandable per-game panel: watch links and playoff round */
+.adminui .aumore .auwide { grid-column: 1 / -1; }
+.adminui .aumore { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  background: var(--au-panel); border: 1px solid var(--au-line); border-left: 2px solid var(--au-primary);
+  border-radius: 0 8px 8px 0; padding: 14px 16px; margin: 4px 0 14px; }
+
+/* Round label, shown only for playoff games */
+.adminui .auroundrow { display: flex; align-items: center; gap: 10px; padding: 4px 0 10px 8px;
+  border-left: 2px solid var(--au-primary); margin-left: 2px; }
+.adminui .auroundrow input { max-width: 320px; }
+.adminui .opplogo { background: var(--au-surface); border-color: var(--au-line); border-radius: 6px; }
+
+/* --- Typography inside the console --- */
+.adminui .h2 { font-family: var(--body); font-size: 19px; font-weight: 650;
+  letter-spacing: -0.015em; text-transform: none; color: var(--au-text); }
+.adminui .h3 { font-family: var(--body); font-size: 15px; font-weight: 620;
+  letter-spacing: -0.01em; text-transform: none; color: var(--au-text); }
+.adminui .h6 { font-family: var(--body); font-size: 10.5px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--au-faint); }
+.adminui .eyebrow { color: var(--au-primary); }
+.adminui .bsm { font-size: 12.5px; color: var(--au-dim); }
+.adminui .blg { font-size: 14px; color: var(--au-dim); }
+.adminui .field label { display: block; margin-bottom: 6px; }
+.adminui .pill { border-radius: 5px; font-family: var(--au-mono); font-size: 10.5px;
+  background: var(--au-raised); color: var(--au-dim); border: 1px solid var(--au-line); }
+
+/* --- Empty states --- */
+.auempty { border: 1px dashed var(--au-line); border-radius: 9px; padding: 34px 24px;
+  text-align: center; color: var(--au-dim); background: var(--au-panel); }
+
+/* --- Settings: one screen, sections down the side --- */
+.ausettings { display: grid; grid-template-columns: 214px 1fr; gap: 26px; align-items: start; }
+.ausubnav { display: grid; gap: 2px; position: sticky; top: 78px; }
+.ausubitem { display: grid; gap: 1px; text-align: left; background: none; border: 0;
+  cursor: pointer; padding: 9px 11px; border-radius: 7px; color: var(--au-dim); font: inherit; }
+.ausubitem:hover { background: var(--au-surface); }
+.ausubitem.on { background: var(--au-raised); }
+.ausubname { font-size: 13.5px; font-weight: 600; color: var(--au-text); }
+.ausubhint { font-size: 11px; color: var(--au-faint); line-height: 1.35; }
+.ausettingsbody { min-width: 0; }
+
+/* --- Theme picker --- */
+.authemes { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; }
+.autheme { display: grid; gap: 8px; padding: 9px; background: var(--au-panel); color: var(--au-text);
+  border: 1px solid var(--au-line); border-radius: 9px; cursor: pointer; font: inherit;
+  text-align: left; }
+.autheme:hover { border-color: #333B47; }
+.autheme.on { border-color: var(--au-primary); box-shadow: 0 0 0 2px rgba(127,127,255,0.18); }
+/* A miniature sidebar: the gradient, two nav bars, and the accent dot. */
+.authemeswatch { position: relative; display: block; height: 42px; border-radius: 6px;
+  overflow: hidden; border: 1px solid var(--au-line); }
+.authemebar { position: absolute; left: 8px; height: 4px; border-radius: 2px;
+  background: currentColor; opacity: 0.34; width: 46%; top: 12px; }
+.authemebar.short { top: 22px; width: 30%; opacity: 0.22; }
+.authemedot { position: absolute; right: 8px; bottom: 8px; width: 10px; height: 10px;
+  border-radius: 3px; }
+.authemelabel { font-size: 12px; font-weight: 550; color: var(--au-text); }
+
+/* --- Hometown autocomplete --- */
+.adminui .auhometown { position: relative; }
+.adminui .ausuggest { position: absolute; z-index: 60; top: calc(100% + 3px); left: 0; right: 0;
+  margin: 0; padding: 4px; list-style: none; max-height: 240px; overflow-y: auto;
+  background: var(--au-raised); border: 1px solid var(--au-line); border-radius: 8px;
+  box-shadow: 0 14px 34px rgba(0,0,0,0.42); min-width: 220px; }
+.adminui .ausuggestitem { display: flex; align-items: baseline; gap: 8px; width: 100%;
+  text-align: left; background: none; border: 0; cursor: pointer; font: inherit;
+  font-size: 13px; color: var(--au-text); padding: 6px 9px; border-radius: 5px; }
+.adminui .ausuggestitem.on { background: var(--au-primary); color: var(--au-on-primary); }
+.adminui .ausuggesttail { margin-left: auto; font-family: var(--au-mono); font-size: 11px;
+  color: var(--au-faint); }
+.adminui .ausuggestitem.on .ausuggesttail { color: var(--au-on-primary); opacity: 0.8; }
+
+/* --- Image upload field --- */
+.adminui .auimage { display: flex; gap: 12px; align-items: flex-start; }
+/* The sidebar is 300px; a side-by-side preview and file picker will not fit
+   there without the hint text wrapping to one word a line. */
+.adminui .auwriteside .auimage { flex-direction: column; align-items: stretch; gap: 10px; }
+.adminui .auwriteside .auimgpreview.wide { width: 100%; aspect-ratio: 16 / 9; height: auto; }
+
+.adminui .auimgpreview { flex: 0 0 auto; display: grid; place-items: center; overflow: hidden;
+  background: var(--au-panel); border: 1px solid var(--au-line); border-radius: 8px; }
+.adminui .auimgpreview.square { width: 84px; height: 84px; }
+.adminui .auimgpreview.wide { width: 152px; aspect-ratio: 16 / 9; height: auto; }
+.adminui .auimgpreview img { width: 100%; height: 100%; object-fit: cover; object-position: center top; }
+.adminui .auimgempty { font-size: 10.5px; color: var(--au-faint); text-align: center; padding: 0 8px; }
+.adminui .auimgctl { display: grid; gap: 7px; min-width: 0; flex: 1; align-content: start; }
+.adminui .auimgctl input[type="file"] { font-size: 11.5px; }
+.adminui .auimgmeta { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; }
+/* Headshot and cover side by side in the roster panel */
+.adminui .auphotos { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px; margin-bottom: 14px; }
+
+/* --- News writing screen --- */
+.adminui .auwrite { display: block; }
+.adminui .auwritebar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding-bottom: 14px; margin-bottom: 18px; border-bottom: 1px solid var(--au-line); }
+.adminui .auwritegrid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 22px;
+  align-items: start; }
+.adminui .auwritemain { min-width: 0; display: grid; gap: 16px; }
+.adminui .auwriteside { min-width: 0; position: sticky; top: 78px; }
+.adminui .auwritetitle { font-family: var(--body); font-weight: 750; font-size: 24px;
+  letter-spacing: -0.02em; padding: 12px 14px; }
+
+/* Story list */
+.adminui .austorylist { display: grid; gap: 10px; }
+.adminui .austory { display: grid; grid-template-columns: 120px 1fr auto; gap: 16px;
+  align-items: center; background: var(--au-surface); border: 1px solid var(--au-line);
+  border-radius: 10px; padding: 12px 14px; cursor: pointer; font: inherit; text-align: left; }
+.adminui .austory:hover { border-color: var(--au-primary); }
+.adminui .austoryart { position: relative; aspect-ratio: 16 / 9; border-radius: 8px; overflow: hidden;
+  background: var(--au-panel); display: grid; place-items: center; }
+.adminui .austoryart img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.adminui .austorynoart { font-size: 10.5px; color: var(--au-faint); }
+.adminui .austorybody { display: grid; gap: 4px; min-width: 0; }
+.adminui .austorytitle { font-weight: 650; font-size: 15px; color: var(--au-text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adminui .austoryblurb { font-size: 12.5px; color: var(--au-dim); overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.adminui .austorymeta { font-size: 11.5px; color: var(--au-faint); display: flex; gap: 8px;
+  align-items: center; flex-wrap: wrap; }
+.adminui .austorystate { font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; border-radius: 999px; padding: 2px 8px; }
+.adminui .austorystate { white-space: nowrap; }
+.adminui .austorystate.published { color: var(--au-ok); background: rgba(52,211,153,0.1);
+  border: 1px solid rgba(52,211,153,0.28); }
+.adminui .austorystate.draft { color: var(--au-faint); border: 1px solid var(--au-line); }
+/* Scheduled is neither live nor abandoned, so it gets its own color
+   rather than borrowing one of the other two. */
+.adminui .austorystate.scheduled { color: var(--au-warn, #F5B544);
+  background: rgba(245,181,68,0.12); border: 1px solid rgba(245,181,68,0.3); }
+
+.adminui .austars { max-width: 460px; }
+.adminui .auopt { font-weight: 400; color: var(--au-faint); text-transform: none;
+  letter-spacing: 0; font-size: 11px; margin-left: 6px; }
+.adminui .austarpicks { display: grid; gap: 8px; }
+.adminui .austarpicks.across { grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); }
+.adminui .austarpicks.across .austarpick { gap: 7px; }
+.adminui .austarpick { display: flex; align-items: center; gap: 10px; }
+.adminui .austarnum { flex: 0 0 auto; width: 20px; height: 20px; display: grid;
+  place-items: center; border-radius: 50%; background: var(--au-primary); color: #fff;
+  font-family: var(--au-mono, monospace); font-size: 11px; font-weight: 700; }
+.adminui .austarpick select { flex: 1 1 auto; }
+
+.adminui .auaddrow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.adminui .auaddwhy { color: var(--au-warn, #F5B544); }
+.adminui .btn:disabled { opacity: 0.45; cursor: default; }
+
+/* Retroactive play entry */
+.adminui .auretro { border-top: 1px solid var(--au-line); margin-top: 18px; padding-top: 16px; }
+.adminui .auretrohead { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+.adminui .auretroform { background: var(--au-panel); border: 1px solid var(--au-line);
+  border-radius: 10px; padding: 14px 16px; display: grid; gap: 14px; justify-items: start; }
+.adminui .auretrogrid { display: grid; gap: 12px; width: 100%;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+
+/* Live scoring: what is coming up */
+.adminui .aulivelist { display: grid; gap: 8px; max-width: 720px; }
+.adminui .auliverow { display: flex; align-items: center; gap: 14px;
+  background: var(--au-surface); border: 1px solid var(--au-line); border-radius: 10px;
+  padding: 12px 16px; }
+.adminui .auliverow.istoday { border-color: #E4002B;
+  box-shadow: inset 3px 0 0 #E4002B; }
+/* A date block rather than a sentence: the scorekeeper is scanning for one
+   row, and the day is what they scan by. */
+.adminui .aulivedate { flex: 0 0 auto; display: grid; justify-items: center; width: 38px;
+  line-height: 1.1; }
+.adminui .aulivemon { font-family: var(--au-mono, monospace); font-size: 9.5px;
+  font-weight: 700; letter-spacing: 0.1em; color: var(--au-faint); }
+.adminui .auliveday { font-family: var(--au-mono, monospace); font-size: 19px;
+  font-weight: 700; color: var(--au-text); }
+/* A white tile, so the light-background crest every opponent has reads the
+   same way down the list. Only a third of them have a dark mark, so
+   preferring dark left nine of twenty-two as a dark crest on a dark row. */
+.adminui .aulivemark { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 7px;
+  background: #fff; display: grid; place-items: center; padding: 3px; }
+.adminui .aulivemark img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.adminui .auliveinfo { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
+.adminui .auliveopp { font-size: 14.5px; font-weight: 650; color: var(--au-text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adminui .aulivevs { color: var(--au-faint); font-weight: 600; margin-right: 6px; }
+.adminui .aulivewhere { font-size: 12px; color: var(--au-faint); overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.adminui .aulivetoday { flex: 0 0 auto; font-family: var(--au-mono, monospace);
+  font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: #FF5A76; background: rgba(228,0,43,0.12); border-radius: 999px; padding: 3px 9px; }
+.adminui .aulivestart { flex: 0 0 auto; }
+
+@media (max-width: 760px) {
+  .adminui .auliverow { flex-wrap: wrap; }
+  .adminui .auliveinfo { flex-basis: 100%; order: 3; }
+  .adminui .aulivestart { order: 4; }
+}
+
+/* Live game control */
+.adminui .aulivegame { display: grid; gap: 18px; }
+
+/* The scorebug. Big enough to read at arm's length on a phone propped on the
+   boards, which is where this actually gets used. */
+.adminui .aubug { display: grid; grid-template-columns: 1fr auto 1fr; gap: 18px;
+  align-items: center; background: var(--au-surface); border: 1px solid var(--au-line);
+  border-left: 3px solid #E4002B; border-radius: 12px; padding: 18px 22px; }
+.adminui .aubugside { text-align: center; min-width: 0; }
+.adminui .aubugname { margin: 0 0 4px; font-size: 12px; font-weight: 700; color: var(--au-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adminui .aubugscore { margin: 0; font-family: var(--au-mono, monospace); font-size: 54px;
+  font-weight: 700; line-height: 1; color: var(--au-text); font-variant-numeric: tabular-nums; }
+.adminui .aubugmid { display: grid; gap: 8px; justify-items: center; }
+.adminui .aubugclock { margin: 0; font-family: var(--au-mono, monospace); font-size: 38px;
+  font-weight: 700; line-height: 1; color: var(--au-text); font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em; }
+.adminui .aubugctl { display: flex; gap: 8px; align-items: center; }
+.adminui .aubugctl select { width: auto; padding: 6px 8px; font-size: 13px; }
+.adminui .aubugnudge { display: flex; gap: 4px; }
+.adminui .aubugnudge .btn { padding: 4px 8px; font-size: 11.5px; }
+
+.adminui .aunet { margin-top: 10px; display: grid; gap: 4px; justify-items: center; }
+.adminui .aunet .h6 { margin: 0; }
+.adminui .aunet select, .adminui .aunet input { max-width: 180px; font-size: 12.5px;
+  padding: 5px 7px; text-align: center; }
+
+.adminui .aushots { display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin-top: 10px; font-size: 12px; color: var(--au-dim); }
+.adminui .aushots strong { font-family: var(--au-mono, monospace); font-size: 15px;
+  color: var(--au-text); font-variant-numeric: tabular-nums; }
+.adminui .aushots .btn { padding: 2px 9px; font-size: 14px; line-height: 1.2; }
+
+/* Strength */
+/* A field with something attached to it - stepper arrows, or a unit. */
+.adminui .aufield { display: flex; align-items: stretch; min-width: 0; }
+.adminui .aufield input { flex: 1 1 auto; min-width: 0; border-top-right-radius: 0;
+  border-bottom-right-radius: 0; }
+.adminui .aunumbtns { display: grid; grid-template-rows: 1fr 1fr; flex: 0 0 auto; }
+.adminui .aunumbtns button { border: 1px solid var(--au-line); border-left: 0;
+  background: var(--au-raised); color: var(--au-dim); cursor: pointer;
+  font-size: 7px; line-height: 1; padding: 0 5px; }
+.adminui .aunumbtns button:first-child { border-top-right-radius: 6px; border-bottom: 0; }
+.adminui .aunumbtns button:last-child { border-bottom-right-radius: 6px; }
+.adminui .aunumbtns button:hover { color: var(--au-text); }
+.adminui .auunit { display: grid; place-items: center; flex: 0 0 auto; padding: 0 8px;
+  border: 1px solid var(--au-line); border-left: 0;
+  border-top-right-radius: 6px; border-bottom-right-radius: 6px;
+  background: var(--au-raised); color: var(--au-dim); font-size: 11.5px; font-weight: 600; }
+
+.adminui .aumarkbar { display: flex; gap: 4px; }
+.adminui .aumark { width: 26px; height: 26px; display: grid; place-items: center;
+  border: 1px solid var(--au-line); border-radius: 6px; background: var(--au-raised);
+  color: var(--au-dim); cursor: pointer; font-size: 12.5px; line-height: 1; padding: 0; }
+.adminui .aumark:hover { color: var(--au-text); border-color: var(--au-dim); }
+
+.adminui .aupastebar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.adminui .aupasteskip { color: var(--au-warn); cursor: help; }
+.adminui .austop { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  border: 1px solid var(--au-warn); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; }
+.adminui .austop .h6 { margin-right: 4px; color: var(--au-warn); }
+.adminui .austop select, .adminui .austop input { width: auto; min-width: 190px;
+  padding: 5px 8px; font-size: 13px; }
+.adminui .austopskip { margin-left: auto; opacity: 0.75; }
+.adminui .austrength { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  border: 1px solid var(--au-line); border-radius: 10px; padding: 10px 14px;
+  background: var(--au-panel); }
+.adminui .austrengthtag { font-family: var(--au-mono, monospace); font-size: 11.5px;
+  font-weight: 700; letter-spacing: 0.1em; color: var(--au-dim); }
+.adminui .austrength.pp { border-color: rgba(52,211,153,0.4); }
+.adminui .austrength.pp .austrengthtag { color: var(--au-ok); }
+.adminui .austrength.pk { border-color: rgba(245,181,68,0.4); }
+.adminui .austrength.pk .austrengthtag { color: var(--au-warn, #F5B544); }
+.adminui .aupen { background: var(--au-surface); border: 1px solid var(--au-line);
+  border-radius: 999px; padding: 4px 11px; font: inherit; font-size: 12px; font-weight: 650;
+  color: var(--au-text); cursor: pointer; font-variant-numeric: tabular-nums; }
+.adminui .aupen:hover { border-color: var(--au-primary); }
+
+.adminui .aulivegrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px; align-items: start; }
+.adminui .autoggle { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* Play by play */
+.adminui .auplays { display: grid; gap: 6px; max-height: 480px; overflow-y: auto;
+  scrollbar-width: thin; }
+.adminui .auplay { display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+  border: 1px solid var(--au-line); border-radius: 8px; background: var(--au-panel); }
+/* Ours reads forward, theirs recedes — the same logic the public scoreboard uses. */
+.adminui .auplay.us { border-left: 3px solid var(--au-primary); }
+.adminui .auplay.them { border-left: 3px solid var(--au-line); opacity: 0.82; }
+.adminui .auplaywhen { flex: 0 0 auto; font-family: var(--au-mono, monospace); font-size: 11px;
+  color: var(--au-faint); font-variant-numeric: tabular-nums; }
+.adminui .auplaybody { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline;
+  gap: 8px; flex-wrap: wrap; }
+.adminui .auplaykind { font-family: var(--au-mono, monospace); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.08em; border-radius: 4px; padding: 2px 6px; }
+.adminui .auplaykind.goal { color: var(--au-ok); background: rgba(52,211,153,0.12); }
+.adminui .auplaykind.pen { color: var(--au-warn, #F5B544); background: rgba(245,181,68,0.12); }
+.adminui .auplaykind.stop { color: var(--au-dim); background: rgba(255,255,255,0.07); }
+.adminui .auplaywho { font-size: 13.5px; font-weight: 650; color: var(--au-text); }
+.adminui .auplayassist { font-size: 12px; color: var(--au-faint); }
+
+/* A count on a button reads as part of the label without it — "Box 31" looked
+   like a number, not a tally. */
+.adminui .btn.aucount { display: inline-flex; align-items: center; gap: 6px; }
+.adminui .aunum { font-family: var(--au-mono, monospace); font-size: 10px; font-weight: 700;
+  background: rgba(255,255,255,0.12); border-radius: 999px; padding: 1px 5px;
+  flex: 0 0 auto; line-height: 1.5; min-width: 14px; text-align: center; }
+
+/* A count here is a count of problems, so it should look like one. The tick
+   is the quieter of the two on purpose: most games are fine and the eye
+   should land on the ones that are not. */
+.adminui .aunum.bad { background: rgba(240,97,109,0.22); color: #F7A6AD; }
+/* Work outstanding, not a fault: amber, and it sits after the red count so a
+   real contradiction is always the first thing read. */
+.adminui .aunum.todo { background: rgba(240,180,80,0.18); color: #E7B45A; }
+.adminui .aunum.ok { background: transparent; color: var(--au-faint); padding: 1px 3px; }
+
+@media (max-width: 900px) {
+  .adminui .aulivegrid { grid-template-columns: 1fr; }
+  .adminui .aubug { grid-template-columns: 1fr; gap: 12px; }
+  .adminui .aubugscore { font-size: 42px; }
+}
+
+/* Live scoring console */
+.adminui .aulive { display: grid; gap: 16px; grid-template-columns: 1fr;
+  border-left-color: #E4002B; }
+.adminui .aulive > .btn { justify-self: start; }
+.adminui .aulivetop { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.adminui .aulivetag { display: inline-flex; align-items: center; font-family: var(--au-mono, monospace);
+  font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: #FF5A76; }
+.adminui .aulivewhen { font-size: 13px; font-weight: 650; color: var(--au-dim); }
+/* The hidden attribute is only a default of display:none, and any rule that
+   sets display beats it - .aulivegrid is a grid, so the scoring panel stayed
+   on screen underneath the tab that replaced it. */
+.adminui [hidden] { display: none !important; }
+
+/* Reading a scoresheet: what was parsed, next to what the game already says. */
+.adminui .ausheet { max-width: 760px; }
+.adminui .ausheetprev { margin-top: 14px; border-top: 1px solid var(--au-line); padding-top: 12px; }
+.adminui .ausheetrow { display: flex; gap: 12px; font-size: 13px; color: var(--au-text);
+  padding: 3px 0; }
+.adminui .ausheetkey { flex: 0 0 88px; color: var(--au-faint); font-weight: 700;
+  font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; padding-top: 2px; }
+.adminui .ausheetwarn { color: var(--au-danger); margin: 8px 0 0; }
+
+/* The pencil sits with the cross, quieter than it: correcting is the rarer
+   thing to want and should not compete with reading the log. */
+.adminui .auplayedit { padding: 4px 7px; font-size: 12px; color: var(--au-faint);
+  border-color: transparent; background: transparent; }
+.adminui .auplayedit:hover { color: var(--au-text); }
+.adminui .auedit { flex-wrap: wrap; }
+.adminui .auedit select, .adminui .auedit input { width: auto; }
+
+/* Where the game stops agreeing with itself. Amber rather than red: none of
+   this is an error yet, it is two records of the same game that have drifted
+   and want a look. */
+.adminui .aumismatch { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  margin-top: 14px; padding: 9px 14px; border-radius: 10px;
+  border: 1px solid rgba(240,180,80,0.35); background: rgba(240,180,80,0.08); }
+.adminui .aumismatchtag { font-family: var(--au-mono, monospace); font-size: 10.5px;
+  font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #E7B45A; }
+.adminui .aumismatchitem { font-size: 12.5px; color: var(--au-dim); }
+.adminui .aumismatchitem b { color: var(--au-text); font-weight: 650; margin-right: 4px; }
+
+/* Typing up a finished game: one period-and-time, used by everything entered
+   under it until it is changed. */
+.adminui .auentry { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: var(--au-panel); border: 1px solid var(--au-line); border-radius: 10px;
+  padding: 10px 14px; margin-top: 14px; }
+.adminui .auentry select { width: auto; }
+.adminui .auentryclock { width: 92px; flex: 0 0 auto; text-align: center;
+  font-family: var(--au-mono, monospace); font-size: 15px; font-weight: 700;
+  font-variant-numeric: tabular-nums; }
+.adminui .auentrynudge { display: flex; gap: 4px; flex: 0 0 auto; }
+.adminui .auentrynudge .btn { padding: 5px 8px; font-size: 11px;
+  font-family: var(--au-mono, monospace); font-variant-numeric: tabular-nums; }
+.adminui .auentryhint { color: var(--au-faint); min-width: 0; flex: 1 1 220px; }
+
+/* A penalty that is not costing the team a skater, and a player who is gone
+   for the night: both belong on the strip, neither is a disadvantage. */
+.adminui .aupen.aupenfull { opacity: 0.75; }
+.adminui .aupen.aupenout { opacity: 0.75; cursor: default; }
+.adminui .aupennote { margin-left: 6px; font-size: 10px; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--au-faint); }
+
+/* --- Live console tabs --- */
+.adminui .autabs { display: flex; gap: 4px; margin: 16px 0 14px; border-bottom: 1px solid var(--au-line); }
+.adminui .autab { display: inline-flex; align-items: center; gap: 7px; background: none;
+  border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: pointer;
+  padding: 9px 14px; font-family: var(--body); font-size: 13px; font-weight: 650;
+  color: var(--au-dim); }
+.adminui .autab:hover { color: var(--au-text); }
+.adminui .autab.on { color: var(--au-text); border-bottom-color: var(--au-primary); }
+.adminui .autabcount { font-size: 11px; font-weight: 700; color: var(--au-dim);
+  background: var(--au-raised); border-radius: 999px; padding: 1px 7px; }
+/* Their sheet is empty and a shootout will need it. Quiet, not an alarm. */
+.adminui .autabdot { width: 6px; height: 6px; border-radius: 50%; background: var(--au-faint); }
+
+/* --- Shootout --- */
+.adminui .ausocard { max-width: 720px; }
+.adminui .ausohead { display: flex; align-items: baseline; gap: 14px; margin-bottom: 12px; }
+.adminui .ausoscore { margin-left: auto; font-family: var(--au-mono, monospace);
+  font-size: 15px; font-weight: 700; color: var(--au-text); font-variant-numeric: tabular-nums; }
+.adminui .ausodash { color: var(--au-faint); }
+.adminui .ausorounds { display: grid; gap: 8px; margin-bottom: 16px; }
+.adminui .ausoround { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.adminui .ausoroundno { width: 26px; flex: 0 0 auto; text-align: center;
+  font-family: var(--au-mono, monospace); font-size: 11px; font-weight: 700;
+  color: var(--au-faint); }
+.adminui .ausoshot { display: inline-flex; align-items: center; gap: 8px; min-width: 0;
+  border: 1px solid var(--au-line); border-radius: 999px; padding: 5px 12px; font-size: 12.5px; }
+.adminui .ausoshot.goal { border-color: var(--au-ok); }
+.adminui .ausoteam { font-weight: 700; color: var(--au-dim); }
+.adminui .ausoplayer { color: var(--au-text); overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; }
+.adminui .ausoresult { font-weight: 700; color: var(--au-faint); }
+.adminui .ausoshot.goal .ausoresult { color: var(--au-ok); }
+.adminui .ausoturn { border-top: 1px solid var(--au-line); padding-top: 14px; display: grid; gap: 10px; }
+.adminui .ausoprompt { margin: 0; font-size: 14px; color: var(--au-dim); }
+.adminui .ausoprompt b { color: var(--au-text); }
+.adminui .ausobtns { display: flex; gap: 8px; flex-wrap: wrap; }
+.adminui .ausodone { border-top: 1px solid var(--au-line); padding-top: 14px; }
+
+/* Deliberately not the red LIVE badge: nothing is on air, and a scorer
+   glancing at the top of the screen has to be able to tell the difference. */
+.adminui .auretrotag { display: inline-flex; align-items: center;
+  font-family: var(--au-mono, monospace); font-size: 11px; font-weight: 700;
+  letter-spacing: 0.1em; color: var(--au-dim); border: 1px solid var(--au-line);
+  border-radius: 999px; padding: 2px 9px; }
+/* The result of a game already played, in its row on the pick list. */
+.adminui .auliveresult { display: flex; flex-direction: column; align-items: flex-end;
+  gap: 2px; margin-left: auto; font-size: 14px; font-weight: 700; color: var(--au-text);
+  font-variant-numeric: tabular-nums; white-space: nowrap; }
+.adminui .aulivepbp { font-size: 11px; font-weight: 600; color: var(--au-faint); }
+/* A checkbox and its words, on one line, both clickable. */
+.adminui .aucheck { display: flex; align-items: center; gap: 8px; cursor: pointer;
+  font-size: 13px; color: var(--au-dim); }
+.adminui .aucheck input { flex: 0 0 auto; }
+.adminui .btn.bLive { background: #E4002B; color: #fff; border: 0; }
+.adminui .btn.bLive:hover { background: #C80026; }
+.adminui .aulivescore { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; max-width: 520px; }
+.adminui .auliveside { background: var(--au-panel); border: 1px solid var(--au-line);
+  border-radius: 10px; padding: 12px 14px; }
+.adminui .aulivelabel { margin: 0 0 10px; font-size: 12px; font-weight: 700; color: var(--au-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adminui .aulivecount { display: flex; align-items: center; gap: 12px; }
+/* Thumb-sized on purpose: this gets used one-handed, standing up, in a rink. */
+.adminui .aulivebtn { width: 46px; height: 46px; padding: 0; font-size: 22px; line-height: 1;
+  display: grid; place-items: center; flex: 0 0 auto; }
+.adminui .aulivenum { flex: 1 1 auto; text-align: center; font-family: var(--au-mono, monospace);
+  font-size: 34px; font-weight: 700; color: var(--au-text); font-variant-numeric: tabular-nums; }
+.adminui .aulivemeta { display: grid; grid-template-columns: 110px 1fr auto; gap: 14px;
+  align-items: start; max-width: 620px; }
+.adminui .aulivecheck { display: flex; align-items: center; gap: 8px; font-weight: 650;
+  color: var(--au-dim); white-space: nowrap; padding-top: 26px; }
+.adminui .aulivecheck input { width: auto; }
+.adminui .aulivewarn { margin: 0; color: var(--au-warn, #F5B544); }
+
+@media (max-width: 700px) {
+  .adminui .aulivemeta { grid-template-columns: 1fr; }
+  .adminui .aulivecheck { padding-top: 0; }
+}
+
+.adminui .auoppbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-bottom: 16px; }
+.adminui .auoppbar > .btn { margin-bottom: 0 !important; }
+.adminui .auoppsearch { max-width: 240px; }
+
+.adminui .auopproster { grid-template-columns: 1fr; gap: 12px; }
+.adminui .auopprosterhead { display: flex; align-items: center; gap: 12px; }
+.adminui .auopprows { display: grid; gap: 6px; max-width: 460px; }
+.adminui .auopprow { display: grid; grid-template-columns: 56px 1fr 62px 28px; gap: 8px; }
+
+/* Opponent library */
+.adminui .aulib { margin-bottom: 18px; }
+.adminui .aulibtop { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 14px; }
+.adminui .aulibsearch { max-width: 240px; }
+.adminui .aulibgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 8px; max-height: 340px; overflow-y: auto; scrollbar-width: thin; }
+.adminui .aulibitem { display: flex; align-items: center; gap: 10px; text-align: left;
+  background: var(--au-panel); border: 1px solid var(--au-line); border-radius: 8px;
+  padding: 8px 10px; cursor: pointer; font: inherit; color: var(--au-text); }
+.adminui .aulibitem:hover:not(:disabled) { border-color: var(--au-primary); }
+.adminui .aulibitem.added { opacity: 0.45; cursor: default; }
+/* A white plate: most of these marks are dark ink and would vanish here. */
+.adminui .aulibmark { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 6px;
+  background: #fff; display: grid; place-items: center; padding: 3px; }
+.adminui .aulibmark img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.adminui .aulibname { flex: 1 1 auto; font-size: 13px; font-weight: 650; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adminui .aulibadd { font-size: 11px; font-weight: 700; color: var(--au-primary);
+  white-space: nowrap; }
+.adminui .aulibitem.added .aulibadd { color: var(--au-faint); }
+
+.adminui .auoffseason { max-width: 560px; margin-bottom: 22px; }
+
+.adminui .ausortlab { display: inline-flex; align-items: center; gap: 8px;
+  color: var(--au-dim); font-weight: 650; }
+.adminui .ausortlab select { width: auto; padding: 6px 8px; font-size: 13px; }
+
+/* Reorder buttons */
+.adminui .aumove { display: inline-flex; gap: 4px; align-self: center; }
+.adminui .aumove .btn { padding: 6px 9px; line-height: 1; }
+.adminui .aumove .btn:disabled { opacity: 0.35; cursor: default; }
+
+/* Visibility picker */
+.adminui .auvis { display: grid; gap: 6px; }
+.adminui .auvisrow { display: flex; align-items: flex-start; gap: 10px; cursor: pointer;
+  border: 1px solid var(--au-line); border-radius: 8px; padding: 9px 11px; }
+.adminui .auvisrow:hover { border-color: var(--au-primary); }
+.adminui .auvisrow.on { border-color: var(--au-primary);
+  background: color-mix(in srgb, var(--au-primary) 10%, transparent); }
+.adminui .auvisrow input { width: auto; margin: 2px 0 0; flex: 0 0 auto; accent-color: var(--au-primary); }
+.adminui .auvislabel { display: block; font-size: 13.5px; font-weight: 650; color: var(--au-text); }
+.adminui .auvishelp { display: block; font-size: 11.5px; color: var(--au-faint); margin-top: 2px; }
+.adminui .austoryedit { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px;
+  font-weight: 700; color: var(--au-primary); white-space: nowrap; }
+
+@media (max-width: 1000px) {
+  .adminui .auwritegrid { grid-template-columns: 1fr; }
+  .adminui .auwriteside { position: static; }
+}
+
+/* --- Custom theme builder --- */
+.adminui .aucustom { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 16px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--au-line); }
+
+/* --- Color field --- */
+.aucolor { display: flex; gap: 7px; align-items: center; }
+.aucolor input[type="color"] { width: 40px; height: 34px; padding: 2px; flex: 0 0 auto;
+  background: var(--au-surface); border: 1px solid var(--au-line); border-radius: 6px; cursor: pointer; }
+.aucolorhex { font-family: var(--au-mono); font-size: 12.5px; text-transform: uppercase; }
+.auorgpreview { display: grid; place-items: center; width: 60px; height: 60px; flex: 0 0 auto;
+  background: var(--au-panel); border: 1px solid var(--au-line); border-radius: 10px; }
+.auorgpreview img { max-width: 78%; max-height: 78%; object-fit: contain; }
+
+@media (max-width: 780px) {
+  .ausettings { grid-template-columns: 1fr; gap: 16px; }
+  .ausubnav { position: static; grid-auto-flow: column; overflow-x: auto; }
+}
+
+/* --- Stats tables --------------------------------------------------------
+ * Their own grid rather than .arow: those carry a 1140px minimum for the wide
+ * editors, which would force needless horizontal scroll on a seven-column
+ * stat table. */
+.austat { display: grid; gap: 8px; align-items: center; padding: 6px 0; width: 100%;
+  border-bottom: 1px solid var(--au-line-soft); text-align: left; }
+.austat.head { font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--au-faint); border-bottom: 1px solid var(--au-line);
+  padding-bottom: 8px; }
+.austat input { padding: 5px 7px; font-size: 12.5px; }
+.austatsort { background: none; border: 0; padding: 0; cursor: pointer; text-align: left;
+  font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit; }
+.austatsort:hover { color: var(--au-text); }
+.austatname { font-size: 13.5px; font-weight: 550; color: var(--au-text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aunum { font-family: var(--au-mono); font-size: 12.5px; font-variant-numeric: tabular-nums;
+  color: var(--au-dim); }
+.aupts { font-family: var(--au-mono); font-size: 12.5px; font-variant-numeric: tabular-nums;
+  font-weight: 700; color: var(--au-text); }
+.ausource { font-size: 10.5px; }
+.ausource.calc { color: var(--au-faint); }
+.ausource.typed { color: var(--au-warn); }
+
+/* Career rows expand to a per-season breakdown. */
+.austat.asrow { background: none; border-left: 0; border-right: 0; border-top: 0;
+  cursor: pointer; font: inherit; color: inherit; }
+.austat.asrow:hover { background: rgba(127,127,127,0.06); }
+.austat.asrow.on { background: rgba(127,127,127,0.08); }
+.aubreakdown { padding: 2px 0 10px 16px; border-left: 2px solid var(--au-primary);
+  margin: 0 0 8px 4px; }
+.austat.sub { border-bottom: 0; padding: 3px 0; opacity: 0.85; }
+
+/* Game list on the Stats > By game view. */
+.augamerow { display: grid; grid-template-columns: 108px 1fr 68px 104px; gap: 10px;
+  align-items: center; width: 100%; text-align: left; background: none; font: inherit;
+  border: 0; border-bottom: 1px solid var(--au-line-soft); padding: 9px 6px;
+  cursor: pointer; color: var(--au-text); border-radius: 6px; }
+.augamerow:hover { background: rgba(127,127,127,0.07); }
+.augamerow.on { background: rgba(127,127,127,0.1); }
+.augamedate { font-family: var(--au-mono); font-size: 12px; color: var(--au-dim); }
+.augameopp { font-size: 13.5px; font-weight: 550; display: flex; align-items: center; gap: 8px; }
+.augametag { font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--au-primary); border: 1px solid var(--au-primary); border-radius: 4px; padding: 1px 5px; }
+.augamescore { font-family: var(--au-mono); font-size: 12.5px; color: var(--au-dim); }
+.augamestate { font-size: 11px; font-weight: 600; justify-self: end; border-radius: 999px;
+  padding: 2px 9px; border: 1px solid transparent; }
+.augamestate.done { color: var(--au-ok); border-color: rgba(52,211,153,0.28);
+  background: rgba(52,211,153,0.08); }
+.augamestate.todo { color: var(--au-faint); border-color: var(--au-line); }
+
+/* --- Archived-season guard --- */
+.adminui .auarchive { display: flex; align-items: center; gap: 11px; flex-wrap: wrap;
+  border: 1px solid var(--au-line); border-left: 2px solid var(--au-faint);
+  background: var(--au-panel); border-radius: 0 8px 8px 0; padding: 10px 14px; margin: 0 0 16px; }
+.adminui .auarchive.open { border-left-color: var(--au-warn);
+  background: rgba(245,165,36,0.06); border-color: rgba(245,165,36,0.24); }
+.adminui .auarchiveicon { color: var(--au-faint); font-size: 9px; }
+.adminui .auarchive.open .auarchiveicon { color: var(--au-warn); }
+/* Locked content stays readable but is inert via the inert attribute. */
+.adminui .aulocked { opacity: 0.5; filter: saturate(0.5); user-select: text; }
+
+/* --- Article preview inside the console --- */
+.adminui .aupreview { background: var(--au-panel); border: 1px solid var(--au-line);
+  border-radius: 8px; padding: 16px 18px; min-height: 120px; }
+.adminui .aupreview .artp { font-size: 14px; line-height: 1.6; color: var(--au-text); margin-bottom: 12px; }
+.adminui .aupreview .arth3 { font-family: var(--body); text-transform: none; letter-spacing: -0.01em;
+  font-size: 15px; color: var(--au-text); margin: 18px 0 8px; }
+.adminui .aupreview .artlist li { font-size: 14px; color: var(--au-text); }
+.adminui .aupreview .artmention { color: var(--au-primary); }
+
+/* --- Confirmation dialog --- */
+.auoverlay { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 20px; }
+.auscrim { position: absolute; inset: 0; background: rgba(4,6,9,0.68); backdrop-filter: blur(2px); }
+.aumodal { position: relative; width: 100%; max-width: 420px; background: var(--au-surface);
+  border: 1px solid var(--au-line); border-radius: 12px; padding: 22px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.5); }
+.aumodaltitle { font-family: var(--body); font-size: 15.5px; font-weight: 650; margin: 0 0 8px;
+  letter-spacing: -0.01em; color: var(--au-text); text-transform: none; }
+.aumodalmsg { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--au-dim); }
+.aumodaldetail { margin: 10px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--au-warn);
+  background: rgba(245,165,36,0.08); border: 1px solid rgba(245,165,36,0.22);
+  border-radius: 6px; padding: 9px 11px; }
+.aumodalfoot { display: flex; justify-content: flex-end; gap: 9px; margin-top: 20px; }
+.adminui .btn.bDestruct { background: var(--au-danger); border-color: var(--au-danger);
+  color: #2A0509; font-weight: 650; }
+.adminui .btn.bDestruct:hover:not(:disabled) { background: #F4808A; border-color: #F4808A; }
+
+/* --- Sign-in --- */
+.augate { min-height: 100vh; display: grid; place-items: center; padding: 24px;
+  background:
+    radial-gradient(680px 380px at 50% -8%, rgba(99,102,241,0.16), transparent 70%),
+    var(--au-bg); }
+.augatecard { width: 100%; max-width: 372px; background: var(--au-surface);
+  border: 1px solid var(--au-line); border-radius: 12px; padding: 26px; }
+
+@media (max-width: 900px) {
+  .aushell { grid-template-columns: 1fr; }
+  .ausidebar { position: static; height: auto; flex-direction: row; overflow-x: auto;
+    border-right: 0; border-bottom: 1px solid var(--au-line); align-items: center; }
+  .aubrand { border-bottom: 0; border-right: 1px solid var(--au-line-soft); }
+  .aunav { display: flex; gap: 4px; padding: 8px; align-items: center; }
+  .aunavgroup { display: contents; }
+  .aunavgroup + .aunavgroup { margin-top: 0; }
+  .augroup { display: none; }
+  .ausidefoot { display: none; }
+  .aubody { padding: 18px 14px; }
+  .autop { padding: 12px 14px; }
+}
+
+`;
+
+/* ---------------- Flat icons (no emojis anywhere) ---------------- */
+function Ic({ d, size = 16, sw = 2, style }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+      style={{ flex: "0 0 auto", verticalAlign: "-2px", display: "inline-block", ...style }}>
+      {d}
+    </svg>
+  );
+}
+const IcPin = (p) => <Ic {...p} d={<><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></>} />;
+/* Ways of getting to the rink. Flat strokes in the house style, drawn here
+   rather than lifted from a transit agency's own icon set. */
+const IcTrain = (p) => <Ic {...p} d={<><rect x="6" y="3" width="12" height="13" rx="3" /><path d="M6 10h12M9 20l-2 2M15 20l2 2M8 16h.01M16 16h.01" /></>} />;
+const IcBus = (p) => <Ic {...p} d={<><rect x="4" y="4" width="16" height="12" rx="2" /><path d="M4 11h16M7 20v-2M17 20v-2M8 16h.01M16 16h.01" /></>} />;
+const IcPhone = (p) => <Ic {...p} d={<path d="M7 3.5h3l1.2 3.4-1.9 1.4a11 11 0 0 0 5 5l1.4-1.9 3.4 1.2v3a1.8 1.8 0 0 1-2 1.8C11.3 17 7 12.7 5.2 5.5a1.8 1.8 0 0 1 1.8-2Z" />} />;
+const IcCar = (p) => <Ic {...p} d={<><path d="M4 15h16M5 15l1.6-5.2A2 2 0 0 1 8.5 8.4h7a2 2 0 0 1 1.9 1.4L19 15v3.5h-3V17H8v1.5H5Z" /><path d="M7.5 12.5h9" /></>} />;
+const IcClock = (p) => <Ic {...p} d={<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>} />;
+const IcPlusC = (p) => <Ic {...p} d={<><circle cx="12" cy="12" r="9" /><path d="M12 8v8M8 12h8" /></>} />;
+const IcMinusC = (p) => <Ic {...p} d={<><circle cx="12" cy="12" r="9" /><path d="M8 12h8" /></>} />;
+const IcArrowR = (p) => <Ic {...p} d={<path d="M4 12h15m-6-6 6 6-6 6" />} />;
+/* The lamp behind the net. Filled rather than stroked: at 14px a stroked
+   siren reads as a smudge. */
+/* A lighter mix of a team colour, for the announcement half of a goal block.
+   Mixing toward white rather than raising lightness keeps the hue, so a navy
+   stays navy instead of drifting blue. Anything that is not a six-digit hex
+   comes back untouched. */
+function lighten(hex, amount) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ""));
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  const mix = (c) => Math.round(c + (255 - c) * amount);
+  return "#" + [16, 8, 0]
+    .map((sh) => mix((n >> sh) & 255).toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/* Channels as an array, which is what the luminance test below wants. The
+   other hexToRgb in this file returns an object and is used elsewhere. */
+function bandChannels(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ""));
+  if (!m) return [0, 0, 0];
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+/* Our wordmark comes in two finishes and the background decides which. Gold on
+   a bright red or gold band turns to mud - two warm colours at the same weight
+   - and gold on anything pale disappears outright, so both of those take navy.
+   Everything dark takes gold, including dark reds like a cardinal, where gold
+   is the pairing that has always worked. */
+function markColour(bandHex) {
+  const [r, g, b] = bandChannels(bandHex);
+  const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  const warmBright = r > 150 && g < 220 && b < 120;
+  /* 0.52 rather than something lower: a mid blue like UCLA's is bright by the
+     numbers but still reads as a dark ground, and gold sits on it far better
+     than navy does. Only genuinely pale backgrounds take navy on luminance. */
+  if (lum > 0.52) return "var(--blue)";
+  if (warmBright && lum > 0.2) return "var(--blue)";
+  return "var(--gold)";
+}
+
+/* A play-by-play alternates between two team colours, so choosing a finish
+   band by band makes the same crest change appearance halfway down the list.
+   One finish is picked for the whole game instead: if both bands want the same
+   one, that is it; if they disagree - our navy wants gold, a red or gold
+   opponent wants navy - neither works on both, so white does. */
+/* Kept as the one place that answers "what colour goes on this band". Gold
+   or navy, never white: white vanishes on any pale crest band, and the Cal
+   script in white is not a mark the program uses. */
+function bandMarkFinish(band) {
+  return markColour(band);
+}
+
+/* A team's mark drawn on a block of colour.
+ *
+ * It draws the file it is given and nothing else. There used to be a rule
+ * here: sample the crest, decide whether it was a single colour close enough
+ * to the band to disappear, and if so mask it to white or gold. It worked
+ * most of the time, which is the problem - the sampling was asynchronous and
+ * cached, so a crest could settle a beat after the row painted, and two teams
+ * with similar colours could be treated differently for reasons no one could
+ * see or override.
+ *
+ * Which mark belongs on a dark ground is a judgement about a logo, and the
+ * person who owns the logo already makes it: they upload one for light
+ * surfaces and one for dark. This just shows the dark one. When a team has
+ * no dark mark yet the light one stands in - visibly wrong on its own colour,
+ * which is the right kind of wrong, because it says "upload the other file"
+ * instead of quietly inventing a version of someone's crest.
+ */
+function TeamMarkOnColour({ mine, logo, band, abbr, finish, size = 26, className = "pblogo" }) {
+  if (mine) return <Logo size={size} color={finish} />;
+  if (!logo) return <OppBadge name={abbr} size={size} />;
+  return <img className={className} src={logo} alt="" style={{ width: size, height: size }} />;
+}
+
+/* The crest behind a goal band, same rule at 116px. */
+function GoalWatermark({ mine, logo, band, abbr, finish }) {
+  return (
+    <span className="pbgoalwatermark" aria-hidden="true">
+      {mine
+        ? <Logo size={116} color={finish} />
+        : logo
+          ? <img src={logo} alt="" />
+          : null}
+    </span>
+  );
+}
+
+const IcGoalLight = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M6.5 15.5a5.5 5.5 0 0 1 11 0z" fill="#fff" />
+    <rect x="4.5" y="16.5" width="15" height="3" rx="1.5" fill="#fff" />
+    <path d="M12 2.5v2.6M5.4 5.4l1.8 1.8M18.6 5.4l-1.8 1.8" stroke="#fff"
+      strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
+
+const IcWhistle = (p) => (
+  <Ic {...p} d={<><circle cx="9" cy="13" r="5" /><path d="M14 11h6l1-4h-8" /></>} />
+);
+const IcChevD = (p) => <Ic {...p} sw={2.4} d={<path d="M6 10l6 6 6-6" />} />;
+const IcChevL = (p) => <Ic {...p} sw={2.4} d={<path d="M14 6l-6 6 6 6" />} />;
+const IcChevR = (p) => <Ic {...p} sw={2.4} d={<path d="M10 6l6 6-6 6" />} />;
+const IcPeople = (p) => <Ic {...p} d={<><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20c0-3.5 3-5.5 6.5-5.5s6.5 2 6.5 5.5" /><circle cx="17" cy="9" r="2.6" /><path d="M16 14.7c2.9.3 5.5 2 5.5 5.3" /></>} />;
+const IcList = (p) => <Ic {...p} sw={2.4} d={<path d="M4 6h16M4 12h16M4 18h16" />} />;
+const IcGrid = (p) => <Ic {...p} d={<><rect x="4" y="4" width="7" height="7" rx="1" /><rect x="13" y="4" width="7" height="7" rx="1" /><rect x="4" y="13" width="7" height="7" rx="1" /><rect x="13" y="13" width="7" height="7" rx="1" /></>} />;
+const IcTable = (p) => <Ic {...p} d={<path d="M3 5h18v14H3zM3 10h18M9 5v14M15 5v14" />} />;
+const IcInstagram = (p) => <Ic {...p} d={<><rect x="3.5" y="3.5" width="17" height="17" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.2" cy="6.8" r="1.1" fill="currentColor" stroke="none" /></>} />;
+const IcX = (p) => <Ic {...p} d={<path d="M4 4l16 16M20 4L4 20" />} />;
+const IcYouTube = (p) => <Ic {...p} d={<><rect x="2.5" y="5.5" width="19" height="13" rx="4" /><path d="M10.5 9.5l5 2.5-5 2.5z" /></>} />;
+const IcFacebook = (p) => <Ic {...p} d={<path d="M14.5 8.5h2.5M14.5 21V8.6c0-1.7 1-2.6 2.6-2.6H18M10.5 12.5h6" />} />;
+
+/* The Team submenu, in one place: the desktop dropdown and the mobile
+   accordion read the same list so they cannot drift apart. */
+const NAV_TEAM = [
+  ["roster", "Roster"],
+  ["prospects", "Recruits"],
+  ["staff", "Hockey Ops Staff"],
+  ["volunteers", "Volunteers"],
+];
+
+/* Everything that matters to somebody around the program rather than
+   following the team week to week. Last in the bar, for the same reason. */
+const NAV_MORE = [
+  ["venue", "Venue"],
+  ["alumni", "Alumni"],
+];
+
+/* The footer's affiliate marks. Pac-8 has no site of its own yet - the domain
+   does not resolve - so it stays an unlinked mark rather than a dead link. */
+const AFFILIATES = [
+  { src: "/logos/footer-berkeley.svg", alt: "UC Berkeley", href: "https://www.berkeley.edu" },
+  { src: "/logos/footer-acha.svg", alt: "ACHA", href: "https://www.achahockey.org", tall: true },
+  { mark: "pac8", alt: "Pac-8 Conference" },
+  { src: "/logos/footer-nike.svg", alt: "Nike", href: "https://www.nike.com", short: true },
+];
+
+const SOCIALS = [
+  ["instagram", "Instagram", IcInstagram],
+  ["x", "X", IcX],
+  ["youtube", "YouTube", IcYouTube],
+  ["facebook", "Facebook", IcFacebook],
+];
+
+const IcLink = (p) => <Ic {...p} d={<><path d="M10 13.5a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.3 1.3" /><path d="M14 10.5a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.3-1.3" /></>} />;
+const IcMail = (p) => <Ic {...p} d={<><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3.5 6.5 8.5 6 8.5-6" /></>} />;
+const IcCheck = (p) => <Ic {...p} sw={2.6} d={<path d="m5 12.5 4.5 4.5L19 7.5" />} />;
+const IcShare = (p) => <Ic {...p} d={<><path d="M12 15V3.5" /><path d="m8 7 4-4 4 4" /><path d="M5 13v6.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5V13" /></>} />;
+
+const IcCalendar = (p) => <Ic {...p} d={<><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></>} />;
+const IcPrint = (p) => <Ic {...p} size={18} d={<path d="M6 9V3h12v6M6 18h12v3H6zM4 9h16a2 2 0 0 1 2 2v5h-4M2 16h4v-5a2 2 0 0 1 2-2" />} />;
+const IcBars = (p) => <Ic {...p} d={<path d="M5 20V12M12 20V4M19 20v-6" />} />;
+/* Play, in a filled circle. Solid rather than stroked, to sit beside the
+   filled game-centre mark without one looking lighter than the other. */
+const IcPlayCircle = ({ size = 20 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true"
+    style={{ display: "block", flex: "0 0 auto" }}>
+    <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2M9.5 16.5v-9l7 4.5z" />
+  </svg>
+);
+/* Game centre: the rink seen from above. On the same 24 grid as the rest of
+   the set and filled rather than stroked, so it holds together at the small
+   sizes the calendar uses it at. */
+const IcGameCenter = ({ size = 20 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true"
+    style={{ display: "block", flex: "0 0 auto" }}>
+    <path d="M12 13.5C12.8284 13.5 13.5 12.8284 13.5 12C13.5 11.1716 12.8284 10.5 12 10.5C11.1716 10.5 10.5 11.1716 10.5 12C10.5 12.8284 11.1716 13.5 12 13.5Z" fill="currentColor" />
+    <path fillRule="evenodd" clipRule="evenodd" d="M6.5 8.75C6.5 9.57843 5.82843 10.25 5 10.25C4.17157 10.25 3.5 9.57843 3.5 8.75C3.5 7.92157 4.17157 7.25 5 7.25C5.82843 7.25 6.5 7.92157 6.5 8.75ZM5 9.5C5.41421 9.5 5.75 9.16421 5.75 8.75C5.75 8.33579 5.41421 8 5 8C4.58579 8 4.25 8.33579 4.25 8.75C4.25 9.16421 4.58579 9.5 5 9.5Z" fill="currentColor" />
+    <path fillRule="evenodd" clipRule="evenodd" d="M6.5 15.25C6.5 16.0784 5.82843 16.75 5 16.75C4.17157 16.75 3.5 16.0784 3.5 15.25C3.5 14.4216 4.17157 13.75 5 13.75C5.82843 13.75 6.5 14.4216 6.5 15.25ZM5 16C5.41421 16 5.75 15.6642 5.75 15.25C5.75 14.8358 5.41421 14.5 5 14.5C4.58579 14.5 4.25 14.8358 4.25 15.25C4.25 15.6642 4.58579 16 5 16Z" fill="currentColor" />
+    <path fillRule="evenodd" clipRule="evenodd" d="M19 10.25C19.8284 10.25 20.5 9.57843 20.5 8.75C20.5 7.92157 19.8284 7.25 19 7.25C18.1716 7.25 17.5 7.92157 17.5 8.75C17.5 9.57843 18.1716 10.25 19 10.25ZM19.75 8.75C19.75 9.16421 19.4142 9.5 19 9.5C18.5858 9.5 18.25 9.16421 18.25 8.75C18.25 8.33579 18.5858 8 19 8C19.4142 8 19.75 8.33579 19.75 8.75Z" fill="currentColor" />
+    <path fillRule="evenodd" clipRule="evenodd" d="M19 16.75C19.8284 16.75 20.5 16.0784 20.5 15.25C20.5 14.4216 19.8284 13.75 19 13.75C18.1716 13.75 17.5 14.4216 17.5 15.25C17.5 16.0784 18.1716 16.75 19 16.75ZM19.75 15.25C19.75 15.6642 19.4142 16 19 16C18.5858 16 18.25 15.6642 18.25 15.25C18.25 14.8358 18.5858 14.5 19 14.5C19.4142 14.5 19.75 14.8358 19.75 15.25Z" fill="currentColor" />
+    <path fillRule="evenodd" clipRule="evenodd" d="M3.5 5C1.567 5 0 6.567 0 8.5V15.5C0 17.433 1.567 19 3.5 19H20.5C22.433 19 24 17.433 24 15.5V8.5C24 6.567 22.433 5 20.5 5H3.5ZM12.5 18H14.5V6H12.5V8.5C12.5 8.77614 12.2761 9 12 9C11.7239 9 11.5 8.77614 11.5 8.5V6H9.25V18H11.5V15.5C11.5 15.2239 11.7239 15 12 15C12.2761 15 12.5 15.2239 12.5 15.5V18ZM1 8.5C1 7.11929 2.11929 6 3.5 6H8.5V18H3.5C2.11929 18 1 16.8807 1 15.5V13.5H2C2.55228 13.5 3 13.0523 3 12.5V11.5C3 10.9477 2.55228 10.5 2 10.5H1V8.5ZM15.25 18H20.5C21.8807 18 23 16.8807 23 15.5V13.5H22C21.4477 13.5 21 13.0523 21 12.5V11.5C21 10.9477 21.4477 10.5 22 10.5H23V8.5C23 7.11929 21.8807 6 20.5 6H15.25V18Z" fill="currentColor" />
+  </svg>
+);
+
+/* Filled circles on the same 24 grid as the rest of the set. They carry
+   their own disc, so a mark using them needs no background of its own. */
+const IcCheckCircle = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"
+    style={{ display: "block", flex: "0 0 auto" }}>
+    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2M9.29 16.29 5.7 12.7a.996.996 0 0 1 0-1.41c.39-.39 1.02-.39 1.41 0L10 14.17l6.88-6.88c.39-.39 1.02-.39 1.41 0s.39 1.02 0 1.41l-7.59 7.59c-.38.39-1.02.39-1.41 0" />
+  </svg>
+);
+const IcMinusCircle = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"
+    style={{ display: "block", flex: "0 0 auto" }}>
+    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2m4 11H8c-.55 0-1-.45-1-1s.45-1 1-1h8c.55 0 1 .45 1 1s-.45 1-1 1" />
+  </svg>
+);
+
+const IcTicket = (p) => <Ic {...p} d={<>
+  <path d="M3 8V6.6a.6.6 0 0 1 .6-.6h16.8a.6.6 0 0 1 .6.6V8a2 2 0 0 0 0 8v1.4a.6.6 0 0 1-.6.6H3.6a.6.6 0 0 1-.6-.6V16a2 2 0 0 0 0-8Z" />
+  <path d="M14.5 8.2v1.6M14.5 11.6v1.6M14.5 15v1.6" />
+</>} />;
+const IcDoc = (p) => <Ic {...p} d={<><path d="M6 2h9l5 5v15H6z" /><path d="M15 2v5h5" /></>} />;
+
+function splitHome(str) {
+  const parts = (str || "").split(/\s*[·/]\s*/);
+  return { home: parts[0] || "", prev: parts.slice(1).join(" / ") };
+}
+
+/* ---------------- Logo: Cal script (user-supplied SVG), inlined.
+ * Rendered gold in a square 1:1 slot; no network fetch needed. ---------------- */
+function Logo({ size = 40, color = "var(--gold)" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 125.75 100.55875" preserveAspectRatio="xMidYMid meet"
+      role="img" aria-label="Cal" style={{ flex: "0 0 auto", display: "block" }}>
+      <g transform="matrix(1.25 0 0 -1.25 -499.65 801.74)">
+        <path fill={color} d="m449.24 588.18c-0.395-0.943-2.048-3.62-3.937-3.62-2.282 0-2.361 1.26-2.361 2.833 0 4.487 5.274 15.113 9.997 15.113 1.415 0 1.889-0.71 1.889-1.338 0-0.236-2.914-6.218-5.588-12.988m44.553 37.782c0.155 0 0.236-0.315 0.236-0.55 0-2.204-7.242-15.899-14.484-25.74 2.44 14.72 12.987 26.29 14.248 26.29m-4.173-47.148c-4.723 1.416-9.997 3.858-10.469 13.381 8.579 10.152 19.758 28.966 19.758 36.523 0 1.967-0.393 4.172-3.229 4.172-6.689 0-26.684-18.42-26.684-39.435 0-1.891 0.236-3.7 0.631-5.039-4.094-3.778-7.165-5.509-10.233-5.509-1.022 0-1.258 0.393-1.258 2.205 0 2.596 7.79 18.732 7.79 19.756 0 1.496-0.629 1.889-1.81 1.889h-6.218c-0.472 0-0.944-0.393-1.337-1.338-0.238 0.314-1.497 1.338-3.543 1.338-6.771 0-15.271-5.196-20.15-15.349-1.103-2.361-3.15-7.95-8.739-7.95-4.801 0-6.375 5.116-6.375 11.019 0 16.293 19.284 40.854 29.833 40.854 1.73 0 2.519-0.866 2.519-2.52 0-3.069-2.756-4.958-4.803-5.194-2.991-0.317-5.431-1.655-5.431-4.252 0-2.204 1.732-3.149 4.015-3.149 3.305 0 10.941 7.243 10.941 13.854 0 3.936-2.281 6.062-6.297 6.062-16.609 0-45.182-23.615-45.182-46.127 0-11.098 6.061-16.529 17.002-16.529 5.273 0 10.39 4.014 11.886 5.431 0.315-1.653 2.283-5.431 8.816-5.431 4.329 0 7.241 2.834 8.187 4.171 0.315-1.417 1.259-4.171 6.061-4.171 5.667 0 10.783 2.045 15.977 6.689 2.364-4.248 6.455-6.769 10.628-7.633 1.339-0.237 3.071-0.55 3.071-0.946 0-0.629-2.598-1.968-7.952-1.968-11.571 0-30.305 1.732-46.363 1.732-22.354 0-29.675-10.153-29.675-12.045 0-0.785 0.551-0.943 1.181-0.943 1.258 0 5.668 3.383 22.826 3.383 18.893 0 31.801-1.415 42.033-1.415 20.39 0 26.53 10.391 26.53 11.652 0 1.967-1.732 2.202-3.937 2.832" />
+      </g>
+    </svg>
+  );
+}
+
+function Pill({ tag }) {
+  const cls = tag === "W" ? "pW" : tag === "L" ? "pL" : tag === "T" ? "pT" : "pNext";
+  return <span className={`pill ${cls}`}>{tag}</span>;
+}
+
+/* ================================================================
+ * MAIN APP
+ * ================================================================ */
+export default function CalIceHockey() {
+  const [site, setSite] = useState(null);
+  const [recruits, setRecruits] = useState([]);
+  const [alumni, setAlumni] = useState([]);
+  const [view, setView] = useState("home"); // home | schedule | roster | stats | tickets | recruit | player | game | news | admin
+  const [playerId, setPlayerId] = useState(null);
+  const [postId, setPostId] = useState(null);
+  const [gameId, setGameId] = useState(null);
+  /* The mobile menu. `navGroup` is which accordion section is open inside it -
+     one at a time, because two open sections on a phone means scrolling to
+     find the link you wanted. */
+  const [navOpen, setNavOpen] = useState(false);
+  const [navGroup, setNavGroup] = useState(null);
+  const goNav = (v) => { setView(v); setNavOpen(false); setNavGroup(null); window.scrollTo(0, 0); };
+
+  /* Escape closes it, and so does growing the window past the breakpoint -
+     otherwise the panel is left hanging open over a desktop layout that has
+     its own nav bar back. */
+  useEffect(() => {
+    if (!navOpen) return;
+    const onKey = (e) => { if (e.key === "Escape") setNavOpen(false); };
+    const onResize = () => { if (window.innerWidth > 860) setNavOpen(false); };
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", onResize);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [navOpen]);
+
+  const openPlayer = (id) => { setPlayerId(id); setView("player"); };
+  const openPost = (id) => { setPostId(id); setView("news"); window.scrollTo(0, 0); };
+  const openGame = (id) => { setGameId(id); setView("game"); window.scrollTo(0, 0); };
+  /* A mention carries a name, not an id — resolve it against the current
+   * roster first, then any season, so archived players still link. */
+  const openPlayerNamed = (name, alsoPostId) => {
+    if (alsoPostId) return openPost(alsoPostId);
+    for (const season of [pub.seasons[pub.currentSeason], ...Object.values(pub.seasons || {})]) {
+      const hit = (season && season.roster || []).find((p) => p.name === name);
+      if (hit) return openPlayer(hit.id);
+    }
+  };
+  /* The passcode gate is a prototype stand-in, so it should not re-ask on every
+   * reload. Remembered until you sign out from Settings > Account. */
+  const [authed, setAuthed] = useState(() => {
+    try { return localStorage.getItem(AUTH_KEY) === "1"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(AUTH_KEY, authed ? "1" : "0"); } catch { /* private mode */ }
+  }, [authed]);
+  const loaded = useRef(false);
+
+  /* Load persisted data once */
+  useEffect(() => {
+    (async () => {
+      const s = await loadKey(SITE_KEY, SEED_SITE);
+      const r = await loadKey(RECRUITS_KEY, []);
+      const al = await loadKey(ALUMNI_KEY, []);
+      if (!Array.isArray(s.news)) s.news = SEED_SITE.news;
+      // v3: replace pre-EP sample seasons (fictional players/results) with real
+      // EliteProspects data. Runs once; admin edits after that are preserved.
+      if (s.v !== SEED_VERSION) {
+        s.seasons = SEED_SITE.seasons;
+        s.currentSeason = SEED_SITE.currentSeason;
+        s.news = SEED_SITE.news;
+        s.v = SEED_VERSION;
+      }
+      // Backfill collections added after a saved copy was written, so an older
+      // stored site does not come back missing settings/opponents/stats.
+      if (!Array.isArray(s.opponents)) s.opponents = [];
+      if (!s.gameStats || typeof s.gameStats !== "object") s.gameStats = {};
+      if (!s.opponentStats || typeof s.opponentStats !== "object") s.opponentStats = {};
+      s.recruiting = { ...SEED_SITE.recruiting, ...(s.recruiting || {}) };
+      if (!Array.isArray(s.volunteerRoles)) s.volunteerRoles = [];
+      /* filled/published were removed: a listed role is an open role. */
+      s.volunteerRoles = s.volunteerRoles.map(({ filled, published, ...r }) => r);
+      if (!Array.isArray(s.staff)) {
+        // Lift whatever was stored per season into the single list, newest first.
+        const seen = new Set();
+        const merged = [];
+        for (const name of Object.keys(s.seasons || {}).sort().reverse()) {
+          for (const c of (s.seasons[name] || {}).coaches || []) {
+            const key = (c.name || "") + "|" + (c.title || "");
+            if (seen.has(key)) continue;
+            seen.add(key);
+            merged.push(c);
+          }
+        }
+        s.staff = merged;
+      }
+      s.settings = { ...SEED_SITE.settings, ...(s.settings || {}) };
+      s.account = { ...SEED_SITE.account, ...(s.account || {}) };
+      s.settings.org = { ...SEED_SITE.settings.org, ...(s.settings.org || {}) };
+      s.settings.socials = { ...SEED_SITE.settings.socials, ...(s.settings.socials || {}) };
+      // Opponents used to carry one `logo`; it was always the light-background one.
+      s.opponents = (s.opponents || []).map((o) =>
+        "logo" in o ? { ...o, logoLight: o.logoLight ?? o.logo, logoDark: o.logoDark ?? null, logo: undefined } : o
+      );
+      setSite(s);
+      setRecruits(r);
+      setAlumni(al);
+      loaded.current = true;
+    })();
+  }, []);
+
+  /* Persist on change (after initial load) */
+  useEffect(() => { if (loaded.current && site) saveKey(SITE_KEY, site); }, [site]);
+  useEffect(() => { if (loaded.current) saveKey(RECRUITS_KEY, recruits); }, [recruits]);
+  useEffect(() => { if (loaded.current) saveKey(ALUMNI_KEY, alumni); }, [alumni]);
+
+  // Public pages read the hydrated shape (opponents resolved, stats derived).
+  // The admin edits `site` itself.
+  const isAdmin = view === "admin";
+  const donateUrl = ((site && site.settings) || {}).donateUrl || "";
+  /* The standing channel first. A single game's link is the fallback, and
+     only then because a program without a channel still has games. */
+  const watchUrl = ((site && site.settings) || {}).watchUrl || "";
+  /* Giving is a link out, so it joins the menu rather than the view list. */
+  const moreItems = donateUrl ? [...NAV_MORE, ["donate", "Donate", donateUrl]] : NAV_MORE;
+  const pub = useMemo(() => hydrate(site), [site]);
+
+  /* The nearest game with something to watch: an upcoming stream first, then
+   * the most recent replay. */
+  const watchGame = useMemo(() => {
+    if (!pub) return null;
+    const season = pub.seasons[pub.currentSeason] || { schedule: [] };
+    const sched = [...(season.schedule || [])].sort(cmpDate);
+    const upcoming = sched.find((g) => !g.result && g.streamUrl);
+    if (upcoming) return upcoming;
+    const replays = sched.filter((g) => g.result && g.replayUrl);
+    return replays.length ? replays[replays.length - 1] : null;
+  }, [pub]);
+  const season = pub ? pub.seasons[pub.currentSeason] || { schedule: [], roster: [], coaches: [] } : null;
+
+  if (!site) {
+    return (
+      <div className="chh" style={{ alignItems: "center", justifyContent: "center" }}>
+        <style>{CSS}</style>
+        <p className="eyebrow" style={{ color: "#041E42", padding: 60 }}>Loading the barn…</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="chh" id="chh-root">
+      <style>{CSS}</style>
+
+      {/* ---------- Scoreboard strip (sits ABOVE the nav, white) ---------- */}
+      {/* Off-season: a strip of months-old finals is noise, not news. */}
+      {!isAdmin && !(pub.settings || {}).offSeason && (
+        <Scoreboard schedule={season.schedule} goto={setView} onGame={openGame} />
+      )}
+
+      {/* ---------- Navy nav bar ---------- */}
+      {!isAdmin && (
+      <header className="hdr">
+        <div className="wrap navbar">
+          <button className="brand" onClick={() => setView("home")} aria-label="Cal Ice Hockey home">
+            <Logo size={52} />
+          </button>
+          <nav className="navlinks" aria-label="Primary">
+            <button className={`navlink ${view === "home" ? "on" : ""}`} onClick={() => setView("home")}>Home</button>
+            <button className={`navlink ${view === "schedule" ? "on" : ""}`} onClick={() => setView("schedule")}>Schedule</button>
+            <NavMenu label="Team" view={view} setView={setView} items={NAV_TEAM} />
+            <button className={`navlink ${view === "stats" ? "on" : ""}`} onClick={() => setView("stats")}>Stats</button>
+            <button className={`navlink ${view === "news" || view === "newsindex" ? "on" : ""}`} onClick={() => setView("newsindex")}>News</button>
+            <NavMenu label="More" view={view} setView={setView} items={moreItems} />
+          </nav>
+          <div className="navactions">
+            <div className="socials">
+              {SOCIALS.map(([key, label, Icon]) => {
+                const href = ((pub.settings || {}).socials || {})[key];
+                if (!href) return null;
+                return (
+                  <a key={key} className="socialbtn" href={href} aria-label={label} title={label}
+                    target="_blank" rel="noreferrer noopener">
+                    <Icon size={17} />
+                  </a>
+                );
+              })}
+            </div>
+            <button className="goldpill navcta" onClick={() => setView("tickets")}>Tickets</button>
+            {watchUrl || watchGame
+              ? <a className="goldpill navcta"
+                  href={watchUrl || (watchGame.result ? watchGame.replayUrl : watchGame.streamUrl)}
+                  target="_blank" rel="noreferrer noopener">Watch Live</a>
+              : <button className="goldpill navcta" onClick={() => setView("schedule")}>Watch Live</button>}
+            {/* Only ever visible below the breakpoint; the links row above is
+                hidden there and this replaces it. */}
+            <button className={"navburger" + (navOpen ? " on" : "")} id="navburger"
+              aria-expanded={navOpen} aria-controls="mobilenav"
+              aria-label={navOpen ? "Close menu" : "Open menu"}
+              onClick={() => setNavOpen((o) => !o)}>
+              <span aria-hidden="true" /><span aria-hidden="true" /><span aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+
+        {navOpen && (
+          <nav className="navpanel" id="mobilenav" aria-label="Primary">
+            <button className={"navpanelitem" + (view === "home" ? " on" : "")}
+              onClick={() => goNav("home")}>Home</button>
+            <button className={"navpanelitem" + (view === "schedule" ? " on" : "")}
+              onClick={() => goNav("schedule")}>Schedule</button>
+
+            <button className={"navpanelitem group" + (navGroup === "team" ? " open" : "")
+                + (NAV_TEAM.some(([k]) => k === view) ? " on" : "")}
+              aria-expanded={navGroup === "team"}
+              onClick={() => setNavGroup((g) => (g === "team" ? null : "team"))}>
+              Team <IcChevD size={17} />
+            </button>
+            {navGroup === "team" && (
+              <div className="navpanelsub">
+                {NAV_TEAM.map(([k, text]) => (
+                  <button key={k} className={"navpanelitem child" + (view === k ? " on" : "")}
+                    onClick={() => goNav(k)}>{text}</button>
+                ))}
+              </div>
+            )}
+
+            <button className={"navpanelitem" + (view === "stats" ? " on" : "")}
+              onClick={() => goNav("stats")}>Stats</button>
+            <button className={"navpanelitem" + (view === "news" || view === "newsindex" ? " on" : "")}
+              onClick={() => goNav("newsindex")}>News</button>
+
+            <button className={"navpanelitem group" + (navGroup === "more" ? " open" : "")
+                + (NAV_MORE.some(([k]) => k === view) ? " on" : "")}
+              aria-expanded={navGroup === "more"}
+              onClick={() => setNavGroup((g) => (g === "more" ? null : "more"))}>
+              More <IcChevD size={17} />
+            </button>
+            {navGroup === "more" && (
+              <div className="navpanelsub">
+                {moreItems.map(([k, text, href]) => (href ? (
+                  <a key={k} className="navpanelitem child" href={href}
+                    target="_blank" rel="noreferrer noopener"
+                    onClick={() => setNavOpen(false)}>{text}</a>
+                ) : (
+                  <button key={k} className={"navpanelitem child" + (view === k ? " on" : "")}
+                    onClick={() => goNav(k)}>{text}</button>
+                )))}
+              </div>
+            )}
+
+            {/* Off the bar, but not gone - a phone header has no room for two
+                pills and a visitor still wants both. */}
+            <div className="navpanelcta">
+              <button className="goldpill" onClick={() => goNav("tickets")}>Tickets</button>
+              {watchUrl || watchGame
+                ? <a className="goldpill"
+                    href={watchUrl || (watchGame.result ? watchGame.replayUrl : watchGame.streamUrl)}
+                    target="_blank" rel="noreferrer noopener"
+                    onClick={() => setNavOpen(false)}>Watch Live</a>
+                : <button className="goldpill" onClick={() => goNav("schedule")}>Watch Live</button>}
+            </div>
+
+            {/* The socials come off the header bar at this width, so this is
+                where they live instead of nowhere - but only when the program
+                has actually set one, or it is a bare strip of navy. */}
+            {SOCIALS.some(([key]) => ((pub.settings || {}).socials || {})[key]) && (
+              <div className="navpanelsocials">
+                {SOCIALS.map(([key, label, Icon]) => {
+                  const href = ((pub.settings || {}).socials || {})[key];
+                  if (!href) return null;
+                  return (
+                    <a key={key} className="socialbtn" href={href} aria-label={label} title={label}
+                      target="_blank" rel="noreferrer noopener">
+                      <Icon size={18} />
+                    </a>
+                  );
+                })}
+              </div>
+            )}
+          </nav>
+        )}
+        {/* A gold rule under the navy, so the header has an edge against the
+            pale page rather than dissolving into it. */}
+        <div className="hdrrule" />
+      </header>
+      )}
+
+      {/* ---------- Views ---------- */}
+      {view === "home" && <Home site={pub} goto={setView} openPost={openPost} openGame={openGame} />}
+      {view === "schedule" && <SchedulePage site={pub} onPlayer={openPlayer} onGame={openGame}
+        goto={setView} />}
+      {view === "roster" && <RosterPage site={pub} onPlayer={openPlayer} />}
+      {view === "prospects" && <RecruitsPage site={pub} goto={setView} />}
+      {view === "staff" && <StaffPage site={pub} />}
+      {view === "volunteers" && <VolunteersPage site={pub} goto={setView} />}
+      {view === "newsindex" && <NewsIndexPage site={pub} openPost={openPost} />}
+      {view === "stats" && <StatsPage site={pub} onPlayer={openPlayer} onGame={openGame} />}
+      {view === "tickets" && <TicketsPage site={pub} goto={setView} />}
+      {view === "player" && (
+        <PlayerPage site={pub} playerId={playerId} onBack={() => setView("roster")}
+          onPlayer={openPlayer} onGame={openGame} />
+      )}
+      {view === "game" && (
+        <GamePage site={pub} gameId={gameId} onBack={() => setView("schedule")}
+          onPlayer={openPlayer} openPost={openPost} onTickets={() => setView("tickets")} />
+      )}
+      {view === "news" && (
+        <NewsPage site={pub} postId={postId} onBack={() => setView("home")}
+          onPlayerName={openPlayerNamed} />
+      )}
+      {view === "venue" && <VenuePage site={pub} />}
+      {LEGAL.some(([k]) => k === view) && <LegalPage site={pub} which={view} />}
+      {view === "alumni" && (
+        <AlumniPage site={pub}
+          onSubmit={(sub) => setAlumni((a) => [{ ...sub, id: uid(), submittedAt: new Date().toISOString() }, ...a])} />
+      )}
+      {view === "recruit" && <RecruitPage site={pub} onSubmit={(sub) => setRecruits((r) => [{ ...sub, id: uid(), submittedAt: new Date().toISOString() }, ...r])} />}
+      {view === "admin" && (
+        <Admin site={site} setSite={setSite} recruits={recruits} setRecruits={setRecruits}
+          alumni={alumni} setAlumni={setAlumni}
+          authed={authed} setAuthed={setAuthed} goto={setView} />
+      )}
+
+      {/* ---------- Footer (Sidearm stack: partners / copyright / affiliates / legal) ---------- */}
+      {!isAdmin && (
+      <footer>
+        <div className="fband-navy">
+          <div className="wrap fpartners">
+            <Logo size={44} />
+            {["Oakland Ice Center", "Cal Rec Club Sports", "ACHA Pacific Region"].map((p) => (
+              <span key={p} className="fpartner">{p}</span>
+            ))}
+          </div>
+        </div>
+        {!!(pub.sponsors || []).length && (
+          <div className="fband-sponsors">
+            <div className="wrap">
+              <p className="fsponsorlead">Supported by</p>
+              <div className="fsponsors">
+                {(pub.sponsors || []).map((sp) => {
+                  const mark = sp.logo
+                    ? <img className="fsponsormark" src={sp.logo} alt={sp.name || "Sponsor"} />
+                    : <span className="fsponsorname">{sp.name}</span>;
+                  return sp.url ? (
+                    <a className="fsponsor" key={sp.id} href={sp.url}
+                      target="_blank" rel="noreferrer noopener"
+                      title={sp.name || undefined}>{mark}</a>
+                  ) : (
+                    <span className="fsponsor" key={sp.id} title={sp.name || undefined}>{mark}</span>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+        <div className="fband-gold">
+          <p className="fcopy">
+            © Cal Ice Hockey. All rights reserved.
+          </p>
+        </div>
+        <div className="fband-gray">
+          {/* Wordmarks where the club has the asset. The row keeps its own
+              muted, desaturated treatment so four marks drawn to four
+              different briefs still read as one line. */}
+          {AFFILIATES.map((a) => {
+            const mark = a.mark === "pac8" ? <Pac8Mark /> : (
+              <img className={"faffilmark" + (a.tall ? " tall" : "") + (a.short ? " short" : "")}
+                src={a.src} alt={a.alt} />
+            );
+            return a.href ? (
+              <a className="faffil" key={a.alt} href={a.href} target="_blank" rel="noreferrer noopener"
+                aria-label={a.alt}>{mark}</a>
+            ) : (
+              <span className="faffil" key={a.alt}>{mark}</span>
+            );
+          })}
+        </div>
+        <div className="wrap flegalrow">
+          <div className="bsm flegallinks">
+            {LEGAL.map(([k, label], i) => (
+              <span key={k} className="flegalitem">
+                {i > 0 && <span className="fsep" aria-hidden="true">|</span>}
+                <button className="bsm flegallink flegalbtn" onClick={() => setView(k)}>{label}</button>
+              </span>
+            ))}
+            <span className="fsep" aria-hidden="true">|</span>
+            <button className="bsm flegallink flegalbtn" onClick={() => setView("admin")}>Admin</button>
+          </div>
+          <div className="flegalmark">
+            <Logo size={30} color="var(--blue)" />
+            <span className="bsm">Cal Ice Hockey · Prototype</span>
+          </div>
+        </div>
+      </footer>
+      )}
+    </div>
+  );
+}
+
+/* ================================================================
+ * SCOREBOARD — white strip of game cards with scroll arrows + Calendar
+ * ================================================================ */
+/**
+ * Watch link for a game. Which one shows depends on where the game is in its
+ * life: the stream before it is final, the replay after. A game can carry both
+ * without the wrong one ever being offered.
+ */
+/* A stream link on a game three weeks out said "Watch live" next to a date in
+ * February. The link only means anything once the puck is down, so a scheduled
+ * game shows nothing and a finished one offers the replay. */
+/* Where to watch, as a fact about the game rather than an invitation to press
+   it now. The banner button only appears once a game is live (or finished, for
+   the replay) - correct, but it meant a game carrying a stream link showed
+   nothing at all until puck drop, so nobody could check the link was right or
+   find it the night before. These rows always show what is on file.
+
+   Returns an array rather than a component so the pairs sit directly in the
+   parent <dl>; a wrapper element between <dl> and <dt> would break the grid. */
+/** Where to buy a seat for this game: its own link, else the club's. */
+function ticketsFor(game, site) {
+  const own = (game || {}).ticketsUrl;
+  if (own && /^https?:\/\//i.test(own)) return own;
+  return ((site || {}).settings || {}).ticketsUrl || "";
+}
+
+function watchRows(game) {
+  const host = (url) => {
+    try { return new URL(url).hostname.replace(/^www\./, ""); }
+    catch (e) { return url; }
+  };
+  const link = (key, label, url) => ([
+    <dt key={key + "d"}>{label}</dt>,
+    <dd key={key + "v"}>
+      <a href={url} target="_blank" rel="noreferrer noopener">{host(url)}</a>
+    </dd>,
+  ]);
+  const ok = (u) => u && /^https?:\/\//i.test(u);
+  const out = [];
+  if (ok(game.streamUrl)) out.push(...link("s", "Live stream", game.streamUrl));
+  if (ok(game.replayUrl)) out.push(...link("r", "Replay", game.replayUrl));
+  return out;
+}
+
+/* Power play or penalty kill, told from this team's side - the scoreboard of
+   a club site is read by that club's people, so "CAL power play" is the useful
+   sentence and "PP" alone is not.
+   The countdown is the penalty that expires first, because that is the moment
+   the advantage changes; a 5-on-3 says how big it is rather than listing both. */
+function StrengthTag({ live, now, usAbbr, size }) {
+  if (!live) return null;
+  const st = strengthState(live, now);
+  if (st.kind === "EV") return null;
+  const pp = st.kind === "PP";
+  const against = st.active
+    .filter((p) => (pp ? p.team === "them" : p.team === "us"))
+    .sort((a, b) => a.left - b.left)[0];
+  const small = size === "sm";
+  return (
+    <span className={"strtag " + (pp ? "pp" : "pk") + (small ? " sm" : "")}>
+      <span className="strtaglab">
+        {small
+          ? (pp ? "PP" : "PK")
+          : (usAbbr ? usAbbr + " " : "") + (pp ? "Power play" : "Penalty kill")}
+        {st.diff > 1 ? " +" + st.diff : ""}
+      </span>
+      {against ? <span className="strtagclock">{fmtClock(against.left * 1000)}</span> : null}
+    </span>
+  );
+}
+
+/**
+ * What a game's watch button should be right now, or null for nothing.
+ *
+ * One decision, in one place, because two places to decide it is two places
+ * to get it wrong - which is exactly what happened while the game centre had
+ * a copy of its own.
+ *
+ * `upcoming` says the caller has room to show the link before the game. Even
+ * then it waits until an hour before the puck drops: long enough to go and
+ * find it, late enough that it is plainly about tonight. A game with no time
+ * recorded waits until it is actually live, because there is no hour to
+ * count back from.
+ */
+function watchOffer(game, upcoming) {
+  if (!game) return null;
+  const state = gameState(game);
+  const isFinal = state === "final";
+  const isLive = state === "live";
+  /* A stream does not vanish at the final horn - it becomes the recording,
+     at the same address - so it stands in until a replay link is set. */
+  const href = isFinal ? (game.replayUrl || game.streamUrl) : game.streamUrl;
+  if (!href || !/^https?:\/\//i.test(href)) return null;
+  if (state === "scheduled") {
+    if (!upcoming) return null;
+    const start = gameInstant(game.date, game.time);
+    if (!start || Date.now() < start.getTime() - 60 * 60 * 1000) return null;
+  }
+  return { href, isFinal, isLive, label: isFinal ? "Replay" : "Watch Live" };
+}
+
+/** The mark that goes after the label: pulsing on, still off, play for a replay. */
+function WatchMark({ offer, size }) {
+  if (offer.isFinal) return <IcPlayCircle size={size || 17} />;
+  return <span className={offer.isLive ? "livedot" : "watchdot"} aria-hidden="true" />;
+}
+
+function WatchLink({ game, size, upcoming }) {
+  const offer = watchOffer(game, upcoming);
+  if (!offer) return null;
+  return (
+    <a className={"watchbtn" + (size === "sm" ? " sm" : "") + (offer.isLive ? " islive" : "")}
+      href={offer.href} target="_blank" rel="noreferrer noopener"
+      onClick={(e) => e.stopPropagation()}>
+      {offer.label}
+      <WatchMark offer={offer} size={size === "sm" ? 14 : 17} />
+    </a>
+  );
+}
+
+/* Their player: a list when their roster has been entered, a text box when it
+   has not.
+
+   Defined here rather than inside the live console. A component created during
+   render is a brand new type on every keystroke, so React threw the input away
+   and built a fresh one each time - which is why you could only ever type one
+   character before the cursor disappeared. */
+/* The value is the player's id when we have their roster, and the typed text
+   when we do not. Two of their players can share a name - carrying the id
+   means the record still tells them apart, and the free-text case is only as
+   good as a name because that is genuinely all we hold. */
+function OppPick({ theirs, value, onChange, placeholder }) {
+  if (theirs && theirs.length) {
+    return (
+      <select value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">— none —</option>
+        {theirs.map((p) => (
+          <option key={p.id} value={p.id}>#{p.number} {p.name}</option>
+        ))}
+      </select>
+    );
+  }
+  return (
+    <input value={value} placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value)} />
+  );
+}
+
+function OppBadge({ name, logo, size = 30 }) {
+  if (logo) {
+    return (
+      <img src={logo} alt="" aria-hidden="true" style={{
+        width: size, height: size, objectFit: "contain", flex: "0 0 auto",
+      }} />
+    );
+  }
+  const initials = (name || "?").split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+  return (
+    <span aria-hidden="true" style={{
+      width: size, height: size, borderRadius: "50%", background: "var(--blue)", color: "#fff",
+      display: "inline-flex", alignItems: "center", justifyContent: "center",
+      fontFamily: "var(--body)", fontWeight: 700, fontSize: Math.round(size * 0.37), flex: "0 0 auto",
+    }}>{initials}</span>
+  );
+}
+
+function Scoreboard({ schedule, goto, onGame }) {
+  const rowRef = useRef(null);
+  const tick = useClockTick(schedule.some((g) => g.live && g.live.running));
+  const games = useMemo(() => {
+    const sorted = [...schedule].sort(cmpDate);
+    const played = sorted.filter((g) => gameState(g) === "final").slice(-5);
+    const live = sorted.filter((g) => gameState(g) === "live");
+    /* Every game still to come, not a preview of the next few. The strip
+       scrolls and opens on the next one, so a full fixture list costs nothing
+       to the reader who only wants that one - and before a season starts,
+       three cards out of twenty-two is most of the schedule missing. */
+    const upcoming = sorted.filter((g) => gameState(g) === "scheduled");
+    /* Time order: what has been played to the left, what is coming to the
+       right, and the live game where it actually sits between them. */
+    return [...played, ...live, ...upcoming];
+  }, [schedule]);
+
+  /* Chronological order puts October at the left edge, which is not what the
+     strip is for. Open it on the live game - or on the next one up when
+     nothing is on - so the useful end is the end you land on. */
+  const anchorId = useMemo(() => {
+    const live = games.find((g) => gameState(g) === "live");
+    if (live) return live.id;
+    const next = games.find((g) => gameState(g) === "scheduled");
+    return (next || games[games.length - 1] || {}).id;
+  }, [games]);
+  const anchorRef = useRef(null);
+
+  useEffect(() => {
+    const row = rowRef.current;
+    const anchor = anchorRef.current;
+    if (!row || !anchor) return;
+    const delta = anchor.getBoundingClientRect().left - row.getBoundingClientRect().left;
+    row.scrollLeft += delta - 8;
+  }, [anchorId]);
+
+  const scroll = (dir) => {
+    if (rowRef.current) rowRef.current.scrollBy({ left: dir * 360, behavior: "smooth" });
+  };
+
+  if (!games.length) return null;
+  return (
+    <div className="sboard" aria-label="Scoreboard">
+      <div className="sboard-inner">
+        <button className="chev" aria-label="Previous games" onClick={() => scroll(-1)}><IcChevL size={22} /></button>
+        <div className="sboard-row" ref={rowRef}>
+          {games.map((g) => {
+            const r = resultText(g);
+            const state = gameState(g);
+            return (
+              <button className={"scard " + (state === "live" ? "islive" : "")} key={g.id}
+                ref={g.id === anchorId ? anchorRef : null}
+                onClick={() => onGame(g.id)}>
+                <span className="scard-top">
+                  <span className="sdate">
+                    {state === "live"
+                      ? <>
+                          <span className="livedot" aria-hidden="true" />LIVE · {liveLabel(g.live, tick)}
+                          <StrengthTag live={g.live} now={tick} size="sm" />
+                        </>
+                      : <>{localDate(g.date, g.time).replace(/^\w+,?\s*/, "")}, {r ? "Final" : localTime(g.date, g.time)}</>}
+                  </span>
+                  <span className="sdots" aria-hidden="true">…</span>
+                </span>
+                <span className="scard-main">
+                  {vsAt(g) && <span className={"vsbadge " + sideClass(g)}>{vsAt(g)}</span>}
+                  <OppBadge name={g.opponent} logo={g.opponentLogo} />
+                  <span className="sopp">{g.opponent}</span>
+                  <WatchLink game={g} size="sm" />
+                  {state === "live" && (
+                    <span className="sscore live">{g.live.us} - {g.live.them}</span>
+                  )}
+                  {r && <span className="sscore"><span className={"rtag " + r.tag}>{r.tag}</span>, {g.result.us} - {g.result.them}{decidedIn(g.result)}</span>}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <button className="chev" aria-label="More games" onClick={() => scroll(1)}><IcChevR size={22} /></button>
+      </div>
+    </div>
+  );
+}
+
+/* ================================================================
+ * HOME
+ * ================================================================ */
+
+/* ================================================================
+ * SCHEDULE PAGE (season tabs + auto record)
+ * ================================================================ */
+/* ---------------- Story visibility ----------------
+ * A story is one of three things:
+ *   draft      — published === false, never public
+ *   scheduled  — published, but publishAt is still in the future
+ *   published  — published, and publishAt is empty or already passed
+ *
+ * publishAt is a local "YYYY-MM-DDTHH:mm" string, the value a datetime-local
+ * input gives you. Nothing runs on a timer: the public pages evaluate this on
+ * every render, so a story goes live the first time someone loads the site
+ * after its moment. That is the same guarantee an ISR rebuild gives, and it
+ * means the real build needs no cron for this.
+ */
+function newsState(n) {
+  if (!n || n.published === false) return "draft";
+  if (n.publishAt && new Date(n.publishAt).getTime() > Date.now()) return "scheduled";
+  return "published";
+}
+
+function isLive(n) {
+  return newsState(n) === "published";
+}
+
+/* Whole days between a game date and today; null if the date is unusable. */
+function daysSince(iso) {
+  if (!iso) return null;
+  const d = new Date(iso + "T12:00:00");
+  if (isNaN(d)) return null;
+  return Math.floor((Date.now() - d.getTime()) / 86400000);
+}
+
+function fmtDateTime(local) {
+  if (!local) return "";
+  const d = new Date(local);
+  if (isNaN(d)) return local;
+  return d.toLocaleString("en-US", {
+    month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+  });
+}
+
+/* datetime-local wants local time, and toISOString() converts to UTC — which
+ * silently shifts a scheduled post by the timezone offset. */
+function toLocalInput(d) {
+  const p = (n) => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) +
+    "T" + p(d.getHours()) + ":" + p(d.getMinutes());
+}
+
+/* ---------------- Game state ----------------
+ * A game is in exactly one of three states:
+ *
+ *   scheduled  no result, not started
+ *   live       `live` is set and there is no final score yet
+ *   final      `result` is set — this is the only state records count
+ *
+ * `result` stays the single source of truth for the record, so a live game
+ * never moves the W-L-T. Ending a game copies the live score into `result`
+ * and drops `live`, which is why there is no way to end up with both.
+ */
+/* The lineup for a game: who dresses, who starts, who is in net. A game with
+   no lineup set dresses the whole roster, which is what the box score assumed
+   before lineups existed - so old games keep reading the same way.
+
+   Stored as who is IN rather than who is scratched: adding a player to the
+   roster in January should not quietly put them in a lineup set in November. */
+function pickLineup(stored, roster) {
+  const ids = (roster || []).map((p) => p.id);
+  const dressed = stored && Array.isArray(stored.dressed)
+    ? new Set(stored.dressed.filter((id) => ids.includes(id)))
+    : new Set(ids);
+  return {
+    dressed,
+    starters: ((stored && stored.starters) || []).filter((id) => dressed.has(id)),
+    goalie: stored && dressed.has(stored.goalie) ? stored.goalie : "",
+    isSet: !!(stored && Array.isArray(stored.dressed)),
+  };
+}
+
+function lineupOf(game, roster) {
+  return pickLineup(game && game.lineup, roster);
+}
+
+/* The other bench, kept on the game rather than the opponent record: who they
+   dressed is a fact about this game, not about the club. */
+function awayLineupOf(game, theirs) {
+  return pickLineup(game && game.awayLineup, theirs);
+}
+
+/* What to append to a score: a shootout is not an overtime, and four
+   different surfaces were spelling both the same way. */
+function decidedIn(result) {
+  if (!result) return "";
+  return result.so ? " SO" : result.ot ? " OT" : "";
+}
+
+function gameState(g) {
+  if (!g) return "scheduled";
+  if (g.result) return "final";
+  if (g.live) return "live";
+  return "scheduled";
+}
+
+const PERIODS = ["1", "2", "3", "OT", "SO"];
+
+/* Why the whistle went. Ordered by how often a scorekeeper reaches for them,
+   because this list is tapped on a phone between shifts. "Goal" is not here:
+   a goal stops the clock by itself and is already its own entry. */
+const STOP_REASONS = [
+  "Icing", "Offside", "Penalty", "Puck out of play", "Goalie freeze",
+  "Injury", "Net off moorings", "Other",
+];
+
+/* ---------------- Live game model ----------------
+ * The clock is stored as an anchor, never as a ticking value: `clockMs` is
+ * what was left when it was last stopped, and `startedAt` is when it was
+ * started. Remaining time is arithmetic on those two.
+ *
+ * That matters because the alternative — writing the clock every second —
+ * would be a database write per second per game, would drift between the
+ * scorekeeper's phone and every viewer, and would lose the clock entirely on
+ * a page reload. Here every surface computes the same number from the same
+ * two fields and ticks locally, and a write only happens when something
+ * actually changes.
+ */
+const PERIOD_SECS = { "1": 20 * 60, "2": 20 * 60, "3": 20 * 60, OT: 5 * 60, SO: 0 };
+
+function periodSecs(period) {
+  return PERIOD_SECS[period] ?? 20 * 60;
+}
+
+/* Milliseconds left on the clock right now. */
+function clockLeft(live, now) {
+  if (!live) return 0;
+  const base = Number(live.clockMs) || 0;
+  if (!live.running || !live.startedAt) return Math.max(0, base);
+  return Math.max(0, base - ((now ?? Date.now()) - live.startedAt));
+}
+
+function fmtClock(ms) {
+  const total = Math.ceil(ms / 1000);
+  const m = Math.floor(total / 60);
+  const sec = total % 60;
+  /* Under a minute the tenths are what everyone is watching. */
+  if (total < 60) return sec + "." + Math.floor((ms % 1000) / 100);
+  return m + ":" + String(sec).padStart(2, "0");
+}
+
+/* Seconds played since the opening face-off, so a penalty can be compared
+ * against the clock without caring which period it started in. */
+function elapsedSecs(live, now) {
+  if (!live) return 0;
+  const order = ["1", "2", "3", "OT", "SO"];
+  const i = Math.max(0, order.indexOf(live.period || "1"));
+  const before = order.slice(0, i).reduce((n, p) => n + periodSecs(p), 0);
+  return before + (periodSecs(live.period) - clockLeft(live, now) / 1000);
+}
+
+/* Penalties still being served, with the time left on each. */
+/* ---------------- What a penalty actually does ----------------
+ * Length and consequence are different things, and the console was treating
+ * them as one - every penalty on the sheet took a skater off.
+ *
+ *   minor, double, major   the team plays a skater short for the duration
+ *   misconduct             ten minutes for the player, a substitute goes on,
+ *                          the team is at full strength the whole time. "Two
+ *                          and a ten" is a two-minute disadvantage, not a
+ *                          twelve-minute one - the ten is served by the
+ *                          player, not by the team
+ *   game misconduct        the player is gone for the night, and the team is
+ *                          not short a skater for it
+ *   match                  gone for the night, and five minutes are served
+ *                          by a teammate
+ *   penalty shot           no time served at all: the foul is answered by a
+ *                          free shot on goal
+ */
+const PENALTY_KINDS = [
+  { key: "minor", label: "Minor", mins: 2, shorts: true },
+  { key: "double", label: "Double minor", mins: 4, shorts: true },
+  { key: "major", label: "Major", mins: 5, shorts: true },
+  { key: "minor10", label: "Minor + misconduct (2 and 10)", mins: 2, shorts: true, alsoMisconduct: 10 },
+  { key: "misconduct", label: "Misconduct", mins: 10, shorts: false },
+  { key: "game", label: "Game misconduct", mins: 10, shorts: false, ejects: true },
+  { key: "match", label: "Match penalty", mins: 5, shorts: true, ejects: true },
+  { key: "shot", label: "Penalty shot", mins: 0, shorts: false, penaltyShot: true },
+];
+
+const penaltyKind = (key) => PENALTY_KINDS.find((k) => k.key === key) || PENALTY_KINDS[0];
+
+/* Penalties recorded before this existed carry only a length, so the kind is
+   read back out of it. Four minutes has only ever meant a double minor here
+   and ten has only ever meant a misconduct, so nothing is guessed. */
+const kindOf = (p) => p.kind
+  || (p.minutes >= 10 ? "misconduct"
+    : p.minutes === 5 ? "major"
+    : p.minutes === 4 ? "double" : "minor");
+
+function activePenalties(live, now) {
+  if (!live || !Array.isArray(live.penalties)) return [];
+  const at = elapsedSecs(live, now);
+  return live.penalties
+    .filter((p) => !p.ended)
+    .map((p) => ({ ...p, left: p.endsAt - at, shorts: penaltyKind(kindOf(p)).shorts }))
+    .filter((p) => p.left > 0);
+}
+
+/* Who is up a skater, if anyone. Coincidental penalties cancel, which is the
+ * common case this has to get right; 5-on-3 shows as a two-player advantage
+ * rather than being modelled as its own state.
+ *
+ * Only the penalties that actually take a skater off count. A misconduct is
+ * ten minutes in the box with a substitute on the ice, so a team serving one
+ * is at even strength and the console has to say so. Every running penalty
+ * is still returned for the strip, because the box is worth seeing whether
+ * or not it changes the count. */
+function strengthState(live, now) {
+  const active = activePenalties(live, now);
+  const onIce = active.filter((p) => p.shorts);
+  const us = onIce.filter((p) => p.team === "us").length;
+  const them = onIce.filter((p) => p.team === "them").length;
+  if (us === them) return { kind: "EV", diff: 0, active };
+  return us > them
+    ? { kind: "PK", diff: us - them, active }
+    : { kind: "PP", diff: them - us, active };
+}
+
+
+/* "2nd · 12:34", or "End 2nd" during an intermission. */
+function liveLabel(live, now) {
+  if (!live) return "";
+  /* Before the first faceoff. The game is listed - the stream is up, the
+     doors are open - but there is no clock to report yet. */
+  if (live.warmup) return "Warm-up";
+  const p = live.period || "1";
+  const named = p === "1" ? "1st" : p === "2" ? "2nd" : p === "3" ? "3rd" : p;
+  if (live.intermission) return p === "3" ? "End of regulation" : "End " + named;
+  return named + " · " + fmtClock(clockLeft(live, now));
+}
+
+function fmtDateParen(iso) {
+  if (!iso) return "";
+  const d = new Date(iso + "T12:00:00");
+  if (isNaN(d)) return iso;
+  const md = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const wd = d.toLocaleDateString("en-US", { weekday: "short" });
+  return `${md} (${wd})`;
+}
+
+function schedStats(schedule, override) {
+  let w = 0, l = 0, tt = 0, gf = 0, ga = 0, hw = 0, hl = 0, ht = 0, aw = 0, al = 0, at = 0;
+  const finals = [...schedule].sort(cmpDate).filter(countsToward);
+  /* Only a home game and a road game belong in the splits. A neutral-site
+     game has no rink to credit, and a reconstructed one has no rink recorded -
+     both count toward the record and toward neither side. */
+  let unsided = 0;
+  for (const g of finals) {
+    const { us, them } = g.result;
+    gf += Number(us) || 0; ga += Number(them) || 0;
+    const home = g.homeAway === "H";
+    const away = g.homeAway === "A";
+    if (!home && !away) unsided++;
+    if (us > them) { w++; if (home) hw++; else if (away) aw++; }
+    else if (us < them) { l++; if (home) hl++; else if (away) al++; }
+    else { tt++; if (home) ht++; else if (away) at++; }
+  }
+  const played = w + l + tt;
+  if (played === 0 && override && (override.w || override.l || override.t)) {
+    const ow = override.w || 0, ol = override.l || 0, ot = override.t || 0;
+    const op = ow + ol + ot;
+    return { w: ow, l: ol, t: ot, gf: override.gf || 0, ga: override.ga || 0,
+      pct: op ? (ow + 0.5 * ot) / op : 0, streak: "—", home: "—", away: "—",
+      gp: op, fromOverride: true, note: override.note };
+  }
+  const pct = played ? (w + 0.5 * tt) / played : 0;
+  let streak = "—";
+  if (finals.length) {
+    const tag = (g) => (g.result.us > g.result.them ? "W" : g.result.us < g.result.them ? "L" : "T");
+    const last = tag(finals[finals.length - 1]);
+    let n = 0;
+    for (let i = finals.length - 1; i >= 0 && tag(finals[i]) === last; i--) n++;
+    streak = `${last}${n}`;
+  }
+  const po = schedule.filter((g) => countsToward(g) && gameType(g) === "playoff");
+  const pw = po.filter((g) => g.result.us > g.result.them).length;
+  const pl = po.filter((g) => g.result.us < g.result.them).length;
+  const pt = po.length - pw - pl;
+
+  // Games played means games that counted — otherwise the tile disagrees with
+  // the record beside it whenever an exhibition is on the schedule.
+  return { w, l, t: tt, gf, ga, pct, streak, gp: played,
+    playoff: po.length ? { w: pw, l: pl, t: pt } : null,
+    /* Every game unsided means there is no home record to show, rather than
+       a run of noughts. */
+    home: unsided === played ? "—" : `${hw}-${hl}${ht ? `-${ht}` : ""}`,
+    away: unsided === played ? "—" : `${aw}-${al}${at ? `-${at}` : ""}`,
+    unsided };
+}
+
+function PctRing({ pct }) {
+  const r = 26, c = 2 * Math.PI * r;
+  return (
+    <span style={{ position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+      <svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="32" cy="32" r={r} fill="none" stroke="#E7EBEF" strokeWidth="3" />
+        <circle cx="32" cy="32" r={r} fill="none" stroke="var(--blue)" strokeWidth="3"
+          strokeDasharray={`${c * pct} ${c}`} strokeLinecap="round" transform="rotate(-90 32 32)" />
+      </svg>
+      <span style={{ position: "absolute", fontFamily: "var(--body)", fontWeight: 800, fontSize: 14, color: "var(--blue)" }}>
+        {pct.toFixed(3).replace(/^0/, "")}
+      </span>
+    </span>
+  );
+}
+
+function downloadICS(games, seasonName, orgName) {
+  try {
+    const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", `PRODID:-//${orgName}//Schedule//EN`];
+    games.filter((g) => g.date).forEach((g) => {
+      const dt = g.date.replace(/-/g, "");
+      lines.push("BEGIN:VEVENT", `UID:${g.id}@cal-ice-hockey`, `DTSTART;VALUE=DATE:${dt}`,
+        `SUMMARY:${[orgName, vsAt(g), g.opponent].filter(Boolean).join(" ")}${g.time ? ` (${g.time})` : ""}`,
+        `LOCATION:${g.venue || ""}`, "END:VEVENT");
+    });
+    lines.push("END:VCALENDAR");
+    const url = URL.createObjectURL(new Blob([lines.join("\r\n")], { type: "text/calendar" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = `cal-ice-hockey-${seasonName}.ics`; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  } catch (e) { console.error("ics failed", e); }
+}
+
+/* ---------------- Game page ----------------
+ * A dedicated page per game: banner header, scoring summary, goaltending,
+ * season series and game info.
+ *
+ * The reference layout also carries opponent-side player stats, power play,
+ * penalty kill, face-offs and league ranks. None of that exists here — we hold
+ * our own box scores and nothing about the other team's roster — so those
+ * panels are left out rather than filled with invented numbers. Head-to-head
+ * comparisons come back when there is a league feed to compare against.
+ */
+/* ---------------- Game center ----------------
+ * Modelled on a broadcast game page: a scorebug banner, then Summary / Box
+ * score / Play-by-play.
+ *
+ * What it shows is bounded by what a club program actually records. A league
+ * with a stats crew tracks faceoffs, hits, giveaways and blocked shots; one
+ * scorekeeper with a phone tracks goals, penalties and shots. Rows for the
+ * rest would be zeroes pretending to be data, so the comparison only lists
+ * what was really counted.
+ */
+const PERIOD_ORDER = ["1", "2", "3", "OT", "SO"];
+const PERIOD_LABEL = { "1": "1st", "2": "2nd", "3": "3rd", OT: "OT", SO: "SO" };
+
+/* An opponent line is written by three different things - the box-score
+ * import, the admin editor, and live scoring - and they had each been asking
+ * a different question. The import records `position: "G"`, the editor set
+ * `isGoalie: true`, and a keeper with saves against them has neither. Asking
+ * any one of those on its own put an imported goaltender in the skater list,
+ * where "no goaltender here" led to adding a second, empty one.
+ */
+const oppRowPos = (row) => {
+  const p = String((row && (row.position || row.pos)) || "").toUpperCase();
+  if (p === "D") return "D";
+  if (p === "G") return "G";
+  return p ? "F" : null;
+};
+const isOppGoalie = (row) => !!row
+  && (row.isGoalie === true || oppRowPos(row) === "G"
+    || row.saves !== undefined || row.ga !== undefined);
+
+/* Clock text as seconds remaining, for sorting. */
+const clockSecs = (c) => {
+  const [m, sec] = String(c || "").split(":").map(Number);
+  return (m || 0) * 60 + (sec || 0);
+};
+
+/* Put a play list back in the order the game happened in.
+ *
+ * Live scoring appends, and appending is already chronological - the events
+ * arrive in the order they occur. Typing up a finished game is not like that:
+ * somebody reading a scoresheet enters the second-period goals, notices a
+ * penalty they skipped, and adds it after. Sorting on write means the order
+ * they type in stops mattering.
+ *
+ * Clocks count down, so later in a period is a smaller number. Within the
+ * same second, the face-off that opens a period comes before anything else
+ * and the final whistle comes after everything.
+ */
+const playRank = (p) => (p.kind === "period" && p.phase === "start" ? 0
+  : p.kind === "game" ? 3
+  : p.kind === "period" ? 2 : 1);
+
+function sortPlays(plays) {
+  return [...plays].sort((a, b) =>
+    PERIOD_ORDER.indexOf(a.period || "1") - PERIOD_ORDER.indexOf(b.period || "1")
+    || clockSecs(b.clock) - clockSecs(a.clock)
+    || playRank(a) - playRank(b));
+}
+/* How a section of the game is announced. "OT period" and "SO period" read as
+   abbreviations someone forgot to expand. */
+const PERIOD_HEADING = { OT: "Overtime", SO: "Shootout" };
+const periodHeading = (p) => PERIOD_HEADING[p] || PERIOD_LABEL[p] + " period";
+
+function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
+  const seasonName = Object.keys(site.seasons || {}).find((n) =>
+    (site.seasons[n].schedule || []).some((g) => g.id === gameId)
+  );
+  const season = seasonName ? site.seasons[seasonName] : null;
+  const game = season ? (season.schedule || []).find((g) => g.id === gameId) : null;
+  const [tab, setTab] = useState("summary");
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [side, setSide] = useState("us");
+  const [fPeriod, setFPeriod] = useState("");
+  const [fType, setFType] = useState("");
+  const [fTeam, setFTeam] = useState("");
+
+  const liveRunning = !!(game && game.live && game.live.running);
+  const now = useClockTick(liveRunning);
+
+  if (!game) {
+    return (
+      <main className="section" style={{ flex: 1 }}>
+        <div className="wrap">
+          <h1 className="h2" style={{ color: "var(--blue)" }}>Game not found</h1>
+          <button className="btn bNavy bSm" style={{ marginTop: 16 }} onClick={onBack}>Back to schedule</button>
+        </div>
+      </main>
+    );
+  }
+
+  const org = (site.settings && site.settings.org) || {};
+  const state = gameState(game);
+  const final = state === "final";
+  const live = state === "live";
+  const scored = final || live;
+  const r = resultText(game);
+  const plays = Array.isArray(game.plays) ? game.plays : [];
+  const strength = live ? strengthState(game.live, now) : null;
+
+  const usName = gameName(site) || "Us";
+  const usAbbr = org.abbr || usName;
+  const themName = game.opponent || "Opponent";
+  const themAbbr = (site.opponents || []).find((o) => o.id === game.opponentId);
+  const themShort = (themAbbr && themAbbr.short) || themName;
+  /* Goals only, in the order they were scored - the running score on a
+     play-by-play row is counted off this, not off every play. */
+  const goals = (Array.isArray(game.plays) ? game.plays : []).filter((p) => p.kind === "goal");
+  const numberOf = (id) => {
+    const p = (season.roster || []).find((x) => x.id === id);
+    return p && p.number ? p.number : "";
+  };
+  /* "Kodai Mizuno #9" the way the league sheet writes it. Falls back to the
+     bare name when we do not hold a number for them. */
+  const withNumber = (name, id, mine) => {
+    const n = mine ? numberOf(id) : oppNumberOf(name, id);
+    return n ? name + " #" + n : name;
+  };
+  /* Id first: two of their players can share a name, and the first match is
+     then the wrong shirt. Name is the fallback for older plays. */
+  const oppNumberOf = (name, id) => {
+    const rows = (site.opponentStats || {})[game.id] || [];
+    const row = (id && rows.find((x) => x.id === id))
+      || rows.find((x) => (x.name || "").toLowerCase() === String(name || "").toLowerCase());
+    return row && row.number ? row.number : "";
+  };
+  const usMascot = mascotOf(org, org.gameName || usName, usAbbr);
+  const themMascot = mascotOf(themAbbr, themName, themShort);
+
+  const scoreUs = final ? game.result.us : live ? game.live.us || 0 : null;
+  const scoreThem = final ? game.result.them : live ? game.live.them || 0 : null;
+
+  /* ---- Box score lines ---- */
+  const lines = (site.gameStats || {})[game.id] || {};
+  const byId = new Map((season.roster || []).map((p) => [p.id, p]));
+  const entries = Object.entries(lines)
+    .map(([id, l]) => ({ p: byId.get(id), l }))
+    .filter((e) => e.p && e.l && e.l.dressed !== false);
+  const skaters = entries.filter((e) => e.p.position !== "G");
+  const goalies = entries.filter((e) => e.p.position === "G");
+  const oppRows = (site.opponentStats || {})[gameId] || [];
+  const oppRoster = ((site.opponents || []).find((o) => o.id === game.opponentId) || {}).roster || [];
+  /* Their roster carries the same field, if their sheet was detailed enough
+     for anyone to have filled it in. */
+  const oppSpot = (row) => {
+    const hit = oppRoster.find((p) => (p.name || "").toLowerCase() === (row.name || "").toLowerCase());
+    return (hit && hit.spot) || row.spot || "";
+  };
+  /* Their roster first, then whatever the box score row itself carries - an
+     imported sheet names the position without us holding a roster for them.
+     Centres and wingers all come back as forwards, which is the split this
+     table makes. */
+  const oppPos = (row) => {
+    const hit = oppRoster.find((p) => (p.name || "").toLowerCase() === (row.name || "").toLowerCase());
+    const raw = (hit && hit.position) || row.position || "";
+    const p = String(raw).toUpperCase();
+    if (p === "D") return "D";
+    if (p === "G") return "G";
+    return p ? "F" : null;
+  };
+  const isKeeperRow = isOppGoalie;
+  const oppSkaters = oppRows.filter((x) => !isKeeperRow(x));
+  const oppGoalies = oppRows.filter((x) => isKeeperRow(x));
+  const seasonAssists = (play, playerId) => assistNumber(season.schedule, play, playerId);
+  const seasonGoals = (play) => goalNumber(season.schedule, play);
+
+  /* Whoever put a point on the board, for games with a box score but no
+     play-by-play. */
+  const boxScorers = entries
+    .filter((e) => (e.l.g || 0) > 0 || (e.l.a || 0) > 0)
+    .sort((a, b) => (b.l.g || 0) - (a.l.g || 0) || (b.l.a || 0) - (a.l.a || 0));
+
+  const scratches = Object.entries(lines)
+    .filter(([, l]) => l && l.dressed === false)
+    .map(([id]) => (byId.get(id) || {}).name)
+    .filter(Boolean);
+
+  /* Theirs only when somebody actually set their lineup for this game.
+     Without one, everyone on their roster counts as dressed by default, and
+     listing the difference would be inventing scratches rather than
+     reporting them. */
+  const awayLu = awayLineupOf(game, oppRoster);
+  const oppScratches = awayLu.isSet
+    ? oppRoster.filter((p) => !awayLu.dressed.has(p.id)).map((p) => p.name).filter(Boolean)
+    : [];
+
+  /* ---- Periods that actually happened ---- */
+  /* Regulation is always three periods, whether or not they have been played
+   * yet — a linescore that grows a column at a time is harder to read than one
+   * with an empty third. Overtime only appears once the game reaches it. */
+  const extra = ["OT", "SO"].filter((p) =>
+    plays.some((x) => x.period === p) ||
+    ((game.live || {}).periodShots || {})[p] ||
+    (live && PERIOD_ORDER.indexOf(game.live.period || "1") >= PERIOD_ORDER.indexOf(p)) ||
+    (final && game.result.ot && p === "OT")
+  );
+  const periods = ["1", "2", "3", ...extra];
+  /* Which periods have actually been reached, so an unplayed one shows as
+     blank rather than as a scoreless period. */
+  const reached = (p) => {
+    if (final) return true;
+    if (!live) return false;
+    return PERIOD_ORDER.indexOf(p) <= PERIOD_ORDER.indexOf(game.live.period || "1");
+  };
+
+  const goalsIn = (p, team) =>
+    plays.filter((x) => x.kind === "goal" && x.period === p && x.team === team).length;
+  const shotsIn = (p, team) => (((game.live || {}).periodShots || {})[p] || {})[team] || 0;
+
+  /* A linescore needs play data. Older games carry only a final score, so the
+     table falls back to a total-only row rather than three fabricated zeroes. */
+  const hasPeriodDetail = plays.some((x) => x.kind === "goal");
+  /* Shots on goal, in order of what is actually known:
+   *
+   *   1. the live counter, when someone was clicking it
+   *   2. the goaltenders' lines — shots against is saves plus goals allowed,
+   *      so the other team's netminder tells you how many shots we took
+   *   3. a per-player shots column, which almost nobody fills in
+   *
+   * Deriving from the goalies means a game typed up afterwards still gets a
+   * shot count without anyone entering one twice. */
+  const shotsFacedBy = (rows, saves, ga) =>
+    sumBy(rows, saves) + sumBy(rows, ga);
+  const oursFromGoalies = shotsFacedBy(oppGoalies, (x) => x.saves, (x) => x.ga);
+  const theirsFromGoalies = shotsFacedBy(goalies, (e) => e.l.saves, (e) => e.l.ga);
+  const totalShots = {
+    us: (game.live || {}).shotsUs || oursFromGoalies || sumBy(entries, (e) => e.l.shots),
+    them: (game.live || {}).shotsThem || theirsFromGoalies || sumBy(oppRows, (x) => x.shots),
+  };
+  const anyShots = !!(totalShots.us || totalShots.them);
+  /* Goalie lines give a total, never a split. Showing zeroes per period
+     would claim nobody shot in the first, which is a different thing from
+     nobody counting by period. */
+  const hasPeriodShots = periods.some((p) => shotsIn(p, "us") || shotsIn(p, "them"));
+
+  /* Our side read the box score and theirs read the plays, which is fine
+     while both exist and wrong the moment only one does: a game whose scoring
+     came from a scoresheet rather than a box score showed a PPG badge on the
+     goal and zero power-play goals in the same panel. Each side now takes the
+     box score where there is one and the plays where there is not, the way
+     shots on goal already did. */
+  const penMinutes = (t) => plays
+    .filter((x) => x.kind === "penalty" && x.team === t)
+    .reduce((n, x) => n + (Number(x.minutes) || 0), 0);
+  const ppGoals = (t) => plays
+    .filter((x) => x.kind === "goal" && x.team === t && x.strength === "PP").length;
+
+  const pimUs = entries.length ? sumBy(entries, (e) => e.l.pim) : penMinutes("us");
+  const pimThem = oppRows.length ? sumBy(oppRows, (x) => x.pim) : penMinutes("them");
+  const ppUs = entries.length ? sumBy(entries, (e) => e.l.ppg) : ppGoals("us");
+  const ppThem = ppGoals("them");
+
+  /* Shots on goal always has a row: it is the first thing anyone looks for, and
+   * its absence is itself worth showing. Dropping it when nothing was counted
+   * left the comparison starting at power-play goals, which reads as though
+   * shots were never a stat here. An unrecorded row shows dashes rather than
+   * zeroes, because "0 shots" and "nobody counted" are different claims. */
+  /* All three rows, always. Dropping a row when both teams had none read as a
+     stat we do not track rather than as nothing having happened yet - and in
+     the first period of a live game that is every row. A real zero still shows
+     0; only genuinely unrecorded shots show a dash. */
+  /* A power play is what the other side's penalty hands you, so their count
+     of penalties is your count of chances. Nothing is shown when neither
+     team went to the box: 0 for 0 is not 0%, it is a game without a power
+     play in it. */
+  /* The shirt, from whichever side the player is on. */
+  const penNumber = (x, mine) => (mine ? numberOf(x.playerId) : oppNumberOf(x.player, x.playerId));
+  /* Infractions are stored lowercase; the line reads better with the offence
+     capitalised, and it is the only capital in the sentence. */
+  const sentence = (t) => (t ? String(t).charAt(0).toUpperCase() + String(t).slice(1) : t);
+
+  const penaltiesBy = (t) => plays.filter((x) => x.kind === "penalty" && x.team === t).length;
+  const ppChancesUs = penaltiesBy("them");
+  const ppChancesThem = penaltiesBy("us");
+  const rate = (n, d) => (d ? Math.round((n / d) * 100) : null);
+  const ppPct = { us: rate(ppUs, ppChancesUs), them: rate(ppThem, ppChancesThem) };
+
+  /* A face-off play records the side that won the draw, so the split is just
+     how many each of them has. */
+  const drawsBy = (t) => plays.filter((x) => x.kind === "faceoff" && x.team === t).length;
+  const drawsUs = drawsBy("us");
+  const drawsThem = drawsBy("them");
+  const drawsAll = drawsUs + drawsThem;
+  const foPct = { us: rate(drawsUs, drawsAll), them: rate(drawsThem, drawsAll) };
+
+  const asPct = (v) => (v == null ? "—" : v + "%");
+
+  const COMPARE = [
+    /* Shown as a real zero rather than a dash, to match the two rows under it.
+       A game with no shots on file therefore reads 0-0 here; the per-period
+       Shots on goal table above still distinguishes the two. */
+    ["Shots on goal", totalShots.us, totalShots.them, true],
+    ["Power-play goals", ppUs, ppThem, true],
+    ["Power play %", ppPct.us, ppPct.them, ppChancesUs + ppChancesThem > 0, asPct],
+    /* Only when draws were actually recorded - see below. */
+    ["Face-off %", foPct.us, foPct.them, true, asPct],
+    ["Penalty minutes", pimUs, pimThem, true],
+  ].filter((row) => row[0] !== "Face-off %" || drawsAll > 0);
+
+  /* ---- Three stars ---- */
+  /* Stories are linked to the game rather than guessed at by date: two games
+     in a weekend series would both match a Saturday recap.
+     The preview carries the build-up and gives way the moment there is a
+     result to talk about instead. */
+  /* Nothing to read while it is being played. The preview belongs to the
+     build-up and stops being true the moment the puck drops; the recap does
+     not exist yet. During a live game the score, the box score and the
+     play-by-play are the story, so neither article is offered. */
+  const storyId = live ? null : final ? game.recapId : game.previewId;
+  const story = storyId
+    ? (site.news || []).filter(isLive).find((n) => n.id === storyId)
+    : null;
+  const storyLabel = final ? "Recap" : "Preview";
+
+  const stars = (game.stars || []).map((name) => {
+    const p = (season.roster || []).find((x) => (x.name || "").toLowerCase() === name.toLowerCase());
+    const l = p ? lines[p.id] : null;
+    return { name, p, l };
+  });
+
+  const usColor = org.primary || "#041E42";
+  const themColor = (themAbbr && themAbbr.color) || "#5A6473";
+
+
+  /* ---- Play-by-play filters ---- */
+  /* Read top to bottom the way the game was played: opening faceoff first,
+     final whistle last. Plays are stored in the order they happened, so this
+     is simply that order left alone. */
+  /* Each shootout attempt as a row of its own. They are not stored as plays
+     - a miss is not an event of the game and a shootout goal is on nobody's
+     record - so they are built here and the goal play they duplicate is left
+     out. */
+  const soAttempts = ((game.shootout || {}).attempts || []).map((a, i) => ({
+    id: a.id || "soplay-" + i,
+    kind: "shootout", team: a.team, period: "SO", clock: "",
+    player: a.player, playerId: a.playerId, shot: a.shot, scored: a.scored,
+  }));
+
+  /* The shootout happens before the final whistle, and the whistle is the
+     last play stored - so the attempts go in front of it rather than after. */
+  const beforeEnd = plays.filter((x) => x.kind !== "game" && !(x.kind === "goal" && x.period === "SO"));
+  const theEnd = plays.filter((x) => x.kind === "game");
+
+  const shown = [...beforeEnd, ...soAttempts, ...theEnd]
+    .filter((x) => !fPeriod || x.period === fPeriod)
+    .filter((x) => !fType || x.kind === fType)
+    .filter((x) => !fTeam || x.team === fTeam);
+
+  /* Only once it is over: while a game is on, the side that happens to be
+     behind is not the losing side, and dimming it says otherwise. */
+  const lost = (score, other) => final && Number(score) < Number(other);
+
+  const TeamSide = ({ name, mascot, short, logo, score, sog, align, beaten }) => (
+    <div className={"gcteam " + align}>
+      {align === "right" && scored && (
+        <div className={"gcscore" + (beaten ? " beaten" : "")}>{score}</div>
+      )}
+      <div className="gcid">
+        {logo ? <img className="gclogo" src={logo} alt="" /> : <OppBadge name={name} size={44} />}
+        <div className="gcnames">
+          <span className="gcabbr">{mascot}</span>
+          <span className="gcname">{name}</span>
+          {/* The phone shows this instead of the two lines above it. Both are
+              in the markup so the swap is a stylesheet decision. */}
+          <span className="gcshort">{short || name}</span>
+          {scored && anyShots ? <span className="gcsog">SOG: {sog || 0}</span> : null}
+        </div>
+      </div>
+      {align === "left" && scored && (
+        <div className={"gcscore" + (beaten ? " beaten" : "")}>{score}</div>
+      )}
+    </div>
+  );
+
+  return (
+    <main style={{ background: "var(--page)", flex: 1 }}>
+      <div className="wrap" style={{ paddingTop: 18, paddingBottom: 56 }}>
+        <div className="gchead">
+          <h1 className="gctitle">Game center</h1>
+        </div>
+
+        {sheetOpen && (
+          <Scoresheet site={site} season={season} game={game} onClose={() => setSheetOpen(false)} />
+        )}
+
+        {/* ---- Banner ---- */}
+        <div className="gcbanner">
+          <span className="gcslash left" style={{ background: usColor }} />
+          <span className="gcslash right" style={{ background: themColor }} />
+          <div className="gcbannerinner">
+            <TeamSide name={usName} mascot={usMascot} short={usAbbr} logo={org.logo} score={scoreUs}
+              sog={scored ? totalShots.us : null} align="left"
+              beaten={lost(scoreUs, scoreThem)} />
+            <div className="gcmid">
+              {live ? (
+                <>
+                  <span className="gcchip live"><span className="livedot" aria-hidden="true" />LIVE</span>
+                  <span className="gcwhen">{liveLabel(game.live, now)}</span>
+                  <StrengthTag live={game.live} now={now} usAbbr={usAbbr} />
+                </>
+              ) : final ? (
+                <>
+                  <span className="gcchip">
+                    {game.result.so ? "FINAL / SO" : game.result.ot ? "FINAL / OT" : "FINAL"}
+                  </span>
+                  <span className="gcwhen">{fmtDate(game.date)}</span>
+                </>
+              ) : (
+                <>
+                  <span className="gcchip">{localTime(game.date, game.time) || "TBD"}</span>
+                  <span className="gcwhen">{fmtDate(game.date) || "Date TBD"}</span>
+                </>
+              )}
+              {game.gameType !== "regular" && (
+                <span className="gctag">{game.roundLabel || gameType(game)}</span>
+              )}
+              {/* A named fixture stands on its own, whatever type of game it is. */}
+              {(game.specials || []).map((n) => <span className="spectag" key={n}>{n}</span>)}
+            </div>
+            <TeamSide name={themName} mascot={themMascot} short={themShort} logo={game.opponentLogo}
+              score={scoreThem} sog={scored ? totalShots.them : null} align="right"
+              beaten={lost(scoreThem, scoreUs)} />
+          </div>
+        </div>
+
+        {/* ---- Where to watch ----
+            The stream while it is on, the replay once it is over. WatchLink
+            decides which; this only gives it a place to sit. */}
+        {(live || final) && (final ? (game.replayUrl || game.streamUrl) : game.streamUrl) && (
+          <div className="gcwatchbar">
+            <WatchLink game={game} />
+          </div>
+        )}
+
+        {/* ---- Tabs ---- */}
+        {scored && (
+          <div className="gctabs">
+            {[["summary", "Summary"], ["box", "Box Score"], ["pbp", "Play-By-Play"]].map(([k, label]) => (
+              <button key={k} className={"gctab " + (tab === k ? "on" : "")}
+                onClick={() => setTab(k)}>{label}</button>
+            ))}
+          </div>
+        )}
+
+        {!scored && (
+          <GamePreview site={site} game={game} season={season} seasonName={seasonName}
+            onTickets={onTickets} onPlayer={onPlayer}
+            story={story} openPost={openPost} />
+        )}
+
+        {scored && tab === "summary" && (
+          <div className="gcgrid">
+            <div className="gccol">
+              <GameStory story={story} label={storyLabel} openPost={openPost} />
+
+              {stars.length > 0 && (
+                <section className="statcard gcpad">
+                  <h2 className="statsec">Three stars</h2>
+                  <div className="gcstars">
+                    {stars.map((st, i) => (
+                      <div className="gcstar" key={i}>
+                        <span className="gcstarart">
+                          <PlayerAvatar size={58} photo={st.p ? st.p.photo : null} />
+                          <span className="gcstarnum">{i + 1}</span>
+                        </span>
+                        <span className="gcstarbody">
+                          <span className="gcstarname">
+                            {st.p ? (
+                              <button className="pboxname" onClick={() => onPlayer(st.p.id)}>{st.name}</button>
+                            ) : st.name}
+                          </span>
+                          {st.p && (
+                            <span className="gcstarmeta">
+                              {[st.p.number ? "#" + st.p.number : null, usAbbr, POSITION_FULL[st.p.position] || st.p.position]
+                                .filter(Boolean).join(" • ")}
+                            </span>
+                          )}
+                          {st.l && <span className="gcstarline">{starLine(st)}</span>}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              <section className="statcard gcpad">
+                <h2 className="statsec">Scoring</h2>
+                {/* No play-by-play does not mean no goals. The box score knows who
+                    scored; what it does not know is when. Falling back to it beats
+                    telling someone there is no detail while their name sits in the
+                    table one tab over. */}
+                {!plays.some((x) => x.kind === "goal") ? (
+                  boxScorers.length ? (
+                    <>
+                      {/* Same card as a timed goal, minus the two things the box
+                          score cannot know: when it went in and what the score
+                          was. A different-looking list here read as a different
+                          feature rather than the same one with less detail. */}
+                      <div className="gcgoals">
+                        {boxScorers.map(({ p, l }) => (
+                          <div className="gcgoal" key={p.id}>
+                            <PlayerAvatar size={46} photo={p.photo} />
+                            <span className="gcgoalwho">
+                              <span className="gcgoalname">
+                                <button className="pboxname" onClick={() => onPlayer(p.id)}>{p.name}</button>
+                              </span>
+                              <span className="gcgoalassist">
+                                {[p.number ? "#" + p.number : null, POSITION_FULL[p.position] || p.position]
+                                  .filter(Boolean).join(" • ")}
+                              </span>
+                            </span>
+                            <span className="gcgoalcell">
+                              <span className="gccellval">{l.g || 0}</span>
+                              <span className="gccelllab">Goals</span>
+                            </span>
+                            <span className="gcgoalcell">
+                              <span className="gccellval">{l.a || 0}</span>
+                              <span className="gccelllab">Assists</span>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="bsm gcnone" style={{ marginTop: 12 }}>
+                        From the box score. Times and assists per goal were not recorded.
+                      </p>
+                    </>
+                  ) : (
+                    <p className="bsm gcnone">
+                      {/* A game still being played is not missing its scoring,
+                          it just has not had any yet. */}
+                      {live
+                        ? "No goals yet."
+                        : final && scoreUs === 0 && scoreThem === 0
+                          ? "No goals."
+                          : "No scoring recorded for this game."}
+                    </p>
+                  )
+                ) : periods.map((p) => {
+                  const inP = plays.filter((x) => x.kind === "goal" && x.period === p);
+                  if (!inP.length) return null;
+                  return (
+                    <div className="gcperiod" key={p}>
+                      <p className="gcperiodlab">{periodHeading(p)}</p>
+                      {inP.map((x) => {
+                        const scorerP = x.scorerId
+                          ? (season.roster || []).find((pl) => pl.id === x.scorerId)
+                          : null;
+                        const mark = x.team === "us" ? org.logo : game.opponentLogo;
+                        return (
+                          <div className="gcgoal" key={x.id}>
+                            <PlayerAvatar size={46} photo={scorerP ? scorerP.photo : null} />
+                            <span className="gcgoalwho">
+                              <span className="gcgoalname">
+                                {x.scorerId
+                                  ? <button className="pboxname" onClick={() => onPlayer(x.scorerId)}>{x.scorer}</button>
+                                  : x.scorer}
+                                {/* Their tally for the season, the way a scoring
+                                    summary counts — "(5)" is the fifth of the year.
+                                    Not for a shootout: that goal decides the game
+                                    but does not go on anyone's season total, so
+                                    numbering it would overstate their year. */}
+                                {x.period !== "SO" && seasonGoals(x)
+                                  ? <span className="gcgoalnum">({seasonGoals(x)})</span> : null}
+                                {x.strength !== "EV" && (
+                                  <span className="gcstrength">
+                                    {x.strength === "PP" ? "PPG" : x.strength === "SH" ? "SHG" : x.strength}
+                                  </span>
+                                )}
+                              </span>
+                              <span className="gcgoalassist">
+                                {mark ? <img className="gcgoalmark" src={mark} alt="" /> : null}
+                                {x.assists && x.assists.length
+                                  ? x.assists.map((nm, k) => {
+                                      const n = seasonAssists(x, (x.assistIds || [])[k]);
+                                      return (nm + (n ? " (" + n + ")" : ""));
+                                    }).join(", ")
+                                  /* A shootout goal has nobody to assist it, so
+                                     "Unassisted" would read as an absence. */
+                                  : x.period === "SO" ? "Shootout winner" : "Unassisted"}
+                              </span>
+                            </span>
+                            <span className="gcgoalcell">
+                              <span className="gccellval">{runningScore(plays, x, usAbbr, themShort)}</span>
+                              <span className="gccelllab">Score</span>
+                            </span>
+                            <span className="gcgoalcell">
+                              {/* A shootout attempt has no clock - "00:00" would
+                                  read as the last second of a period. */}
+                              <span className="gccellval">{x.period === "SO" ? "SO" : x.clock}</span>
+                              <span className="gccelllab">Time</span>
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </section>
+
+              {(game.shootout && (game.shootout.attempts || []).length > 0) && (
+                <section className="statcard gcpad">
+                  <h2 className="statsec">Shootout</h2>
+                  <ol className="solist">
+                    {(() => {
+                      /* The score after each attempt, so a row reads as the
+                         state of the shootout at that moment rather than a
+                         bare hit or miss. */
+                      let us = 0;
+                      let them = 0;
+                      return game.shootout.attempts.map((a) => {
+                        if (a.scored) { if (a.team === "us") us++; else them++; }
+                        const mine = a.team === "us";
+                        const p = mine && a.playerId
+                          ? (season.roster || []).find((x) => x.id === a.playerId)
+                          : null;
+                        return (
+                          <li className={"sorow " + (mine ? "us" : "them")} key={a.id}>
+                            <span className="soface">
+                              {mine
+                                ? <PlayerAvatar size={44} photo={p ? p.photo : null} />
+                                : (game.opponentLogo
+                                  ? <img className="sooppmark" src={game.opponentLogo} alt="" />
+                                  : <OppBadge name={themShort} size={44} />)}
+                            </span>
+                            <span className="sobody">
+                              <span className="soname">
+                                {mine && p
+                                  ? <button className="pboxname" onClick={() => onPlayer(p.id)}>{a.player}</button>
+                                  : a.player}
+                              </span>
+                              <span className="someta">
+                                {a.shot ? <span className="soshot">{a.shot}</span> : null}
+                                {shotResult(a) === "save" || shotResult(a) === "miss"
+                                  ? <span className="sooutcome">{shotResult(a) === "save" ? "Saved" : "Missed"}</span>
+                                  : null}
+                                <span className="socount">{us} - {them}</span>
+                                <span className={"somark " + (shotResult(a) === "goal" ? "in" : "out")}>
+                                  {shotResult(a) === "goal" ? <IcCheckCircle size={16} /> : <IcMinusCircle size={16} />}
+                                </span>
+                                <span className="sronly">{shotResultLabel(a)}</span>
+                              </span>
+                            </span>
+                          </li>
+                        );
+                      });
+                    })()}
+                  </ol>
+                  {game.shootout.orderAssumed && (
+                    <p className="bsm gcnone" style={{ marginTop: 12 }}>
+                      The scoresheet lists each team's attempts separately; the
+                      order shown alternates them.
+                    </p>
+                  )}
+                </section>
+              )}
+
+              <section className="statcard gcpad">
+                <h2 className="statsec">Penalties</h2>
+                {periods.filter((p) => p !== "SO").map((p) => {
+                  const inP = plays.filter((x) => x.kind === "penalty" && x.period === p);
+                  return (
+                    <div className="gcperiod" key={p}>
+                      <p className="gcperiodlab">{periodHeading(p)}</p>
+                      <table className="stats gcpen">
+                        <thead><tr>
+                          <th className="gcpenteam">Team</th>
+                          <th>Time</th><th>Penalty</th>
+                        </tr></thead>
+                        <tbody>
+                          {inP.length ? inP.map((x) => {
+                            const mine = x.team === "us";
+                            const code = mine ? usAbbr : themShort;
+                            const crest = mine ? org.logo : game.opponentLogo;
+                            return (
+                              <tr key={x.id}>
+                                {/* The crest carries the team; its alt keeps the
+                                    code for anyone not looking at it. */}
+                                <td className="gcpenteam">
+                                  {crest
+                                    ? <img className="gcpenlogo" src={crest} alt={code} />
+                                    : <OppBadge name={code} size={18} />}
+                                </td>
+                                <td>{x.clock}</td>
+                                <td>
+                                  {x.player}{penNumber(x, mine) ? " (#" + penNumber(x, mine) + ")" : ""}
+                                  {" " + x.minutes + " minutes for " + sentence(x.infraction)}
+                                </td>
+                              </tr>
+                            );
+                          }) : (
+                            <tr><td className="gcpenteam" /><td>—</td><td className="gcnone">No penalties taken</td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })}
+              </section>
+            </div>
+
+            <div className="gccol">
+              <section className="statcard gcpad">
+                <h2 className="statsec">Linescore</h2>
+                <table className="stats gcline">
+                  <thead>
+                    <tr>
+                      <th><span className="sronly">Team</span></th>
+                      {periods.map((p) => <th key={p}>{PERIOD_LABEL[p]}</th>)}
+                      <th>T</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[["us", usAbbr, scoreUs, org.logo], ["them", themShort, scoreThem, game.opponentLogo]]
+                      .map(([team, label, total, logo]) => (
+                      <tr key={team}>
+                        <td className="gclinename">
+                          <span className="gclineteam">
+                            {logo
+                              ? <img className="gclinelogo" src={logo} alt="" />
+                              : <OppBadge name={label} size={18} />}
+                            {label}
+                          </span>
+                        </td>
+                        {periods.map((p) => (
+                          <td key={p}>
+                            {!reached(p) ? "" : hasPeriodDetail ? goalsIn(p, team) : "—"}
+                          </td>
+                        ))}
+                        <td className="gclinetotal">{total}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {/* Only worth saying once the game is over: mid-game the
+                    later periods simply have not happened. */}
+                {!live && !hasPeriodDetail && (
+                  <p className="bsm gcnone" style={{ marginTop: 10 }}>
+                    Period-by-period scoring was not recorded for this game.
+                  </p>
+                )}
+              </section>
+
+              {anyShots && (
+                <section className="statcard gcpad">
+                  <h2 className="statsec">Shots on goal</h2>
+                  <table className="stats gcline">
+                    <thead>
+                      <tr>
+                        <th>Period</th>
+                        <th>
+                          <span className="gclineth">
+                            {org.logo ? <img className="gclinelogo" src={org.logo} alt="" /> : null}
+                            {usAbbr}
+                          </span>
+                        </th>
+                        <th>
+                          <span className="gclineth">
+                            {game.opponentLogo
+                              ? <img className="gclinelogo" src={game.opponentLogo} alt="" /> : null}
+                            {themShort}
+                          </span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {periods.map((p) => (
+                        <tr key={p}>
+                          <td className="gclinename">{PERIOD_LABEL[p]}</td>
+                          <td>{!reached(p) ? "" : hasPeriodShots ? shotsIn(p, "us") : "—"}</td>
+                          <td>{!reached(p) ? "" : hasPeriodShots ? shotsIn(p, "them") : "—"}</td>
+                        </tr>
+                      ))}
+                      <tr>
+                        <td className="gclinename">Total</td>
+                        <td className="gclinetotal">{totalShots.us}</td>
+                        <td className="gclinetotal">{totalShots.them}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  {!live && !hasPeriodShots && (
+                    <p className="bsm gcnone" style={{ marginTop: 10 }}>
+                      Totals from the goaltenders' lines; shots were not counted by period.
+                    </p>
+                  )}
+                </section>
+              )}
+
+              {COMPARE.length > 0 && (
+                <section className="statcard gcpad">
+                  <div className="gcstatshead">
+                    {org.logo
+                      ? <img className="gcstatslogo" src={org.logo} alt="" />
+                      : <OppBadge name={usAbbr} size={30} />}
+                    <h2 className="statsec" style={{ margin: 0 }}>Game stats</h2>
+                    {game.opponentLogo
+                      ? <img className="gcstatslogo" src={game.opponentLogo} alt="" />
+                      : <OppBadge name={themShort} size={30} />}
+                  </div>
+
+                  {COMPARE.map(([label, a, b, recorded, fmt]) => {
+                    const t = (a || 0) + (b || 0);
+                    /* An even split when both sides are zero: a bar pinned to one
+                       end would read as a lopsided result rather than no result. */
+                    const pa = t ? ((a || 0) / t) * 100 : 50;
+                    /* Two percentages do not add up to 100, so the bar is a
+                       comparison of the two rates rather than a share of them. */
+                    const show = (v) => (fmt ? fmt(v) : v || 0);
+                    return (
+                      <div className={"gcbar " + (recorded ? "" : "unrecorded")} key={label}>
+                        <span className="gcbarval">{recorded ? show(a) : "—"}</span>
+                        <span className="gcbarlab">{label}</span>
+                        <span className="gcbarval right">{recorded ? show(b) : "—"}</span>
+                        <span className="gcbartrack">
+                          {recorded ? (
+                            <>
+                              <span className="gcbarfill left" style={{ width: pa + "%", background: usColor }} />
+                              <span className="gcbarfill right" style={{ width: (100 - pa) + "%", background: themColor }} />
+                            </>
+                          ) : (
+                            <span className="gcbarnone" />
+                          )}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </section>
+              )}
+
+              <SeasonSeries site={site} season={season} game={game} usAbbr={usAbbr} themShort={themShort} />
+
+              <section className="statcard gcpad">
+                <h2 className="statsec">Game info</h2>
+                <dl className="gcinfo">
+                  <dt>Matchup</dt>
+                  <dd>{usName} {vsAt(game)} {themName}</dd>
+                  {game.venue && <><dt>Venue</dt><dd>{game.venue}</dd></>}
+                  {game.location && <><dt>Location</dt><dd>{game.location}</dd></>}
+                  <dt>Date</dt>
+                  <dd>{localDate(game.date, game.time)}{game.time ? " · " + localTime(game.date, game.time) : ""}</dd>
+                  {watchRows(game)}
+                  {game.officials && <><dt>Officials</dt><dd>{game.officials}</dd></>}
+                  {scratches.length > 0 && (
+                    <><dt>{usAbbr} scratches</dt><dd>{scratches.join(", ")}</dd></>
+                  )}
+                  {oppScratches.length > 0 && (
+                    <><dt>{themShort} scratches</dt><dd>{oppScratches.join(", ")}</dd></>
+                  )}
+                  <dt>Type</dt>
+                  <dd>{game.roundLabel || GAME_TYPE_LABEL[gameType(game)] || gameType(game)}</dd>
+                </dl>
+                {/* The rest of this card is the game's paperwork, so the
+                    printable version of it belongs here rather than beside
+                    the page title. Only a finished game has one. */}
+                {final && (
+                  <button className="gcsheetbtn" onClick={() => setSheetOpen(true)}>
+                    <IcDoc size={15} /> Scoresheet
+                  </button>
+                )}
+              </section>
+            </div>
+          </div>
+        )}
+
+        {scored && tab === "box" && (
+          <div className="gcbox">
+            <div className="gpsides">
+              <button className={"gpside " + (side === "us" ? "on" : "")}
+                onClick={() => setSide("us")}>{usName}</button>
+              <button className={"gpside " + (side === "them" ? "on" : "")}
+                onClick={() => setSide("them")}>{themName}</button>
+            </div>
+
+            {side === "us" ? (
+              <>
+                <BoxTable title="Forwards" showSpot rows={skaters
+                  .filter((e) => e.p.position === "F")
+                  .map((e) => ({ id: e.p.id, number: e.p.number, name: e.p.name, spot: e.p.spot, l: e.l }))}
+                  onPlayer={onPlayer} />
+                <BoxTable title="Defense" rows={skaters
+                  .filter((e) => e.p.position === "D")
+                  .map((e) => ({ id: e.p.id, number: e.p.number, name: e.p.name, l: e.l }))}
+                  onPlayer={onPlayer} />
+                {/* Anything with an unrecognised position still has to appear. */}
+                <BoxTable title="Skaters" rows={skaters
+                  .filter((e) => e.p.position !== "F" && e.p.position !== "D")
+                  .map((e) => ({ id: e.p.id, number: e.p.number, name: e.p.name, l: e.l }))}
+                  onPlayer={onPlayer} />
+                <GoalieTable rows={goalies.map((e) => ({
+                  id: e.p.id, number: e.p.number, name: e.p.name, l: e.l,
+                }))} onPlayer={onPlayer} />
+              </>
+            ) : oppRows.length ? (
+              <>
+                <BoxTable title="Forwards" showSpot rows={oppSkaters
+                  .filter((x) => oppPos(x) === "F")
+                  .map((x) => ({ id: x.id, number: x.number, name: x.name, spot: oppSpot(x), l: x }))} />
+                <BoxTable title="Defense" rows={oppSkaters
+                  .filter((x) => oppPos(x) === "D")
+                  .map((x) => ({ id: x.id, number: x.number, name: x.name, l: x }))} />
+                <BoxTable title="Skaters" rows={oppSkaters
+                  .filter((x) => !oppPos(x))
+                  .map((x) => ({ id: x.id, number: x.number, name: x.name, l: x }))} />
+                <GoalieTable rows={oppGoalies.map((x) => ({
+                  id: x.id, number: x.number, name: x.name, l: x,
+                }))} />
+              </>
+            ) : (
+              <div className="emptybox">
+                <p style={{ margin: 0, fontWeight: 700, color: "var(--ink)" }}>
+                  No {themName} box score
+                </p>
+                <p className="bsm" style={{ margin: "6px 0 0", color: "var(--muted)" }}>
+                  Their individual lines have not been entered for this game.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {scored && tab === "pbp" && (
+          <div className="gcpbp">
+            <div className="gcfilters">
+              {[
+                ["Period", fPeriod, setFPeriod, [["", "All"], ...periods.map((p) => [p, PERIOD_LABEL[p]])]],
+                ["Play type", fType, setFType, [
+                  ["", "All"], ["goal", "Goals"], ["penalty", "Penalties"],
+                  ["shot", "Shots on goal"], ["faceoff", "Face-offs"], ["timeout", "Timeouts"],
+                  ["stoppage", "Stoppages"], ["period", "Period start / end"],
+                  ["game", "Game end"],
+                ]],
+                ["Team", fTeam, setFTeam, [["", "All"], ["us", usAbbr], ["them", themShort]]],
+              ].map(([label, val, set, opts]) => (
+                <label className="gcfilter" key={label}>
+                  <span className="h6">{label}</span>
+                  <select value={val} onChange={(e) => set(e.target.value)}>
+                    {opts.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+                  </select>
+                </label>
+              ))}
+            </div>
+
+            {!shown.length ? (
+              <div className="emptybox">
+                <p style={{ margin: 0, fontWeight: 700, color: "var(--ink)" }}>Nothing to show</p>
+                <p className="bsm" style={{ margin: "6px 0 0", color: "var(--muted)" }}>
+                  {plays.length ? "No plays match these filters." : "No play-by-play was recorded for this game."}
+                </p>
+              </div>
+            ) : (
+              <div className="gcplays">
+                {shown.map((x) => {
+                  const mine = x.team === "us";
+                  const tint = mine ? usColor : themColor;
+                  const bandTint = lighten(tint, 0.06);
+                  /* Settled once for the game, above - every row uses it. */
+                  /* Two bands in a goal block - the lit header and the row
+                     under it - and a mark takes the finish of the one it is
+                     drawn on. */
+                  const finish = bandMarkFinish(bandTint);
+                  const rowFinish = bandMarkFinish(tint);
+                  /* A block of team colour wants the logo drawn for dark
+                     surfaces: our gold wordmark, and the opponent's dark
+                     variant where they have uploaded one. */
+                  const themDark = game.opponentLogoDark || game.opponentLogo;
+                  const abbr = mine ? usAbbr : themShort;
+
+                  /* Nothing in a shootout happens at a time - the round is
+                     the position in the list. The same is true of the final
+                     whistle on a game a shootout decided. */
+                  const noClock = x.period === "SO";
+                  const Time = () => (
+                    <span className="pbtime">
+                      {noClock
+                        ? <span className="pbper">SO</span>
+                        : <>
+                            <span className="pbclock">{x.clock}</span>
+                            <span className="pbper">{PERIOD_LABEL[x.period]}</span>
+                          </>}
+                    </span>
+                  );
+                  /* Two versions of the same crest: one for white rows, one
+                     for a row sitting on the team's own colour. */
+                  const Mark = () => {
+                    const src = mine ? org.logo : game.opponentLogo;
+                    return src
+                      ? <img className="pblogo" src={src} alt="" />
+                      : <OppBadge name={abbr} size={26} />;
+                  };
+
+
+                  if (x.kind === "goal") {
+                    const at = scoreAfter(goals, x);
+                    const n = seasonGoals(x);
+                    const jersey = mine ? numberOf(x.scorerId) : oppNumberOf(x.scorer);
+                    return (
+                      <div className="pbgoal" key={x.id}>
+                        {/* The score as it stood the moment it went in, in the
+                            colours of whoever scored it. The scoring side is
+                            lit and the other dimmed, so the band says who
+                            scored before the label underneath is read. */}
+                        <div className="pbgoalbar" style={{ background: bandTint }}>
+                          <GoalWatermark mine={mine} logo={themDark} band={bandTint}
+                            abbr={abbr} finish={finish} />
+                          <span className="pbgoalcore">
+                            <span className="pbgoalscore">
+                              <span className={"pbgoalside" + (mine ? " on" : "")}>
+                                <TeamMarkOnColour mine logo={org.logo} band={bandTint}
+                                  abbr={usAbbr} size={24} className="pbgoallogo" finish={finish} />
+                                <span className="pbgoalnum">{at.us}</span>
+                              </span>
+                              <span className="pbgoallight">
+                                <IcGoalLight size={14} />
+                              </span>
+                              <span className={"pbgoalside" + (!mine ? " on" : "")}>
+                                <span className="pbgoalnum">{at.them}</span>
+                                <TeamMarkOnColour logo={themDark} band={bandTint}
+                                  abbr={themShort} size={24} className="pbgoallogo" finish={finish} />
+                              </span>
+                            </span>
+                            <span className="pbgoallab">{abbr} Goal</span>
+                          </span>
+                        </div>
+                        <div className="pbrow goal" style={{ background: tint }}>
+                          <Time />
+                          <TeamMarkOnColour mine={mine} logo={themDark} band={tint}
+                            abbr={abbr} finish={rowFinish} />
+                          <span className="pbbody">
+                            <span className="pbtitle">
+                              {x.scorer}{jersey ? " #" + jersey : ""}{n ? " (" + n + ")" : ""}
+                              {x.strength && x.strength !== "EV"
+                                ? <span className="pbstr">{x.strength}</span> : null}
+                            </span>
+                            <span className="pbdetail">
+                              {x.assists && x.assists.length
+                                ? "Assists: " + x.assists.map((nm, k) => {
+                                    const id = (x.assistIds || [])[k];
+                                    const jn = mine ? numberOf(id) : oppNumberOf(nm);
+                                    const an = seasonAssists(x, id);
+                                    return nm + (jn ? " #" + jn : "") + (an ? " (" + an + ")" : "");
+                                  }).join(", ")
+                                : "Unassisted"}
+                            </span>
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  const title = x.kind === "penalty" ? "Penalty"
+                    : x.kind === "shootout" ? shotResultLabel(x)
+                    : x.kind === "game" ? "Game End"
+                    : x.kind === "period" ? (x.phase === "start" ? "Period Start" : "Period End")
+                    : x.kind === "shot" ? "Shot On Goal"
+                    : x.kind === "faceoff" ? "Face-off"
+                    : x.kind === "timeout" ? "Timeout"
+                    : x.reason || "Stoppage";
+                  const detail = x.kind === "penalty"
+                    ? x.player + " — " + x.minutes + " minutes for " + x.infraction
+                    : x.kind === "shootout"
+                      ? x.player + (x.shot ? " \u00b7 " + x.shot : "")
+                    : x.kind === "game"
+                      ? "Final \u00b7 " + usAbbr + " " + (x.us != null ? x.us : scoreUs)
+                        + ", " + themShort + " " + (x.them != null ? x.them : scoreThem)
+                    : x.kind === "period"
+                      ? (PERIOD_LABEL[x.period] || x.period)
+                        /* "1st period over", but just "OT over" - there is
+                           only ever one, so the noun adds nothing. */
+                        + (x.period === "OT" || x.period === "SO" ? " " : " period ")
+                        + (x.phase === "start" ? "under way" : "over")
+                    : x.kind === "shot"
+                      ? (x.shooter ? withNumber(x.shooter, x.shooterId, mine) : abbr) + " shot"
+                        + (x.goalie ? " saved by " + x.goalie : " on goal")
+                    : x.kind === "faceoff"
+                      ? (x.winner
+                        ? withNumber(x.winner, x.winnerId, mine) + " won it for " + abbr
+                        : abbr + " won the face-off")
+                    : x.kind === "timeout" ? abbr + " timeout"
+                      : "Play stopped";
+
+                  /* Anything a team did carries that team's mark; a whistle
+                     belongs to neither bench. A shootout attempt is a player
+                     taking a shot, so it takes the crest too. */
+                  const owned = x.kind === "penalty" || x.kind === "shot"
+                    || x.kind === "timeout" || x.kind === "faceoff"
+                    || x.kind === "shootout";
+                  return (
+                    <div className="pbrow" key={x.id}>
+                      <Time />
+                      {owned ? <Mark /> : <span className="pbwhistle" aria-hidden="true"><IcWhistle size={18} /></span>}
+                      <span className="pbbody">
+                        <span className="pbtitle">{title}</span>
+                        <span className="pbdetail">{detail}</span>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}
+
+/* The opening paragraph of a story, skipping any leading heading. The full
+   article is one click away, so this only has to set the scene. */
+function firstParagraph(body) {
+  /* By line, not by block: these stories open with a heading on the line above
+     the first paragraph, so splitting on blank lines threw the paragraph away
+     along with its heading. */
+  return String(body || "")
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .find((l) => l && !l.startsWith("#") && !l.startsWith("-")) || "";
+}
+
+/* "Dec 10" — short, for a stamp on a card rather than a sentence. */
+function shortDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso + "T12:00:00");
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+const POSITION_FULL = { F: "Forward", D: "Defense", G: "Goaltender" };
+/* Which forward. Blank until somebody sets it - the roster we hold records
+   F / D / G and nothing finer, and guessing a winger's side would be making
+   something up about a real person. */
+const FORWARD_SPOTS = ["LW", "C", "RW"];
+
+/* Per-player social links. A handle is stored, not a URL - people type
+   "@name" or "name", and building the address here means a player cannot be
+   pointed at somewhere unexpected by a pasted link. */
+/* Instagram only. Named PLAYER_SOCIALS because SOCIALS is already the club's
+   own accounts in the footer, and kept as a list so a second network is one
+   entry rather than a rewrite. */
+const PLAYER_SOCIALS = [
+  { key: "instagram", label: "Instagram", at: true, Icon: IcInstagram,
+    url: (h) => "https://instagram.com/" + h },
+];
+
+/* Strips the decoration people paste in: a leading @, a full URL, a trailing
+   slash. What is left is the handle. */
+function socialHandle(raw) {
+  let h = String(raw || "").trim();
+  if (!h) return "";
+  h = h.replace(/^https?:\/\/[^/]+\//i, "").replace(/\/+$/, "");
+  h = h.replace(/^@+/, "");
+  return h.split(/[/?#]/)[0];
+}
+
+function PlayerSocials({ player, size = 18 }) {
+  const links = PLAYER_SOCIALS
+    .map((sn) => ({ sn, handle: socialHandle((player.socials || {})[sn.key]) }))
+    .filter((x) => x.handle);
+  if (!links.length) return null;
+  return (
+    <div className="ppsocials">
+      {links.map(({ sn, handle }) => (
+        <a key={sn.key} className="ppsocial" href={sn.url(handle)}
+          target="_blank" rel="noreferrer noopener"
+          title={sn.label + ": " + (sn.at ? "@" : "") + handle}>
+          <sn.Icon size={size} />
+          <span className="ppsocialtxt">{(sn.at ? "@" : "") + handle}</span>
+        </a>
+      ))}
+    </div>
+  );
+}
+
+/* Nicknames for the schools in the opponent library, so the scorebug reads
+   "Sun Devils / Arizona State" out of the box. A team's own `mascot` field
+   always wins over this, and anything not listed falls back to the
+   abbreviation - which is what the banner showed before.
+
+   Miami and Long Beach State are deliberately absent: "Miami" is either the
+   Hurricanes or the RedHawks depending on which school it is, and Long Beach
+   State's nickname has changed in recent years. Guessing either would put a
+   wrong name on the banner, so they keep the abbreviation until someone who
+   knows fills it in. */
+const MASCOTS = {
+  "California": "Golden Bears",
+  "Arizona": "Wildcats",
+  "Arizona State": "Sun Devils",
+  "Boise State": "Broncos",
+  "Boston College": "Eagles",
+  "Cal State Fullerton": "Titans",
+  "Colorado": "Buffaloes",
+  "Colorado State": "Rams",
+  "Duke": "Blue Devils",
+  "Eastern Washington": "Eagles",
+  "Florida State": "Seminoles",
+  "Fresno State": "Bulldogs",
+  "Georgia Tech": "Yellow Jackets",
+  "Grand Canyon": "Lopes",
+  "Illinois": "Fighting Illini",
+  "Indiana": "Hoosiers",
+  "Iowa": "Hawkeyes",
+  "Louisville": "Cardinals",
+  "Loyola Marymount": "Lions",
+  "Montana": "Grizzlies",
+  "Montana State": "Bobcats",
+  "NC State": "Wolfpack",
+  "Northeastern": "Huskies",
+  "Northern Arizona": "Lumberjacks",
+  "Northern Colorado": "Bears",
+  "Oregon": "Ducks",
+  "Penn State": "Nittany Lions",
+  "San Diego": "Toreros",
+  "San Diego State": "Aztecs",
+  "San Jose State": "Spartans",
+  "Santa Clara": "Broncos",
+  "SMU": "Mustangs",
+  "Stanford": "Cardinal",
+  "Texas": "Longhorns",
+  "Texas A&M": "Aggies",
+  "UC Davis": "Aggies",
+  "UC Irvine": "Anteaters",
+  "UC San Diego": "Tritons",
+  "UC Santa Barbara": "Gauchos",
+  "UCLA": "Bruins",
+  "USC": "Trojans",
+  "Utah": "Utes",
+  "Utah State": "Aggies",
+  "Utah Tech": "Trailblazers",
+  "Vanderbilt": "Commodores",
+  "Virginia": "Cavaliers",
+  "Virginia Tech": "Hokies",
+  "Washington": "Huskies",
+  "Washington State": "Cougars",
+  "Weber State": "Wildcats",
+  "Western Washington": "Vikings",
+};
+
+/* The line above the school name. Falls back to the abbreviation so the
+   banner never renders a blank row. */
+function mascotOf(record, name, fallback) {
+  return (record && record.mascot) || MASCOTS[name] || fallback || "";
+}
+
+/* The one line of numbers that says why they were a star. Skaters are read on
+   points; a goaltender on what they stopped. */
+function starLine({ p, l }) {
+  if (p && p.position === "G") {
+    const sv = Number(l.saves) || 0;
+    const ga = Number(l.ga) || 0;
+    const shots = sv + ga;
+    const pct = shots ? (sv / shots).toFixed(3).replace(/^0/, "") : null;
+    const mins = Number(l.minutes) || 0;
+    /* GAA needs minutes on the sheet; without them the save numbers say more
+       than a rate computed from a guess. */
+    const gaa = mins > 0 ? ((ga * 60) / mins).toFixed(2) : null;
+    return [gaa ? "GAA: " + gaa : null, pct ? "SV%: " + pct : null, "SV: " + sv]
+      .filter(Boolean).join("  |  ");
+  }
+  const g = Number(l.g) || 0;
+  const a = Number(l.a) || 0;
+  return "G: " + g + "  |  A: " + a + "  |  P: " + (g + a);
+}
+
+/* Which goal of the season this was for the scorer, counted across every game
+   with play-by-play up to and including this one. The same number the game
+   center puts in brackets after a name. */
+/* A shootout goal decides its game but goes on nobody's season total, so it
+   is not counted here either - otherwise every real goal a player scored
+   afterwards would be numbered one too high. */
+function goalNumber(schedule, play) {
+  if (!play.scorerId || play.period === "SO") return 0;
+  let n = 0;
+  for (const g of [...(schedule || [])].sort(cmpDate)) {
+    for (const p of g.plays || []) {
+      if (p.kind === "goal" && p.period !== "SO" && p.scorerId === play.scorerId) {
+        n += 1;
+        if (p.id === play.id) return n;
+      }
+    }
+  }
+  return n;
+}
+
+/* Same for assists, though a shootout has none - it keeps the two functions
+   answering the same question. */
+function assistNumber(schedule, play, playerId) {
+  if (!playerId || play.period === "SO") return 0;
+  let n = 0;
+  for (const g of [...(schedule || [])].sort(cmpDate)) {
+    for (const p of g.plays || []) {
+      if (p.kind === "goal" && (p.assistIds || []).includes(playerId)) {
+        n += 1;
+        if (p.id === play.id) return n;
+      }
+    }
+  }
+  return n;
+}
+
+/* The score as it stood the moment this goal went in. */
+function scoreAfter(plays, upTo) {
+  let us = 0, them = 0;
+  for (const p of plays) {
+    if (p.kind === "goal") { if (p.team === "us") us += 1; else them += 1; }
+    if (p.id === upTo.id) break;
+  }
+  return { us, them };
+}
+
+/* Sum a numeric field across rows, ignoring anything unset. */
+function sumBy(rows, get) {
+  return rows.reduce((n, r) => n + (Number(get(r)) || 0), 0);
+}
+
+/* The score as it stood after this goal, leading team first, the way a
+   scoring summary reads. */
+function runningScore(plays, upTo, usAbbr, themAbbr) {
+  let us = 0, them = 0;
+  for (const x of plays) {
+    if (x.kind === "goal") {
+      if (x.team === "us") us++; else them++;
+    }
+    if (x.id === upTo.id) break;
+  }
+  return us >= them ? us + "-" + them + " " + usAbbr : them + "-" + us + " " + themAbbr;
+}
+
+/* The story attached to a game — a preview before it, a recap after. Same
+ * card either way: what changes is which article is linked, not how it reads.
+ */
+/* ---------------- Scoresheet ----------------
+ * The official-looking game summary for a finished game, laid out like the
+ * league sheet people are used to reading: scoring and penalties in time
+ * order, a by-period grid, goaltenders, three stars, officials.
+ *
+ * It prints through the same overlay the schedule and stats PDFs use - the
+ * browser's own "Save as PDF" - rather than pulling in a PDF library for one
+ * page. What it cannot know it leaves as a dash: we do not track attendance,
+ * ice time, power-play opportunities or shots by period, and a scoresheet
+ * that invents those is worse than one that admits the gap.
+ */
+function Scoresheet({ site, season, game, onClose }) {
+  const org = (site.settings && site.settings.org) || {};
+  const usName = gameName(site) || "Us";
+  const usAbbr = org.abbr || usName;
+  const oppRec = (site.opponents || []).find((o) => o.id === game.opponentId) || {};
+  const themName = oppRec.name || game.opponent || "Opponent";
+  const themAbbr = oppRec.short || themName;
+
+  const roster = season.roster || [];
+  const byId = new Map(roster.map((p) => [p.id, p]));
+  const lines = (site.gameStats || {})[game.id] || {};
+  const oppRows = (site.opponentStats || {})[game.id] || [];
+  const plays = Array.isArray(game.plays) ? game.plays : [];
+  const goals = plays.filter((p) => p.kind === "goal");
+  const pens = plays.filter((p) => p.kind === "penalty");
+  const res = game.result || { us: 0, them: 0 };
+
+  const weAreHome = game.homeAway === "H";
+  const US = { key: "us", name: usName, abbr: usAbbr, logo: org.logo, score: Number(res.us) || 0 };
+  const THEM = {
+    key: "them", name: themName, abbr: themAbbr,
+    logo: game.opponentLogo || oppRec.logoLight || oppRec.logoDark, score: Number(res.them) || 0,
+  };
+  const visitor = weAreHome ? THEM : US;
+  const home = weAreHome ? US : THEM;
+
+  /* Periods actually reached, so a regulation game does not print an empty
+     overtime row. */
+  const extra = [];
+  for (const p of plays) if (p.period === "OT" || p.period === "SO") {
+    if (!extra.includes(p.period)) extra.push(p.period);
+  }
+  if (res.ot && !extra.includes("OT")) extra.push("OT");
+  const periods = ["1", "2", "3", ...extra];
+  const PLAB = { "1": "1", "2": "2", "3": "3", OT: "OT", SO: "SO" };
+
+  const dash = "\u2014";
+  const num = (n) => (n == null ? dash : n);
+
+  const sum = (arr, f) => arr.reduce((n, x) => n + (Number(f(x)) || 0), 0);
+  const ourLines = roster
+    .map((p) => ({ p, l: lines[p.id] || {} }))
+    .filter((e) => e.l.dressed !== false && lines[e.p.id]);
+
+  const shotsPer = (p, team) => (((game.live || {}).periodShots || {})[p] || {})[team];
+  const goalieShots = (rows) => sum(rows, (x) => (Number(x.saves) || 0) + (Number(x.ga) || 0));
+  const shotsTotal = {
+    us: (game.live || {}).shotsUs || goalieShots(oppRows.filter(isOppGoalie)) || null,
+    them: (game.live || {}).shotsThem
+      || goalieShots(ourLines.filter((e) => e.p.position === "G").map((e) => e.l)) || null,
+  };
+
+  const goalsIn = (p, team) => goals.filter((g) => g.period === p && g.team === team).length;
+  const pensIn = (p, team) => pens.filter((x) => x.period === p && x.team === team);
+
+  const pimTotal = {
+    us: sum(ourLines, (e) => e.l.pim),
+    them: sum(oppRows, (x) => x.pim),
+  };
+  const ppGoals = (team) => goals.filter((g) => g.team === team && g.strength === "PP").length;
+
+  const scorerLabel = (g) => (g.team === "us" ? g.scorer : g.scorer);
+  const teamOf = (g) => (g.team === "us" ? usAbbr : themAbbr);
+
+  /* One row per goal, in the order they went in. */
+  const ordered = [...goals];
+
+  const ourGoalies = ourLines.filter((e) => e.p.position === "G");
+  const theirGoalies = oppRows.filter(isOppGoalie);
+
+  const stars = (game.stars || []).map((name) => {
+    const p = roster.find((x) => (x.name || "").toLowerCase() === String(name).toLowerCase());
+    return { name, p };
+  });
+
+  const Side = ({ side, label }) => (
+    <div className="sshteam">
+      <p className="sshrole">{label}</p>
+      {side.logo
+        ? <img className="sshlogo" src={side.logo} alt="" />
+        : <OppBadge name={side.abbr} size={54} />}
+      <p className="sshscore">{side.score}</p>
+    </div>
+  );
+
+  const PenTable = ({ side }) => {
+    const rows = pens.filter((x) => x.team === side.key);
+    return (
+      <div className="sshhalf">
+        <p className="sshcap">{side.name.toUpperCase()}</p>
+        <table className="sstab">
+          <thead>
+            <tr><th>#</th><th>Per</th><th>Time</th><th>Player</th><th>PIM</th><th>Penalty</th></tr>
+          </thead>
+          <tbody>
+            {rows.length ? rows.map((x, i) => (
+              <tr key={x.id}>
+                <td>{i + 1}</td><td>{PLAB[x.period] || x.period}</td><td>{x.clock}</td>
+                <td className="ssname">{x.player}</td>
+                <td>{x.minutes}</td><td>{x.infraction || dash}</td>
+              </tr>
+            )) : (
+              <tr><td colSpan={6} className="ssnone">No penalties</td></tr>
+            )}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colSpan={6}>
+                {/* The box score is the authority on penalty minutes; the
+                    plays only say when they were taken. A game with minutes
+                    but no play detail prints the real total and says the
+                    detail is missing, rather than a zero here and eighteen
+                    in the by-period grid below. */}
+                TOT (PN-PIM) {rows.length ? rows.length : dash}-{pimTotal[side.key]}
+                {"  \u00b7  "}Power-play goals {ppGoals(side.key)}
+                {!rows.length && pimTotal[side.key] > 0 ? "  ·  detail not recorded" : ""}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    );
+  };
+
+  const PeriodTable = ({ side }) => (
+    <div className="sshhalf">
+      <p className="sshcap">{side.name.toUpperCase()}</p>
+      <table className="sstab">
+        <thead><tr><th>Per</th><th>Goals</th><th>Shots</th><th>PN</th><th>PIM</th></tr></thead>
+        <tbody>
+          {periods.map((p) => {
+            const ps = pensIn(p, side.key);
+            const timed = pens.some((x) => x.team === side.key);
+            return (
+              <tr key={p}>
+                <td>{PLAB[p] || p}</td>
+                <td>{goalsIn(p, side.key)}</td>
+                <td>{num(shotsPer(p, side.key))}</td>
+                <td>{timed ? ps.length : dash}</td>
+                <td>{timed ? sum(ps, (x) => x.minutes) : dash}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td>TOT</td>
+            <td>{side.score}</td>
+            <td>{num(shotsTotal[side.key])}</td>
+            <td>{pens.some((x) => x.team === side.key)
+              ? pens.filter((x) => x.team === side.key).length : dash}</td>
+            <td>{pimTotal[side.key]}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+
+  return (
+    <div className="pdfoverlay" role="dialog" aria-modal="true" aria-label="Scoresheet">
+      <div className="pdfbar">
+        <button className="calbtn" onClick={() => window.print()}><IcPrint /> Save as PDF / Print</button>
+        <button className="ghostbtn" onClick={onClose}>Close</button>
+      </div>
+
+      <div className="pdfsheet ssheet">
+        <div className="sshtop">
+          <Side side={visitor} label="VISITOR" />
+          <div className="sshmid">
+            <p className="sshtitle">Game Summary</p>
+            <p>{fmtDate(game.date)}</p>
+            {game.time && <p>{localTime(game.date, game.time)}</p>}
+            {(game.venue || game.location) && (
+              <p>{[game.venue, game.location].filter(Boolean).join(" \u00b7 ")}</p>
+            )}
+            <p className="sshfinal">{res.ot ? "Final / OT" : "Final"}</p>
+            <p className="sshtag">
+              {game.roundLabel || GAME_TYPE_LABEL[gameType(game)] || gameType(game)}
+            </p>
+          </div>
+          <Side side={home} label="HOME" />
+        </div>
+
+        <div className="sshnames">
+          <p>{visitor.name.toUpperCase()}</p>
+          <p>{home.name.toUpperCase()}</p>
+        </div>
+
+        <p className="sshband">Scoring Summary</p>
+        <table className="sstab">
+          <thead>
+            <tr>
+              <th>G</th><th>Per</th><th>Time</th><th>Str</th><th>Team</th>
+              <th>Goal Scorer</th><th>Assist</th><th>Assist</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ordered.length ? ordered.map((g, i) => (
+              <tr key={g.id}>
+                <td>{i + 1}</td>
+                <td>{PLAB[g.period] || g.period}</td>
+                <td>{g.clock}</td>
+                <td>{g.strength || "EV"}</td>
+                <td>{teamOf(g)}</td>
+                <td className="ssname">{scorerLabel(g)}</td>
+                <td className="ssname">{(g.assists || [])[0] || dash}</td>
+                <td className="ssname">{(g.assists || [])[1] || dash}</td>
+              </tr>
+            )) : (
+              <tr><td colSpan={8} className="ssnone">
+                {US.score + THEM.score === 0 ? "No goals" : "Goal detail was not recorded"}
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+
+        <p className="sshband">Penalty Summary</p>
+        <div className="sshsplit"><PenTable side={visitor} /><PenTable side={home} /></div>
+
+        <p className="sshband">By Period</p>
+        <div className="sshsplit"><PeriodTable side={visitor} /><PeriodTable side={home} /></div>
+
+        <p className="sshband">Goaltender Summary</p>
+        <div className="sshsplit">
+          {[visitor, home].map((side) => {
+            const rows = side.key === "us"
+              ? ourGoalies.map((e) => ({ number: e.p.number, name: e.p.name, l: e.l }))
+              : theirGoalies.map((x) => ({ number: x.number, name: x.name, l: x }));
+            return (
+              <div className="sshhalf" key={side.key}>
+                <p className="sshcap">{side.name.toUpperCase()}</p>
+                <table className="sstab">
+                  <thead>
+                    <tr><th>#</th><th>Goaltender</th><th>Saves</th><th>GA</th><th>Shots</th><th>SV%</th></tr>
+                  </thead>
+                  <tbody>
+                    {rows.length ? rows.map((r, i) => {
+                      const sv = Number(r.l.saves) || 0;
+                      const ga = Number(r.l.ga) || 0;
+                      const sh = sv + ga;
+                      return (
+                        <tr key={i}>
+                          <td>{r.number || dash}</td>
+                          <td className="ssname">{r.name}</td>
+                          <td>{sv}</td><td>{ga}</td><td>{sh}</td>
+                          <td>{sh ? (sv / sh).toFixed(3).replace(/^0/, "") : dash}</td>
+                        </tr>
+                      );
+                    }) : (
+                      <tr><td colSpan={6} className="ssnone">Not recorded</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="sshsplit sshfoot">
+          <div className="sshhalf">
+            <p className="sshcap">Three Stars</p>
+            {stars.length ? (
+              <ol className="sslist">
+                {stars.map((st, i) => (
+                  <li key={i}>
+                    {st.p && st.p.number ? "#" + st.p.number + " " : ""}{st.name}
+                    {st.p ? " \u00b7 " + usAbbr : ""}
+                  </li>
+                ))}
+              </ol>
+            ) : <p className="ssnone">Not selected</p>}
+          </div>
+          <div className="sshhalf">
+            <p className="sshcap">Officials</p>
+            {game.officials
+              ? <p className="ssoff">{game.officials}</p>
+              : <p className="ssnone">Not recorded</p>}
+          </div>
+        </div>
+
+        <p className="sshcopy">
+          {officialName(site)} {"\u00b7"} {season.label || ""} {"\u00b7"} Generated from the team scoresheet.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function GameStory({ story, label, openPost }) {
+  if (!story) return null;
+  return (
+    <section className="statcard gcpad gcrecap">
+      <p className="eyebrow" style={{ color: "var(--blue)" }}>{story.tag || label.toUpperCase()}</p>
+      <h2 className="gcrecaptitle">{story.title}</h2>
+      {story.blurb && <p className="gcrecapsub">{story.blurb}</p>}
+      {story.image && (
+        <img className="gcrecapart" src={story.image} alt=""
+          onError={(e) => { e.currentTarget.style.display = "none"; }} />
+      )}
+      <p className="gcrecapby">
+        {story.author ? story.author + " · " : ""}{fmtDate(story.date)}
+      </p>
+      {story.body && <p className="gcrecaplede">{firstParagraph(story.body)}</p>}
+      <button className="btn bNavy bSm" onClick={() => openPost(story.id)}>
+        Full story <IcArrowR size={15} />
+      </button>
+    </section>
+  );
+}
+
+/* One table shape for both sides. Ours carry a player id and link through;
+   the opponent's are names on a scoresheet and do not. */
+function BoxTable({ title, rows, onPlayer, showSpot }) {
+  if (!rows.length) return null;
+  const sorted = [...rows].sort(
+    (a, b) => pts(b.l) - pts(a.l) || (Number(a.number) || 0) - (Number(b.number) || 0)
+  );
+  return (
+    <section className="gcpad gcboxsec">
+      <h2 className="statsec">{title}</h2>
+      <div className="twrap">
+        <table className="stats gcbt">
+          <thead>
+            <tr>
+              <th>#</th><th>Player</th>
+              {showSpot && <th>Pos</th>}
+              <th>G</th><th>A</th><th>P</th><th>PIM</th><th>PPG</th><th>SHG</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((r) => (
+              <tr key={r.id}>
+                <td>{r.number}</td>
+                <td className="gcbtname">
+                  {onPlayer
+                    ? <button className="pboxname" onClick={() => onPlayer(r.id)}>{r.name}</button>
+                    : r.name}
+                </td>
+                {showSpot && <td className="gcbtspot">{r.spot || "F"}</td>}
+                <td>{r.l.g || 0}</td>
+                <td>{r.l.a || 0}</td>
+                <td className="gcbtpts">{pts(r.l)}</td>
+                <td>{r.l.pim || 0}</td>
+                <td>{r.l.ppg || 0}</td>
+                <td>{r.l.shg || 0}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function pts(l) {
+  return (Number(l.g) || 0) + (Number(l.a) || 0);
+}
+
+function GoalieTable({ rows, onPlayer }) {
+  if (!rows.length) return null;
+  return (
+    <section className="gcpad gcboxsec">
+      <h2 className="statsec">Goaltending</h2>
+      <div className="twrap">
+        <table className="stats gcbt">
+          <thead>
+            <tr><th>#</th><th>Goaltender</th><th>SA</th><th>SV</th><th>GA</th><th>SV%</th></tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const sv = Number(r.l.saves) || 0;
+              const ga = Number(r.l.ga) || 0;
+              const sa = sv + ga;
+              return (
+                <tr key={r.id}>
+                  <td>{r.number}</td>
+                  <td className="gcbtname">
+                    {onPlayer
+                      ? <button className="pboxname" onClick={() => onPlayer(r.id)}>{r.name}</button>
+                      : r.name}
+                  </td>
+                  <td>{sa}</td>
+                  <td>{sv}</td>
+                  <td>{ga}</td>
+                  <td className="gcbtpts">{sa ? (sv / sa).toFixed(3).replace(/^0/, "") : "—"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+/* Every meeting with this opponent this season, which is the context a single
+   result never gives you on its own. */
+function SeasonSeries({ site, season, game, usAbbr, themShort }) {
+  const org = (site.settings && site.settings.org) || {};
+  const orgLogo = org.logo;
+  usAbbr = usAbbr || org.abbr || gameName(site);
+  themShort = themShort || ((site.opponents || []).find((o) => o.id === game.opponentId) || {}).short
+    || game.opponent;
+  const meetings = (season.schedule || [])
+    .filter((g) => g.opponentId === game.opponentId)
+    .sort(cmpDate);
+  if (meetings.length < 2) return null;
+
+  let w = 0, l = 0, t = 0;
+  for (const g of meetings) {
+    if (!g.result) continue;
+    if (g.result.us > g.result.them) w++;
+    else if (g.result.us < g.result.them) l++;
+    else t++;
+  }
+
+  return (
+    <section className="statcard gcpad">
+      <h2 className="statsec">
+        Season series
+        <span className="gcserieslead">{w}-{l}{t ? "-" + t : ""}</span>
+      </h2>
+      <div className="gcseries">
+        {meetings.map((g) => {
+          const st = gameState(g);
+          const r = g.result;
+          const scoreUs = r ? r.us : st === "live" ? g.live.us || 0 : null;
+          const scoreThem = r ? r.them : st === "live" ? g.live.them || 0 : null;
+
+          /* Away team on top, home underneath — the order every scoreboard
+             uses, so the card reads the same way as the ones beside it. */
+          const rows = g.homeAway === "H"
+            ? [["them", themShort, g.opponentLogo, scoreThem],
+               ["us", usAbbr, orgLogo, scoreUs]]
+            : [["us", usAbbr, orgLogo, scoreUs],
+               ["them", themShort, g.opponentLogo, scoreThem]];
+
+          const won = (side) =>
+            scoreUs === null ? false
+              : side === "us" ? scoreUs > scoreThem : scoreThem > scoreUs;
+
+          return (
+            <div className={"gcmeeting " + (g.id === game.id ? "on" : "")} key={g.id}>
+              {rows.map(([side, label, logo, score]) => (
+                <div className={"gcmrow " + (scoreUs !== null && !won(side) ? "lost" : "")} key={side}>
+                  {logo
+                    ? <img className="gcmlogo" src={logo} alt="" />
+                    : <OppBadge name={label} size={20} />}
+                  <span className="gcmteam">{label}</span>
+                  <span className="gcmscore">{score === null ? "" : score}</span>
+                </div>
+              ))}
+              <div className="gcmfoot">
+                <span>
+                  {st === "final" ? (r.ot ? "Final / OT" : "Final")
+                    : st === "live" ? "Live" : (localTime(g.date, g.time) || "TBD")}
+                </span>
+                <span>{shortDate(g.date)}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/* The three footer pages, and the copy that drives each. */
+const LEGAL = [
+  ["terms", "Terms of Service"],
+  ["privacy", "Privacy Policy"],
+  ["accessibility", "Accessibility"],
+];
+
+/** One of the footer pages. All three are the same page with different copy. */
+function LegalPage({ site, which }) {
+  const entry = LEGAL.find(([k]) => k === which) || LEGAL[0];
+  const body = ((site.settings || {}).legal || {})[entry[0]] || "";
+  return (
+    <main style={{ background: "var(--page)", minHeight: "50vh" }}>
+      <section className="section" style={{ paddingTop: 40 }}>
+        <div className="wrap" style={{ maxWidth: 760 }}>
+          <h1 className="stitle">{entry[1]}</h1>
+          {body
+            ? <div className="legalbody">{renderArticle(body, () => {})}</div>
+            : (
+              <div className="emptybox">
+                <p style={{ margin: 0, fontWeight: 700, color: "var(--ink)" }}>Nothing here yet</p>
+                <p className="bsm" style={{ margin: "6px 0 0", color: "var(--muted)" }}>
+                  This page is written under Settings.
+                </p>
+              </div>
+            )}
+        </div>
+      </section>
+    </main>
+  );
+}
+
+const EMPTY_ALUMNI = {
+  name: "", email: "", gradYear: "", years: "", number: "", position: "",
+  city: "", note: "",
+};
+
+/**
+ * The alumni list.
+ *
+ * A sign-up, not a directory: what somebody sends here goes to the program's
+ * inbox and nowhere else. Nothing about a former player is published from it,
+ * because nobody filling in a form has agreed to that.
+ */
+function AlumniPage({ site, onSubmit }) {
+  const [form, setForm] = useState(EMPTY_ALUMNI);
+  const [done, setDone] = useState(false);
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const contact = (site.settings || {}).contactEmail;
+
+  const submit = () => {
+    if (!form.name.trim() || !form.email.trim()) return;
+    onSubmit(form);
+    setDone(true);
+  };
+
+  return (
+    <main>
+      <section className="phead">
+        <div className="wrap">
+          <p className="eyebrow">Alumni</p>
+          <h1 className="h1" style={{ marginTop: 6 }}>Get on the list</h1>
+          <p className="blg">
+            Played for Cal? Leave your details and we will keep you posted on alumni
+            games, reunions and how the program is going.
+          </p>
+        </div>
+      </section>
+      <section className="section">
+        <div className="wrap" style={{ maxWidth: 820 }}>
+          {done ? (
+            <div className="card" role="status" style={{ textAlign: "center" }}>
+              <p className="eyebrow" style={{ color: "var(--blue)" }}>You're on it</p>
+              <h2 className="h2" style={{ color: "var(--blue)", margin: "8px 0 12px" }}>Welcome back.</h2>
+              <p style={{ color: "var(--muted)", lineHeight: 1.6 }}>
+                We will be in touch before the next alumni game.
+              </p>
+              <button className="btn bNavy bSm" style={{ marginTop: 18 }}
+                onClick={() => { setForm(EMPTY_ALUMNI); setDone(false); }}>Add someone else</button>
+            </div>
+          ) : (
+            <>
+              <div className="fgrid">
+                <div className="field"><label className="h6">Full name *</label>
+                  <input value={form.name} onChange={set("name")} autoComplete="name" /></div>
+                <div className="field"><label className="h6">Email *</label>
+                  <input type="email" value={form.email} onChange={set("email")} autoComplete="email" /></div>
+                <div className="field"><label className="h6">Years played</label>
+                  <input value={form.years} onChange={set("years")} placeholder="2016–19" /></div>
+                <div className="field"><label className="h6">Class year</label>
+                  <input value={form.gradYear} onChange={set("gradYear")} placeholder="2019" /></div>
+                <div className="field"><label className="h6">Jersey number</label>
+                  <input value={form.number} onChange={set("number")} placeholder="26" /></div>
+                <div className="field"><label className="h6">Position</label>
+                  <select value={form.position} onChange={set("position")}>
+                    <option value="">—</option>
+                    {["Forward", "Defense", "Goaltender", "Staff"].map((x) => <option key={x}>{x}</option>)}
+                  </select></div>
+                <div className="field" style={{ gridColumn: "1 / -1" }}>
+                  <label className="h6">Where you are now</label>
+                  <input value={form.city} onChange={set("city")} placeholder="City, state" /></div>
+                <div className="field" style={{ gridColumn: "1 / -1" }}>
+                  <label className="h6">Anything you want us to know</label>
+                  <textarea rows={4} value={form.note} onChange={set("note")} /></div>
+              </div>
+              <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginTop: 20 }}>
+                <button className="btn bGold" onClick={submit}
+                  disabled={!form.name.trim() || !form.email.trim()}>
+                  Add me to the list <IcArrowR size={16} />
+                </button>
+                <p className="bsm" style={{ margin: 0, color: "var(--muted)" }}>
+                  Goes to the program, and nowhere else. Nothing here is published.
+                </p>
+              </div>
+              {contact && (
+                <p className="bsm" style={{ marginTop: 22, color: "var(--muted)" }}>
+                  Rather just email? <a className="flegallink" href={"mailto:" + contact}>{contact}</a>
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      </section>
+    </main>
+  );
+}
+
+/**
+ * The home rink, and how to get to it from campus.
+ *
+ * Everything comes off `settings.venue` rather than being written into the
+ * page, so the club can correct a parking rule without a deploy - and so a
+ * field nobody has filled in renders as nothing at all instead of a heading
+ * over an empty box.
+ */
+function VenuePage({ site }) {
+  const v = (site.settings || {}).venue || {};
+  const icons = { train: IcTrain, bus: IcBus, car: IcCar };
+  const ways = (v.directions || []).filter((d) => d && (d.mode || d.body));
+
+  if (!v.name && !v.address && !ways.length) {
+    return (
+      <main style={{ background: "var(--page)", minHeight: "50vh" }}>
+        <section className="section" style={{ paddingTop: 40 }}>
+          <div className="wrap" style={{ maxWidth: 900 }}>
+            <h1 className="stitle">Venue</h1>
+            <div className="emptybox">
+              <p style={{ margin: 0, fontWeight: 700, color: "var(--ink)" }}>Nothing here yet</p>
+              <p className="bsm" style={{ margin: "6px 0 0", color: "var(--muted)" }}>
+                The home rink and how to reach it are set under Settings.
+              </p>
+            </div>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <main style={{ background: "var(--page)" }}>
+      <section className="section" style={{ paddingTop: 40 }}>
+        <div className="wrap" style={{ maxWidth: 900 }}>
+          <p className="veneyebrow">Home rink</p>
+          <h1 className="stitle">{v.name || "Venue"}</h1>
+
+          <div className="venfacts">
+            {v.address && (
+              <a className="venfact" href={v.mapUrl || undefined}
+                target={v.mapUrl ? "_blank" : undefined} rel="noreferrer">
+                <IcPin size={17} />
+                <span>{v.address}</span>
+              </a>
+            )}
+            {v.phone && (
+              <a className="venfact" href={"tel:" + v.phone.replace(/[^\d+]/g, "")}>
+                <IcPhone size={17} />
+                <span>{v.phone}</span>
+              </a>
+            )}
+            {v.website && (
+              <a className="venfact" href={v.website} target="_blank" rel="noreferrer">
+                <IcLink size={17} />
+                <span>{v.website.replace(/^https?:\/\//, "")}</span>
+              </a>
+            )}
+          </div>
+
+          {v.about && <div className="venabout">{renderArticle(v.about, () => {})}</div>}
+
+          {!!ways.length && (
+            <>
+              <h2 className="venhead">Getting there from campus</h2>
+              <div className="vengrid">
+                {ways.map((d, i) => {
+                  const Icon = icons[d.icon] || IcPin;
+                  return (
+                    <article className="vencard" key={d.mode || i}>
+                      <div className="venmode">
+                        <span className="venicon"><Icon size={18} /></span>
+                        <h3 className="venmodename">{d.mode}</h3>
+                      </div>
+                      {d.body && <div className="venbody">{renderArticle(d.body, () => {})}</div>}
+                    </article>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {v.mapUrl && (
+            <a className="btn bNavy venmapbtn" href={v.mapUrl} target="_blank" rel="noreferrer">
+              <IcPin size={16} /> Directions
+            </a>
+          )}
+        </div>
+      </section>
+    </main>
+  );
+}
+
+/* Before the puck drops there is no game to report, so the page offers what
+   is useful instead: the two teams' form and who has been scoring. */
+/**
+ * Season totals for the team, off the play-by-play.
+ *
+ * Power play and penalty kill both come from penalties: the other side's trips
+ * to the box are your chances, and yours are theirs. Face-offs are only there
+ * if somebody logged them during live scoring, so that one is usually absent -
+ * and absent prints as a dash, not as nought per cent.
+ */
+/** W-L-T and goals for a season, from its own finished games. */
+function seasonRecord(season) {
+  let w = 0, l = 0, t = 0, gf = 0, ga = 0;
+  for (const g of season.schedule || []) {
+    if (!g.result || !countsToward(g)) continue;
+    gf += Number(g.result.us) || 0;
+    ga += Number(g.result.them) || 0;
+    if (g.result.us > g.result.them) w++; else if (g.result.us < g.result.them) l++; else t++;
+  }
+  return { w, l, t, gf, ga, gp: w + l + t };
+}
+
+function seasonTeamStats(site, season) {
+  const played = (season.schedule || []).filter((g) => g.result && countsToward(g));
+  let ppGoalsUs = 0, ppGoalsThem = 0, pensUs = 0, pensThem = 0;
+  let drawsUs = 0, drawsThem = 0, gf = 0, ga = 0;
+
+  for (const g of played) {
+    gf += Number(g.result.us) || 0;
+    ga += Number(g.result.them) || 0;
+    for (const x of g.plays || []) {
+      if (x.kind === "goal" && x.strength === "PP" && x.period !== "SO") {
+        if (x.team === "us") ppGoalsUs++; else ppGoalsThem++;
+      } else if (x.kind === "penalty") {
+        if (x.team === "us") pensUs++; else pensThem++;
+      } else if (x.kind === "faceoff") {
+        if (x.team === "us") drawsUs++; else drawsThem++;
+      }
+    }
+  }
+
+  const pct = (n, d) => (d ? Math.round((n / d) * 100) : null);
+  const per = (n, d) => (d ? (n / d).toFixed(2) : null);
+  const draws = drawsUs + drawsThem;
+  return {
+    gp: played.length,
+    /* Chances are the other team's penalties. */
+    pp: pct(ppGoalsUs, pensThem),
+    /* Kills are your own penalties that did not end in a goal against. */
+    pk: pensUs ? Math.round(((pensUs - ppGoalsThem) / pensUs) * 100) : null,
+    fo: draws ? pct(drawsUs, draws) : null,
+    gfpg: per(gf, played.length),
+    gapg: per(ga, played.length),
+  };
+}
+
+/**
+ * The opponent's season, live from the ACHA.
+ *
+ * Their feed sends no CORS headers, so this goes through the site's own
+ * origin - /acha here, a route handler in the real app - which is also where
+ * the answer gets cached. One request gives their whole schedule, which is
+ * enough for a record and goals per game. Power play and penalty kill would
+ * need a summary per game, which is not something to do on a page load.
+ *
+ * Nothing is shown unless it loads. A comparison with half the numbers
+ * missing is worse than no comparison.
+ */
+function useOpponentSeason(opponent, achaSeasonId) {
+  const [state, setState] = useState({ loading: false, data: null });
+  const teamId = opponent && opponent.achaTeamId;
+
+  useEffect(() => {
+    if (!teamId || !achaSeasonId) { setState({ loading: false, data: null }); return; }
+    let alive = true;
+    setState({ loading: true, data: null });
+    fetch("/acha?view=schedule&season_id=" + achaSeasonId + "&team=" + teamId)
+      .then((r) => r.json())
+      .then((j) => {
+        const holder = Array.isArray(j) ? j[0] : j;
+        /* A statview row splits its values from its links: the score is on
+           `row`, and the team id behind the home-team cell is on `prop`.
+           Matching on the id rather than the name is what keeps Washington
+           and Washington State apart. */
+        const rows = ((holder && holder.sections) || [])
+          .flatMap((sec) => (sec.data || []).map((d) => ({ ...d.row, _prop: d.prop || {} })));
+        let w = 0, l = 0, t = 0, gf = 0, ga = 0;
+        for (const g of rows) {
+          if (!/final/i.test(g.game_status || "")) continue;
+          const homeId = ((g._prop.home_team_city || {}).teamLink) || "";
+          if (!homeId) continue;
+          const theirs = String(homeId) === String(teamId);
+          const ours = theirs ? Number(g.home_goal_count) : Number(g.visiting_goal_count);
+          const other = theirs ? Number(g.visiting_goal_count) : Number(g.home_goal_count);
+          if (!Number.isFinite(ours) || !Number.isFinite(other)) continue;
+          gf += ours; ga += other;
+          if (ours > other) w++; else if (ours < other) l++; else t++;
+        }
+        const gp = w + l + t;
+        if (!alive) return;
+        setState({ loading: false, data: gp ? {
+          gp, w, l, t, gf, ga,
+          gfpg: (gf / gp).toFixed(2), gapg: (ga / gp).toFixed(2),
+        } : null });
+      })
+      .catch(() => { if (alive) setState({ loading: false, data: null }); });
+    return () => { alive = false; };
+  }, [teamId, achaSeasonId]);
+
+  return state;
+}
+
+/**
+ * An opponent's season, parsed from a pasted stats table.
+ *
+ * Written against what EliteProspects puts on the clipboard: a rank, then the
+ * name carrying its position in brackets, then the numbers. Skaters and
+ * goaltenders are told apart by the bracketed position, so both tables can go
+ * into the same box in either order.
+ */
+function parseOpponentStats(text) {
+  const skaters = [];
+  const goalies = [];
+  for (const raw of String(text || "").split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const cells = line.split(/\t+| {2,}/).map((c) => c.trim()).filter((c) => c !== "");
+    if (cells.length < 4) continue;
+    /* Skip the header row and the league band that sits between the two. */
+    if (/^(#|rank)$/i.test(cells[0])) continue;
+    if (/^(skater|goalie|player)$/i.test(cells[1] || "")) continue;
+
+    const start = /^\d+\.?$/.test(cells[0]) ? 1 : 0;
+    let name = cells[start];
+    if (!name || !/[A-Za-z]/.test(name)) continue;
+    let pos = "";
+    const m = name.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
+    if (m) { name = m[1].trim(); pos = m[2].trim(); }
+    if (!pos) continue;
+
+    const nums = cells.slice(start + 1).map((c) => (c === "-" ? "" : c));
+    const n = (i) => { const v = Number(nums[i]); return nums[i] !== "" && Number.isFinite(v) ? v : null; };
+
+    if (/^G$/i.test(pos)) {
+      /* GP, GAA, SV%, W, L, T, SO, TOI, SVS */
+      goalies.push({ name, pos, gp: n(0), gaa: nums[1] || null, svpct: nums[2] || null,
+        w: n(3), l: n(4), t: n(5), so: n(6) });
+    } else {
+      /* GP, G, A, TP, PIM */
+      skaters.push({ name, pos, gp: n(0), g: n(1), a: n(2), pim: n(4) });
+    }
+  }
+  return { skaters, goalies };
+}
+
+/**
+ * Their season, added up from the league's own game summaries.
+ *
+ * Every summary carries both benches, so walking a team's finished games
+ * gives their totals exactly - no pasting, and it refreshes itself. The
+ * server does the walking and holds the answer, because it is one request per
+ * game.
+ */
+function useOpponentSeasonStats(opponent, achaSeasonId) {
+  const [state, setState] = useState({ loading: false, data: null });
+  const teamId = opponent && opponent.achaTeamId;
+  useEffect(() => {
+    if (!teamId || !achaSeasonId) { setState({ loading: false, data: null }); return; }
+    let alive = true;
+    setState({ loading: true, data: null });
+    fetch("/acha/team-season?season_id=" + achaSeasonId + "&team=" + teamId)
+      .then((r) => r.json())
+      .then((j) => {
+        if (!alive) return;
+        setState({ loading: false, data: (j && j.skaters && j.skaters.length) ? j : null });
+      })
+      .catch(() => { if (alive) setState({ loading: false, data: null }); });
+    return () => { alive = false; };
+  }, [teamId, achaSeasonId]);
+  return state;
+}
+
+/** Their roster, live from the league. Names, numbers and positions - no stats. */
+function useOpponentRoster(opponent, achaSeasonId) {
+  const [rows, setRows] = useState(null);
+  const teamId = opponent && opponent.achaTeamId;
+  useEffect(() => {
+    if (!teamId || !achaSeasonId) { setRows(null); return; }
+    let alive = true;
+    fetch("/acha?view=roster&season_id=" + achaSeasonId + "&team_id=" + teamId)
+      .then((r) => r.json())
+      .then((j) => {
+        const holder = j.roster && (Array.isArray(j.roster) ? j.roster[0] : j.roster);
+        const secs = (holder && holder.sections) || [];
+        const out = [];
+        for (const sec of secs) {
+          if (/coach/i.test(sec.title || "")) continue;
+          /* The section a player is listed under, kept because the position
+             letter on the row is sometimes blank and this never is. */
+          const group = /goal/i.test(sec.title || "") ? "G"
+            : /defen/i.test(sec.title || "") ? "D" : "F";
+          for (const d of sec.data || []) {
+            out.push({
+              id: "acha-" + d.row.player_id,
+              group,
+              number: d.row.tp_jersey_number || "",
+              name: d.row.name,
+              position: d.row.position,
+              height: (d.row.height_hyphenated || "").replace("-", "\u2032") + (d.row.height_hyphenated ? "\u2033" : ""),
+              weight: d.row.w ? d.row.w + " lbs" : "",
+              shoots: d.row.shoots || d.row.catches || "",
+              hometown: (d.row.hometown || "").replace(/,\s*United States$/, ""),
+            });
+          }
+        }
+        if (alive) setRows(out);
+      })
+      .catch(() => { if (alive) setRows(null); });
+    return () => { alive = false; };
+  }, [teamId, achaSeasonId]);
+  return rows;
+}
+
+/** The season a preview should describe: this one once it has games, else the last one that did. */
+function formSeason(site, seasonName) {
+  const own = site.seasons[seasonName];
+  if ((own.schedule || []).some((g) => g.result)) return { name: seasonName, season: own, prior: false };
+  /* Some programs would rather show an empty this-year card than last year's
+     names. Their call, not ours. */
+  if (((site.settings || {}).previewForm) === "current") {
+    return { name: seasonName, season: own, prior: false };
+  }
+  const earlier = Object.keys(site.seasons)
+    .filter((n) => n < seasonName)
+    .sort()
+    .reverse()
+    .find((n) => (site.seasons[n].schedule || []).some((g) => g.result)
+      || (site.seasons[n].roster || []).length);
+  return earlier
+    ? { name: earlier, season: site.seasons[earlier], prior: true }
+    : { name: seasonName, season: own, prior: false };
+}
+
+function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, story, openPost }) {
+  /* Before a season has been played there is no form to show, so the preview
+     describes the year before and labels every card with which year it is. */
+  const form = formSeason(site, seasonName);
+  const src = form.season;
+  const rows = (src.roster || []).map((p) => ({ p, t: boxScoreTotals(site, src, p) || p.stats || {} }));
+
+  /* Somebody who was a senior last year is not playing in this one, so they
+     are no one to watch for. Only applied when the preview has fallen back to
+     an earlier season - within a season everybody on the sheet is available -
+     and only where a class is recorded, since a blank year is not a claim
+     that somebody left. */
+  const gone = (p) => form.prior && /^(sr|senior|gr|grad|graduate)$/i.test(String(p.year || "").trim());
+  const available = rows.filter((x) => !gone(x.p));
+  const skaters = available.filter((x) => x.p.position !== "G");
+
+  /* Three categories, so the same player can lead two of them - which is
+     itself worth knowing before a game. */
+  const best = (key) => {
+    const pool = skaters.filter((x) => (key(x.t) || 0) > 0);
+    if (!pool.length) return null;
+    return pool.sort((a, b) => key(b.t) - key(a.t) || (b.t.g || 0) - (a.t.g || 0))[0];
+  };
+  const watch = [
+    ["Points", best((t) => (t.g || 0) + (t.a || 0)), (t) => (t.g || 0) + (t.a || 0)],
+    ["Goals", best((t) => t.g || 0), (t) => t.g || 0],
+    ["Assists", best((t) => t.a || 0), (t) => t.a || 0],
+  ].filter(([, x]) => x);
+
+  /* The two who carried the net. A qualifying share of the season keeps a
+     keeper with one lucky night off the top of the list; if nobody clears it,
+     the two who played most stand instead. */
+  /* Same rule in net: a graduated keeper is not the one you will face. */
+  const keepers = available.filter((x) => x.p.position === "G" && (x.t.gp || 0) > 0)
+    .map((x) => {
+      const k = keeperLine(x.t);
+      return { ...x, k, faced: k.saves + k.ga };
+    });
+  const games = (src.schedule || []).filter((g) => g.result).length;
+  const qualified = keepers.filter((x) => x.k.gp >= Math.max(1, games * 0.25) && x.faced > 0)
+    .sort((a, b) => (b.k.svpct || 0) - (a.k.svpct || 0));
+  /* Two names, always, when the season has two keepers: the qualifiers first,
+     then whoever played most after them. One goaltender who cleared the bar
+     is not a reason to leave the backup off the sheet. */
+  const rest = keepers.filter((x) => !qualified.includes(x)).sort((a, b) => b.k.gp - a.k.gp);
+  /* One name a side. A preview is asking who is likely in net, not for a
+     depth chart - the summary of a played game still lists everyone who
+     actually took a turn. */
+  const netminders = [...qualified, ...rest].slice(0, 1);
+
+  const team = seasonTeamStats(site, src);
+  const TEAM_ROWS = [
+    ["Power play %", team.pp == null ? "\u2014" : team.pp + "%"],
+    ["Penalty kill %", team.pk == null ? "\u2014" : team.pk + "%"],
+    ["Face-off %", team.fo == null ? "\u2014" : team.fo + "%"],
+    ["GF / GP", team.gfpg == null ? "\u2014" : team.gfpg],
+    ["GA / GP", team.gapg == null ? "\u2014" : team.gapg],
+  ];
+
+  /* Counts only. Heights and weights are known for some seasons and not
+     others, so they appear when they are there. */
+  const roster = src.roster || [];
+  const byPos = (pos) => roster.filter((p) => p.position === pos).length;
+  const inches = (h) => {
+    const m = String(h || "").match(/(\d+)\D+(\d+)/);
+    return m ? Number(m[1]) * 12 + Number(m[2]) : null;
+  };
+  const heights = roster.map((p) => inches(p.height)).filter(Boolean);
+  const weights = roster.map((p) => Number(String(p.weight || "").replace(/\D/g, ""))).filter(Boolean);
+  const avg = (a) => (a.length ? a.reduce((n, x) => n + x, 0) / a.length : null);
+  const avgH = avg(heights);
+  const avgW = avg(weights);
+  const ROSTER_ROWS = [
+    ["Players", roster.length],
+    ["Forwards", byPos("F")],
+    ["Defense", byPos("D")],
+    ["Goaltenders", byPos("G")],
+    ...(avgH ? [["Average height", Math.floor(avgH / 12) + "\u2032" + Math.round(avgH % 12) + "\u2033"]] : []),
+    ...(avgW ? [["Average weight", Math.round(avgW) + " lbs"]] : []),
+  ].filter(([, v]) => v);
+
+  /* The feed's own id for the season the form comes from. Held on the season
+     so nothing has to guess a mapping between our labels and theirs. */
+  const opponentRec = (site.opponents || []).find((o) => o.id === game.opponentId);
+  const opp = useOpponentSeason(opponentRec, form.season.achaSeasonId);
+  const num = (v) => (v == null ? null : Number(v));
+  const bigger = (a, b) => { const x = num(a), y = num(b); return x === y ? "" : x > y ? "us" : "them"; };
+  const smaller = (a, b) => { const x = num(a), y = num(b); return x === y ? "" : x < y ? "us" : "them"; };
+  const us = seasonRecord(form.season);
+  /* A record is two numbers in a hyphen, not one quantity, so it gets no
+     bar - there is nothing to divide. Everything under it is a single
+     figure a side and compares properly. */
+  const COMPARE_ROWS = opp.data ? [
+    ["Record", us.w + "-" + us.l + (us.t ? "-" + us.t : ""),
+      opp.data.w + "-" + opp.data.l + (opp.data.t ? "-" + opp.data.t : ""), false],
+    ["Games played", us.gp, opp.data.gp, true],
+    ["Goals for", us.gf, opp.data.gf, true],
+    ["Goals against", us.ga, opp.data.ga, true],
+    ["GF / GP", team.gfpg == null ? "\u2014" : team.gfpg, opp.data.gfpg, true],
+    ["GA / GP", team.gapg == null ? "\u2014" : team.gapg, opp.data.gapg, true],
+  ] : [];
+
+  /* The same two colours the Game stats bars use, so a bar means the same
+     thing whichever state of the page it is in. */
+  const org = (site.settings && site.settings.org) || {};
+  const usColor = org.primary || "#041E42";
+  const themColor = (opponentRec && opponentRec.color) || "#5A6473";
+
+  const isHome = game.homeAway === "H";
+  const ticketsUrl = ticketsFor(game, site);
+  const offer = watchOffer(game, true);
+  const note = form.prior ? form.name + " season" : seasonName + " season";
+
+  const theirRoster = useOpponentRoster(opponentRec, form.season.achaSeasonId);
+  /* The league's own aggregate first; a pasted season stands in when the feed
+     has nothing - an opponent outside the ACHA, or a year before its records
+     begin. */
+  const live = useOpponentSeasonStats(opponentRec, form.season.achaSeasonId);
+  const pasted = ((opponentRec || {}).seasonStats || {})[form.name] || null;
+  const theirStats = live.data || pasted;
+  const theirBest = (key) => {
+    const pool = (theirStats ? theirStats.skaters : []).filter((x) => (key(x) || 0) > 0);
+    if (!pool.length) return null;
+    return [...pool].sort((a, b) => key(b) - key(a) || (b.g || 0) - (a.g || 0))[0];
+  };
+  const THEIRS = {
+    Points: theirBest((x) => (x.g || 0) + (x.a || 0)),
+    Goals: theirBest((x) => x.g || 0),
+    Assists: theirBest((x) => x.a || 0),
+  };
+  const theirValue = { Points: (x) => (x.g || 0) + (x.a || 0), Goals: (x) => x.g || 0, Assists: (x) => x.a || 0 };
+  const [rosterSide, setRosterSide] = useState("us");
+  const usAbbr = ((site.settings && site.settings.org) || {}).abbr || gameName(site);
+  const themName = game.opponentShort || game.opponent;
+
+  /* Their leaders are not in the league's feed - only ours are computed. The
+     right-hand side of each row is therefore empty, and says so once at the
+     foot of the section rather than three times inside it. */
+  const H2H = [
+    ["Points", watch.find(([l]) => l === "Points"), (t) => (t.g || 0) + (t.a || 0)],
+    ["Goals", watch.find(([l]) => l === "Goals"), (t) => t.g || 0],
+    ["Assists", watch.find(([l]) => l === "Assists"), (t) => t.a || 0],
+  ].filter(([, x]) => x);
+
+  const posOf = (p) => (p.position === "D" || p.position === "G" ? p.position : p.spot || "F");
+  /* Which of the three blocks a player belongs in. Read off whichever of
+     the position, the visitors' section or the forward's spot is filled in,
+     because no one source has all three sides of it. */
+  const groupOf = (p) => {
+    const v = String(p.position || p.group || p.spot || "").trim();
+    return /^g/i.test(v) ? "G" : /^d/i.test(v) ? "D" : "F";
+  };
+  const theirGoalies = (theirRoster || []).filter((p) => groupOf(p) === "G").slice(0, 2);
+  const rosterRows = rosterSide === "us"
+    ? (src.roster || []).map((p) => ({ p, t: boxScoreTotals(site, src, p) || p.stats || {}, mine: true }))
+    : (theirRoster || []).map((p) => {
+        /* Name is all the two sources share, and they disagree about short
+           forms - the league's Charles is EliteProspects' Charlie. Falling
+           back to surname plus first initial catches those without merging
+           two different people, and anything still unmatched shows dashes. */
+        const norm = (x) => String(x || "").toLowerCase().replace(/[^a-z ]/g, "").trim();
+        const keyOf = (x) => {
+          const parts = norm(x).split(/\s+/);
+          return parts.length > 1 ? parts[parts.length - 1] + "|" + parts[0][0] : norm(x);
+        };
+        const list = (theirStats && theirStats.skaters) || [];
+        let st = list.find((x) => norm(x.name) === norm(p.name));
+        if (!st) {
+          const k = keyOf(p.name);
+          const hits = list.filter((x) => keyOf(x.name) === k);
+          if (hits.length === 1) st = hits[0];
+        }
+        return { p, t: st ? { gp: st.gp, g: st.g, a: st.a, pim: st.pim } : null, mine: false };
+      });
+
+  /* Click a column to sort by it, inside each block rather than across the
+     three: a roster is read position by position. Figures open high to low,
+     names and numbers in the order they are written. */
+  const ROSTER_COLS = [
+    { key: "number", label: "#", numeric: true, first: "asc",
+      get: (r) => Number(r.p.number) || 0 },
+    { key: "name", label: "Player", numeric: false, first: "asc",
+      get: (r) => lastFirst(r.p.name) || "" },
+    { key: "pos", label: "Pos", numeric: false, first: "asc", title: "Position",
+      get: (r) => posOf(r.p) },
+    /* A player with no line in any box score is not a zero, so unknown
+       sorts below every recorded figure either way round. */
+    { key: "gp", label: "GP", numeric: true, first: "desc", get: (r) => (r.t ? r.t.gp || 0 : -1) },
+    { key: "g", label: "G", numeric: true, first: "desc", get: (r) => (r.t ? r.t.g || 0 : -1) },
+    { key: "a", label: "A", numeric: true, first: "desc", get: (r) => (r.t ? r.t.a || 0 : -1) },
+    { key: "p", label: "P", numeric: true, first: "desc", title: "Points",
+      get: (r) => (r.t ? (r.t.g || 0) + (r.t.a || 0) : -1) },
+    { key: "pim", label: "PIM", numeric: true, first: "desc", get: (r) => (r.t ? r.t.pim || 0 : -1) },
+  ];
+  const ROSTER_GROUPS = [["F", "Forwards"], ["D", "Defense"], ["G", "Goaltenders"]];
+  const [rSortKey, setRSortKey] = useState("p");
+  const [rSortDir, setRSortDir] = useState("desc");
+  const sortRoster = (list) => {
+    const col = ROSTER_COLS.find((c) => c.key === rSortKey)
+      || ROSTER_COLS.find((c) => c.key === "p");
+    const dir = rSortDir === "asc" ? 1 : -1;
+    return [...list].sort((a, b) => {
+      const x = col.get(a);
+      const y = col.get(b);
+      const cmp = col.numeric ? x - y : String(x).localeCompare(String(y));
+      // Jersey number as the tiebreak, so equal rows keep a settled order.
+      return cmp * dir || (Number(a.p.number) || 0) - (Number(b.p.number) || 0);
+    });
+  };
+
+  /* A name reads better broken: the given name light, the surname bold
+     under it, the way a team sheet sets one. */
+  const splitName = (full) => {
+    const parts = String(full || "").trim().split(/\s+/);
+    return parts.length > 1
+      ? { first: parts.slice(0, -1).join(" "), last: parts[parts.length - 1] }
+      : { first: "", last: full || "" };
+  };
+  const pct3 = (n, d) => (d ? (n / d).toFixed(3).replace(/^0/, "") : "\u2014");
+
+  /* Both benches, in the same shape, so one list renders either. A team band
+     is the sum of its keepers - which is where a team save percentage comes
+     from, since neither source publishes one. */
+  const ourKeepers = netminders.map(({ p, k }) => ({
+    key: p.id, ...splitName(p.name), number: p.number, photo: p.photo || null,
+    mine: true, onClick: () => onPlayer(p.id),
+    saves: k.saves, ga: k.ga, so: k.so,
+    stats: [
+      [k.gp, "GP"],
+      [k.gaa === null ? "\u2014" : k.gaa.toFixed(2), "GAA"],
+      [pctText(k.svpct), "SV%"],
+      [k.so, "SO"],
+    ],
+  }));
+  const theirKeepers = (theirStats ? theirStats.goalies.slice(0, 1) : []).map((g, i) => {
+    const faced = (g.saves || 0) + (g.ga || 0);
+    const gaa = g.gaa != null ? g.gaa : (g.gp ? ((g.ga || 0) / g.gp).toFixed(2) : null);
+    const sv = g.svpct != null ? String(g.svpct).replace(/^0/, "") : (faced ? pct3(g.saves, faced) : null);
+    const number = g.number || (theirGoalies.find((x) => x.name === g.name) || {}).number;
+    return {
+      key: g.name || i, ...splitName(g.name), number,
+      saves: g.saves, ga: g.ga, so: g.so,
+      stats: [
+        [g.gp == null ? "\u2014" : g.gp, "GP"],
+        [gaa == null ? "\u2014" : gaa, "GAA"],
+        [sv == null ? "\u2014" : sv, "SV%"],
+        [g.so == null ? "\u2014" : g.so, "SO"],
+      ],
+    };
+  });
+  const GOALIE_BLOCKS = [
+    { key: "us", abbr: usAbbr, logo: org.logo, keepers: ourKeepers },
+    { key: "them", abbr: themName, logo: game.opponentLogo, keepers: theirKeepers,
+      loading: live.loading },
+  ];
+
+  return (
+    <>
+      {(offer || isHome) && (
+        <div className="gpbar">
+          {offer && (
+            <a className="btn bNavy" href={offer.href} target="_blank" rel="noreferrer noopener">
+              {offer.label} <WatchMark offer={offer} />
+            </a>
+          )}
+          {/* Only a home game is ours to sell a seat to. */}
+          {isHome && (
+            ticketsUrl
+              ? <a className="btn bNavy" href={ticketsUrl} target="_blank" rel="noreferrer noopener">
+                  Get tickets <IcTicket size={16} />
+                </a>
+              : <button className="btn bNavy" onClick={() => onTickets && onTickets()}>
+                  Get tickets <IcTicket size={16} />
+                </button>
+          )}
+        </div>
+      )}
+    <div className="gcgrid">
+      <div className="gccol">
+      {!!H2H.length && (
+      <section className="statcard gcpad">
+        <div className="gcstatshead">
+          {org.logo
+            ? <img className="gcstatslogo" src={org.logo} alt="" />
+            : <OppBadge name={usAbbr} size={30} />}
+          <h2 className="statsec" style={{ margin: 0 }}>Players to watch</h2>
+          {game.opponentLogo
+            ? <img className="gcstatslogo" src={game.opponentLogo} alt="" />
+            : <OppBadge name={themName} size={30} />}
+        </div>
+        <p className="bsm gcnone gpseason">{note}</p>
+        {H2H.map(([label, entry, val]) => {
+          const x = entry[1];
+          const a = val(x.t);
+          const them = THEIRS[label] ? theirValue[label](THEIRS[label]) : null;
+          const total = a + (them || 0);
+          /* Even split when neither has one, so the bar does not read as a
+             lopsided result where there is no result. */
+          const pa = total ? (a / total) * 100 : 50;
+          return (
+            <div className="gcbar h2hbar" key={label}>
+              {/* The portrait duplicates the name's link, so it is out of the
+                  tab order rather than a second stop at the same place. */}
+              <button className="h2hpic" onClick={() => onPlayer(x.p.id)}
+                tabIndex={-1} aria-hidden="true">
+                <PlayerAvatar size={38} photo={x.p.photo} />
+              </button>
+              <button className="h2hwho" onClick={() => onPlayer(x.p.id)}>
+                <span className="h2hname">
+                  <span className="h2hfirst">{splitName(x.p.name).first}</span>
+                  <span className="h2hlast">{splitName(x.p.name).last}</span>
+                </span>
+                <span className="h2hpos">#{x.p.number || "\u2014"} · {posOf(x.p)}</span>
+              </button>
+              <span className="h2hnum">{a}</span>
+              <span className="gcbarlab">{label}</span>
+              <span className="h2hnum right">{them == null ? "\u2014" : them}</span>
+              <span className="h2hpic right">
+                {game.opponentLogo
+                  ? <img className="h2hmark" src={game.opponentLogo} alt="" />
+                  : <OppBadge name={themName} size={38} />}
+              </span>
+              <span className={"h2hwho right" + (THEIRS[label] ? "" : " unknown")}>
+                <span className="h2hname">
+                  <span className="h2hfirst">{THEIRS[label] ? splitName(THEIRS[label].name).first : ""}</span>
+                  <span className="h2hlast">
+                    {THEIRS[label] ? splitName(THEIRS[label].name).last : "Not published"}
+                  </span>
+                </span>
+                {/* Number and position, the same two facts as ours - their
+                    games played is on the roster table, not here. */}
+                <span className="h2hpos">
+                  {THEIRS[label]
+                    ? [THEIRS[label].number ? "#" + THEIRS[label].number : null, THEIRS[label].pos]
+                        .filter(Boolean).join(" · ")
+                    : themName}
+                </span>
+              </span>
+              <span className="gcbartrack">
+                {them == null ? <span className="gcbarnone" /> : (
+                  <>
+                    <span className="gcbarfill left" style={{ width: pa + "%", background: usColor }} />
+                    <span className="gcbarfill right" style={{ width: (100 - pa) + "%", background: themColor }} />
+                  </>
+                )}
+              </span>
+            </div>
+          );
+        })}
+        {!theirStats && (
+          <p className="bsm gcnone gpnote">
+            {live.loading
+              ? "Reading their season from the league\u2026"
+              : "The league has no box scores for them this season. Paste their totals under Opponents and they appear here."}
+          </p>
+        )}
+      </section>
+      )}
+
+      <section className="statcard gcpad">
+        <h2 className="statsec">
+          Goaltending
+          <span className="gcserieslead">{note}</span>
+        </h2>
+        {GOALIE_BLOCKS.map((side) => (
+          <div className="gtblock" key={side.key}>
+            <div className="gtband">
+              <span className="gtbandmark">
+                {side.logo
+                  ? <img src={side.logo} alt="" />
+                  : <OppBadge name={side.abbr} size={30} />}
+                <span className="gtbandname">{side.abbr}</span>
+              </span>
+            </div>
+            {side.keepers.map((g, i) => {
+              const Row = g.onClick ? "button" : "div";
+              return (
+                <Row className="gtrow" key={g.key || i}
+                  onClick={g.onClick ? () => g.onClick() : undefined}>
+                  <span className="gtwho">
+                    {/* Our keepers get a headshot - PlayerAvatar draws its own
+                        silhouette when there is no photo on file, which still
+                        reads as a person. A visiting keeper has no photo to
+                        have, so their crest stands in. */}
+                    {g.mine
+                      ? <PlayerAvatar size={44} photo={g.photo} />
+                      : (side.logo
+                        ? <img className="gtmark" src={side.logo} alt="" />
+                        : <OppBadge name={side.abbr} size={44} />)}
+                    <span className="gtnames">
+                      <span className="gtfirst">{g.first}</span>
+                      <span className="gtlast">{g.last}</span>
+                      <span className="gtnum">{g.number ? "#" + g.number : ""}</span>
+                    </span>
+                  </span>
+                  {g.stats.map(([v, k]) => (
+                    <span className="gtstat" key={k}>
+                      <strong>{v}</strong><span className="gtstatlab">{k}</span>
+                    </span>
+                  ))}
+                </Row>
+              );
+            })}
+            {!side.keepers.length && (
+              <p className="bsm gcnone" style={{ padding: "10px 2px" }}>
+                {side.loading ? "Loading\u2026" : "No goaltending on file."}
+              </p>
+            )}
+          </div>
+        ))}
+      </section>
+
+      <section className="statcard gcpad gcroster">
+        <h2 className="statsec">
+          Roster
+          <span className="gcserieslead">{note}</span>
+      </h2>
+      <div className="tabs" style={{ marginBottom: 14 }}>
+        <button className={"tab " + (rosterSide === "us" ? "on" : "")}
+          onClick={() => setRosterSide("us")}>{usAbbr}</button>
+        <button className={"tab " + (rosterSide === "them" ? "on" : "")}
+          onClick={() => setRosterSide("them")}>{themName}</button>
+      </div>
+      {rosterRows.length ? (
+        <div className="twrap">
+          <table className="stats sortable gcbt">
+            <thead>
+              <tr>
+                {ROSTER_COLS.map((col) => {
+                  const on = rSortKey === col.key;
+                  return (
+                    <th key={col.key} title={col.title}
+                      aria-sort={on ? (rSortDir === "asc" ? "ascending" : "descending") : "none"}>
+                      <button className={"sortbtn " + (on ? "on" : "")}
+                        onClick={() => {
+                          if (on) setRSortDir((d) => (d === "desc" ? "asc" : "desc"));
+                          else { setRSortKey(col.key); setRSortDir(col.first); }
+                        }}>
+                        {col.label}
+                        <span className="sortcaret" aria-hidden="true">
+                          {on ? (rSortDir === "asc" ? "\u25b2" : "\u25bc") : "\u25be"}
+                        </span>
+                      </button>
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            {ROSTER_GROUPS.map(([g, title]) => {
+              const rows = sortRoster(rosterRows.filter((r) => groupOf(r.p) === g));
+              if (!rows.length) return null;
+              return (
+                <tbody key={g}>
+                  <tr className="gcbtgroup">
+                    <th colSpan={ROSTER_COLS.length} scope="colgroup">{title}</th>
+                  </tr>
+                  {rows.map(({ p, t, mine }) => (
+                    <tr key={p.id}>
+                      <td>{p.number}</td>
+                      <td className="gcbtname">
+                        {mine
+                          ? <button className="pboxname" onClick={() => onPlayer(p.id)}>{p.name}</button>
+                          : p.name}
+                      </td>
+                      <td className="gcbtspot">{posOf(p)}</td>
+                      <td>{t ? (t.gp || 0) : "\u2014"}</td>
+                      <td>{t ? (t.g || 0) : "\u2014"}</td>
+                      <td>{t ? (t.a || 0) : "\u2014"}</td>
+                      <td className="gcbtpts">{t ? (t.g || 0) + (t.a || 0) : "\u2014"}</td>
+                      <td>{t ? (t.pim || 0) : "\u2014"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              );
+            })}
+          </table>
+        </div>
+      ) : (
+        <p className="bsm gcnone">{rosterSide === "them" ? "No roster published." : "No roster on file."}</p>
+      )}
+      {rosterSide === "them" && (
+        <p className="bsm gcnone gpnote">
+          {theirStats
+            ? "Roster and totals live from the league" + (theirStats.games ? " \u2014 " + theirStats.games + " games" : "")
+              + ". A player with no line in any box score shows dashes."
+            : "Their roster is live from the league; it carries no season totals."}
+        </p>
+      )}
+      </section>
+      </div>
+
+      <div className="gccol">
+        <GameStory story={story} label="Preview" openPost={openPost} />
+        {opp.data && (
+          <section className="statcard gcpad">
+            <div className="gcstatshead">
+              {org.logo
+                ? <img className="gcstatslogo" src={org.logo} alt="" />
+                : <OppBadge name={usAbbr} size={30} />}
+              <h2 className="statsec" style={{ margin: 0 }}>Head to head</h2>
+              {game.opponentLogo
+                ? <img className="gcstatslogo" src={game.opponentLogo} alt="" />
+                : <OppBadge name={themName} size={30} />}
+            </div>
+            <p className="bsm gcnone gpseason">{form.name}</p>
+            {COMPARE_ROWS.map(([label, a, b, bar]) => {
+              const x = Number(a), y = Number(b);
+              const t = (x || 0) + (y || 0);
+              const pa = t ? (x / t) * 100 : 50;
+              return (
+                <div className={"gcbar" + (bar ? "" : " norail")} key={label}>
+                  <span className="gcbarval">{a}</span>
+                  <span className="gcbarlab">{label}</span>
+                  <span className="gcbarval right">{b}</span>
+                  {bar && Number.isFinite(x) && Number.isFinite(y) && (
+                    <span className="gcbartrack">
+                      <span className="gcbarfill left" style={{ width: pa + "%", background: usColor }} />
+                      <span className="gcbarfill right" style={{ width: (100 - pa) + "%", background: themColor }} />
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </section>
+        )}
+        <SeasonSeries site={site} season={season} game={game} />
+        <section className="statcard gcpad">
+          <h2 className="statsec">Game info</h2>
+          <dl className="gcinfo">
+            <dt>Matchup</dt>
+            <dd>{gameName(site)} {vsAt(game)} {game.opponent}</dd>
+            {game.venue && <><dt>Venue</dt><dd>{game.venue}</dd></>}
+            {game.location && <><dt>Location</dt><dd>{game.location}</dd></>}
+            <dt>Date</dt>
+            <dd>{localDate(game.date, game.time)}{game.time ? " · " + localTime(game.date, game.time) : ""}</dd>
+            {watchRows(game)}
+            <dt>Type</dt>
+            <dd>{game.roundLabel || GAME_TYPE_LABEL[gameType(game)] || gameType(game)}</dd>
+          </dl>
+        </section>
+      </div>
+    </div>
+    </>
+  );
+}
+
+/* One row of the lineup sheet. At module level for the same reason OppPick is:
+   a component built during render is remade on every toggle, and the checkbox
+   loses focus the moment it is used. */
+function LineupRow({ p, starter, lu, full, fullG, max, maxG, onToggle, onStarter, onNet }) {
+  const on = lu.dressed.has(p.id);
+  const keeper = p.position === "G";
+  const blocked = keeper ? !!fullG : !!full;
+  const cap = keeper ? maxG : max;
+  const capWord = keeper ? "goaltenders are" : "skaters are";
+  return (
+    <div className={"alurow" + (on ? "" : " out")}>
+      <label className={"alupick" + (!on && blocked ? " blocked" : "")}
+        title={!on && blocked ? cap + " " + capWord + " already dressed" : undefined}>
+        <input type="checkbox" checked={on} disabled={!on && blocked}
+          onChange={() => onToggle(p.id)} />
+        <span className="alunum">{p.number ? "#" + p.number : "\u2014"}</span>
+        <span className="aluname">{p.name}</span>
+      </label>
+      {starter && on && (
+        <button className={"alustart" + (lu.starters.includes(p.id) ? " on" : "")}
+          title="Starting lineup" onClick={() => onStarter(p.id)}>
+          {lu.starters.includes(p.id) ? "Starting" : "Start"}
+        </button>
+      )}
+      {/* Same pill as a skater's, so the sheet reads one way down the page.
+          Only one goaltender starts, so picking one releases the other. */}
+      {!starter && on && (
+        <button className={"alustart" + (lu.goalie === p.id ? " on" : "")}
+          title="Starts in net"
+          onClick={() => onNet(lu.goalie === p.id ? "" : p.id)}>
+          {lu.goalie === p.id ? "Starting" : "Start"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* One line of cards that pages sideways. Wrapping made a nine-goal game three
+ * rows tall inside a schedule row that is otherwise two lines, so the goals
+ * stay on one line and the arrows move through them. The pager hides itself
+ * when everything already fits.
+ */
+function GoalStrip({ children, label }) {
+  const ref = useRef(null);
+  const [page, setPage] = useState(0);
+  const [pages, setPages] = useState(1);
+
+  /* Page by the width of the strip, not by a card.
+   *
+   * Cards are as wide as their contents now - an unassisted goal is a short
+   * card and one with two assists and a long name is a wide one - so there is
+   * no single card width to step by. Measuring the first card and assuming
+   * the rest match put the pages progressively out of step with the cards.
+   * Scroll snapping still lands the strip on a card edge, so paging by the
+   * viewport does not cut a name in half. */
+  const metrics = () => {
+    const el = ref.current;
+    if (!el || !el.clientWidth) return null;
+    return { el, step: el.clientWidth };
+  };
+
+  const measure = useCallback(() => {
+    const m = metrics();
+    if (!m) return;
+    const total = Math.max(1, Math.ceil(m.el.scrollWidth / m.step));
+    setPages(total);
+    /* The last page is short, so scrolling to it clamps and the arithmetic
+       lands a page early - leaving the final segment unreachable and the
+       arrow enabled with nowhere to go. Being at the end is the tell. */
+    const max = m.el.scrollWidth - m.el.clientWidth;
+    const atEnd = max > 0 && max - m.el.scrollLeft <= 2;
+    setPage(atEnd ? total - 1 : Math.min(total - 1, Math.round(m.el.scrollLeft / m.step)));
+  }, []);
+
+  useEffect(() => {
+    measure();
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [measure, children]);
+
+  const go = (i) => {
+    const m = metrics();
+    if (!m) return;
+    m.el.scrollTo({ left: i * m.step, behavior: "smooth" });
+  };
+
+  return (
+    <div className="qlstrip">
+      <div className="qlgoals" ref={ref} onScroll={measure}>{children}</div>
+      {pages > 1 && (
+        <div className="qlpager" role="group" aria-label={label || "Pages"}>
+          <button
+            className="qlarrow"
+            aria-label="Previous"
+            disabled={page <= 0}
+            onClick={() => go(page - 1)}
+          >
+            <IcChevL size={18} />
+          </button>
+          <span className="qldots">
+            {Array.from({ length: pages }, (_, i) => (
+              <button
+                key={i}
+                className={"qldot" + (i === page ? " on" : "")}
+                aria-label={"Page " + (i + 1) + " of " + pages}
+                aria-current={i === page ? "true" : undefined}
+                onClick={() => go(i)}
+              />
+            ))}
+          </span>
+          <button
+            className="qlarrow"
+            aria-label="Next"
+            disabled={page >= pages - 1}
+            onClick={() => go(page + 1)}
+          >
+            <IcChevR size={18} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Quick look ----------------
+ * The goals, inside a schedule row. Not a box score: somebody opening this
+ * wants to know who scored without leaving the page, so it carries scorers and
+ * assists and nothing else — goaltending, penalty minutes and the rest are a
+ * click away in the game center.
+ */
+function GameBoxScore({ site, game, roster, schedule, usAbbr, themAbbr, onPlayer }) {
+  const plays = (Array.isArray(game.plays) ? game.plays : []).filter((p) => p.kind === "goal");
+  const byId = new Map((roster || []).map((p) => [p.id, p]));
+
+  if (plays.length) {
+    return (
+      <div className="pbox stack">
+        <p className="pboxhead">Goals</p>
+        <GoalStrip label="Goals">
+          {plays.map((p) => {
+            const scorer = p.scorerId ? byId.get(p.scorerId) : null;
+            const at = scoreAfter(plays, p);
+            const num = goalNumber(schedule, p);
+            return (
+              <div className="qlgoal" key={p.id}>
+                <PlayerAvatar size={42} photo={scorer ? scorer.photo : null} />
+                <span className="qlbody">
+                  <span className="qlname">
+                    {scorer
+                      ? <button className="pboxname" onClick={() => onPlayer && onPlayer(scorer.id)}>{p.scorer}</button>
+                      : p.scorer}
+                    {num ? <span className="qlnum">({num})</span> : null}
+                    {p.strength !== "EV" && (
+                      <span className="gcstrength">
+                        {p.strength === "PP" ? "PPG" : p.strength === "SH" ? "SHG" : p.strength}
+                      </span>
+                    )}
+                  </span>
+                  <span className="qlassist">
+                    {p.assists && p.assists.length
+                      ? p.assists.map((nm, k) => {
+                          const n = assistNumber(schedule, p, (p.assistIds || [])[k]);
+                          return nm + (n ? " (" + n + ")" : "");
+                        }).join(", ")
+                      : "Unassisted"}
+                  </span>
+                  <span className="qlscore">
+                    <strong>{usAbbr} {at.us}</strong> - <strong>{themAbbr} {at.them}</strong>
+                    <span className="qlwhen">({PERIOD_LABEL[p.period] || p.period} — {p.clock})</span>
+                  </span>
+                </span>
+              </div>
+            );
+          })}
+        </GoalStrip>
+      </div>
+    );
+  }
+
+  /* No play-by-play, but the box score still knows who scored. */
+  const lines = ((site.gameStats || {})[game.id]) || {};
+  const scorers = Object.entries(lines)
+    .map(([id, l]) => ({ p: byId.get(id), l }))
+    .filter((e) => e.p && e.l && e.l.dressed !== false && ((e.l.g || 0) > 0 || (e.l.a || 0) > 0))
+    .sort((a, b) => (b.l.g || 0) - (a.l.g || 0) || (b.l.a || 0) - (a.l.a || 0));
+
+  if (!scorers.length) {
+    /* Nothing has happened yet, so there is nothing missing. "No scoring
+       recorded" on a game three weeks out read as a hole in the records
+       rather than a game in the future. */
+    const st = gameState(game);
+    if (st === "scheduled") return null;
+    return (
+      <div className="pbox">
+        <p className="pboxfoot" style={{ borderTop: 0, paddingTop: 0 }}>
+          {st === "live"
+            ? "No goals yet."
+            : game.result && game.result.us === 0 && game.result.them === 0
+              ? "No goals."
+              : "No scoring recorded for this game."}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pbox stack">
+      <p className="pboxhead">Scoring</p>
+      <GoalStrip label="Scorers">
+        {scorers.map(({ p, l }) => (
+          <div className="qlgoal" key={p.id}>
+            <PlayerAvatar size={42} photo={p.photo} />
+            <span className="qlbody">
+              <span className="qlname">
+                <button className="pboxname" onClick={() => onPlayer && onPlayer(p.id)}>{p.name}</button>
+              </span>
+              <span className="qlassist">
+                {[p.number ? "#" + p.number : null, POSITION_FULL[p.position] || p.position]
+                  .filter(Boolean).join(" • ")}
+              </span>
+              <span className="qlscore">
+                {(l.g || 0)}G &nbsp;{(l.a || 0)}A
+              </span>
+            </span>
+          </div>
+        ))}
+      </GoalStrip>
+      <p className="pboxfoot" style={{ borderTop: 0, paddingTop: 10 }}>
+        Times were not recorded for this game.
+      </p>
+    </div>
+  );
+}
+
+/* ---------------- Schedule calendar ----------------
+ * A month grid of the season. Home games carry the team color, away games sit
+ * on white with a ring so they still have an edge, and a day with both is
+ * neutral.
+ *
+ * Every month renders six week rows whether or not it needs them, and the
+ * cells are a fixed height rather than a minimum. Otherwise the container
+ * jumps as you page between months, and a month holding a playoff game (which
+ * carries an extra tag line) comes out taller than one that does not.
+ */
+function ScheduleCalendar({ games, onGame, seasonName, ticketsUrl }) {
+  const dated = (games || []).filter((g) => g.date);
+
+  /* The months the season actually spans, so paging cannot wander off into
+     an empty August. */
+  const months = useMemo(() => {
+    if (!dated.length) return [];
+    const keys = dated.map((g) => g.date.slice(0, 7)).sort();
+    const [y0, m0] = keys[0].split("-").map(Number);
+    const [y1, m1] = keys[keys.length - 1].split("-").map(Number);
+    const out = [];
+    for (let y = y0, m = m0; y < y1 || (y === y1 && m <= m1); ) {
+      out.push({ y, m });
+      m += 1;
+      if (m > 12) { m = 1; y += 1; }
+    }
+    return out;
+  }, [dated]);
+
+  const [at, setAt] = useState(0);
+
+  /* Open on the month holding the next unplayed game, or the last one played.
+     Landing on October when the season is in February is nobody's intent. */
+  useEffect(() => {
+    if (!months.length) return;
+    const sorted = [...dated].sort(cmpDate);
+    const next = sorted.find((g) => !g.result) || sorted[sorted.length - 1];
+    if (!next) return;
+    const [y, m] = next.date.split("-").map(Number);
+    const i = months.findIndex((x) => x.y === y && x.m === m);
+    if (i >= 0) setAt(i);
+  }, [months.length]);
+
+  if (!months.length) {
+    return (
+      <p className="blg calfoot" style={{ marginTop: 24 }}>
+        No dated games in {seasonName}.
+      </p>
+    );
+  }
+
+  const cur = months[Math.min(at, months.length - 1)];
+  const first = new Date(cur.y, cur.m - 1, 1);
+  const daysInMonth = new Date(cur.y, cur.m, 0).getDate();
+  const lead = first.getDay();
+
+  const byDay = {};
+  for (const g of dated) {
+    const [y, m, d] = g.date.split("-").map(Number);
+    if (y !== cur.y || m !== cur.m) continue;
+    (byDay[d] = byDay[d] || []).push(g);
+  }
+
+  /* Always six rows. */
+  const cells = [];
+  for (let i = 0; i < 42; i += 1) {
+    const day = i - lead + 1;
+    cells.push(day >= 1 && day <= daysInMonth ? day : null);
+  }
+
+  const monthLabel = first.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const DOW = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+  return (
+    <div className="cal">
+      <div className="calbar">
+        <div className="calnav">
+          <button className="calnavbtn" aria-label="Previous month"
+            disabled={at === 0} onClick={() => setAt((n) => Math.max(0, n - 1))}>
+            <IcChevL size={18} />
+          </button>
+          <button className="calnavbtn" aria-label="Next month"
+            disabled={at >= months.length - 1} onClick={() => setAt((n) => Math.min(months.length - 1, n + 1))}>
+            <IcChevR size={18} />
+          </button>
+        </div>
+        <p className="calmonth">{monthLabel}</p>
+        <div className="callegend">
+          <span><span className="calkey home" /> Home</span>
+          <span><span className="calkey away" /> Away</span>
+        </div>
+      </div>
+
+      <div className="calhead" aria-hidden="true">
+        {DOW.map((d) => (
+          <span key={d}>
+            <span className="calfull">{d.slice(0, 3)}</span>
+            <span className="calabbr">{d.slice(0, 1)}</span>
+          </span>
+        ))}
+      </div>
+
+      <div className="calgrid">
+        {cells.map((day, i) => {
+          const on = day ? byDay[day] || [] : [];
+          const sides = new Set(on.map((g) => g.homeAway));
+          const tone = !on.length ? "" : sides.size > 1 ? "mixed"
+            : sides.has("H") ? "home" : sides.has("A") ? "away" : "";
+          return (
+            <div className={["calcell", day ? "" : "empty", on.length ? "has" : "", tone].filter(Boolean).join(" ")}
+              key={i}>
+              {day && <span className="caldate">{day}</span>}
+              {on.map((g) => {
+                const r = resultText(g);
+                const label = vsAtSp(g) + (g.opponent || "opponent");
+                /* A home cell is navy, so it takes the dark-surface mark when the
+                   opponent has one. oppLogo() already falls back to the light
+                   one, which is better than no crest at all. */
+                const mark = g.homeAway === "H"
+                  ? (g.opponentLogoDark || g.opponentLogo)
+                  : g.opponentLogo;
+                const crest = (
+                  <span className="callogo">
+                    {mark
+                      ? <img src={mark} alt={label} />
+                      : <OppBadge name={g.opponent || "?"} size={30} />}
+                  </span>
+                );
+                return (
+                  <div className="calgame" key={g.id} title={label}>
+                    {(g.specials || []).length
+                      ? <span className="caltag spec">{g.specials[0]}</span>
+                      : g.gameType && g.gameType !== "regular" && (
+                        <span className="caltag">{g.roundLabel || gameType(g)}</span>
+                      )}
+{/* Crest, score and actions are siblings so the cell can space them
+                        evenly - the score belongs between the other two, not
+                        tucked under the crest. */}
+                    {crest}
+                    {/* Takes the crest's place on a phone, where a 34px mark and
+                        two icons do not fit a column a fifth of the screen
+                        wide. */}
+                    <span className="calcode">{g.opponentShort || g.opponent || "TBD"}</span>
+                    {r
+                      ? <span className="calresult">
+                          <span className={"rtag " + r.tag}>{r.tag}</span> {g.result.us}-{g.result.them}
+                        </span>
+                      : <span className="caltime">{localTime(g.date, g.time) || "TBD"}</span>}
+                    <span className="calacts">
+                      <button className="calact" title={"Game center — " + label}
+                        aria-label={"Game center, " + label}
+                        onClick={() => onGame && onGame(g.id)}>
+                        <IcGameCenter size={24} />
+                      </button>
+                      {/* Only an upcoming home game is ours to sell a ticket to. */}
+                      {!r && g.homeAway === "H" && (g.ticketsUrl || ticketsUrl) && (
+                        <a className="calact" href={g.ticketsUrl || ticketsUrl}
+                          target="_blank" rel="noreferrer noopener"
+                          title={"Tickets — " + label} aria-label={"Tickets, " + label}>
+                          <IcTicket size={20} />
+                        </a>
+                      )}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+
+    </div>
+  );
+}
+
+function SchedulePage({ site, onPlayer, onGame, goto }) {
+  const seasonNames = Object.keys(site.seasons).sort().reverse();
+  const [sel, setSel] = useState(site.currentSeason);
+  const [filter, setFilter] = useState("all");
+  const [viewType, setViewType] = useSticky("schedule.view", "list");
+  const [pdfOpen, setPdfOpen] = useState(false);
+  const [openInfo, setOpenInfo] = useState(null);
+  const season = site.seasons[sel] || { schedule: [] };
+  const s = schedStats(season.schedule, season.record);
+
+  const rows = useMemo(() => {
+    let r = [...season.schedule].sort(cmpDate);
+    if (filter === "neutral") r = r.filter((g) => g.homeAway === "N");
+    if (filter === "home") r = r.filter((g) => g.homeAway === "H");
+    if (filter === "away") r = r.filter((g) => g.homeAway === "A");
+    if (filter === "finals") r = r.filter((g) => g.result);
+    if (filter === "upcoming") r = r.filter((g) => !g.result);
+    return r;
+  }, [season.schedule, filter]);
+
+  return (
+    <main style={{ background: "var(--page)" }}>
+      <section className="section" style={{ paddingTop: 44 }}>
+        <div className="wrap">
+          <h1 className="stitle">{sel} Schedule</h1>
+
+          <div className="sctrl">
+            <button className="calbtn" onClick={() => downloadICS(rows, sel, officialName(site))}>
+              <IcPlusC size={17} /> Add To Calendar
+            </button>
+            <button className="ghostbtn" onClick={() => setPdfOpen(true)}>
+              <IcDoc size={17} /> PDF
+            </button>
+            <select className="rsel" value={sel} onChange={(e) => setSel(e.target.value)} aria-label="Season">
+              {seasonNames.map((n) => <option key={n}>{n}</option>)}
+            </select>
+            <select className="rsel" value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Filter games">
+              <option value="all">All Games</option>
+              <option value="home">Home</option>
+              <option value="away">Away</option>
+              {/* Only offered when the season actually has one. */}
+              {season.schedule.some((g) => g.homeAway === "N") && <option value="neutral">Neutral site</option>}
+              <option value="finals">Results</option>
+              <option value="upcoming">Upcoming</option>
+            </select>
+            <div className="vtgroup">
+              <span className="bsm" style={{ color: "var(--muted)", lineHeight: 1.2 }}>View<br />Type:</span>
+              <button className={`vtbtn ${viewType === "list" ? "on" : ""}`} aria-label="List view" onClick={() => setViewType("list")}><IcList /></button>
+              <button className={`vtbtn ${viewType === "table" ? "on" : ""}`} aria-label="Table view" onClick={() => setViewType("table")}><IcTable /></button>
+              <button className={`vtbtn ${viewType === "calendar" ? "on" : ""}`} aria-label="Calendar view" onClick={() => setViewType("calendar")}><IcCalendar /></button>
+            </div>
+          </div>
+
+          {viewType !== "calendar" && (
+          <div className="recgrid">
+            <div className="reccell"><p className="reclab">Overall</p><p className="recnum">{s.w}-{s.l}{s.t ? `-${s.t}` : ""}</p></div>
+            <div className="reccell"><PctRing pct={s.pct} /></div>
+            <div className="reccell"><p className="reclab">Home</p><p className="recnum">{s.home}</p></div>
+            <div className="reccell"><p className="reclab">Away</p><p className="recnum">{s.away}</p></div>
+            <div className="reccell"><p className="reclab">Streak</p><p className="recnum">{s.streak}</p></div>
+            <div className="reccell"><p className="reclab">Goals For</p><p className="recnum">{s.gf}</p></div>
+            <div className="reccell"><p className="reclab">Goals Against</p><p className="recnum">{s.ga}</p></div>
+            <div className="reccell"><p className="reclab">Games</p><p className="recnum">{s.gp}</p></div>
+          </div>
+          )}
+
+          {viewType === "calendar" ? (
+            /* The calendar always shows the whole season: filtering it to
+               "results only" would leave gaps that read as missing games. */
+            <ScheduleCalendar games={season.schedule} onGame={onGame} seasonName={sel}
+              ticketsUrl={(site.settings || {}).ticketsUrl} />
+          ) : viewType === "table" ? (
+            <div className="twrap" style={{ marginTop: 32 }}>
+              <table className="stats">
+                <thead><tr><th>Date</th><th>Opponent</th><th>H/A</th><th>Venue</th><th>Result / Time</th></tr></thead>
+                <tbody>
+                  {rows.map((g) => {
+                    const r = resultText(g);
+                    return (
+                      <tr key={g.id}>
+                        <td>{fmtDateParen(g.date)}</td>
+                        <td style={{ fontWeight: 600 }}>{g.opponent}</td>
+                        <td>{SIDE_LABEL[g.homeAway] || "—"}</td>
+                        <td>{g.venue}</td>
+                        <td>{r ? <strong style={{ color: "var(--blue)" }}><span className={"rtag " + r.tag}>{r.tag}</span>, {g.result.us} - {g.result.them}{decidedIn(g.result)}</strong> : localTime(g.date, g.time)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: 18, marginTop: 32 }}>
+              {rows.length === 0 && <p className="blg" style={{ color: "var(--muted)" }}>No games match this filter.</p>}
+              {rows.map((g) => {
+                const r = resultText(g);
+                const open = openInfo === g.id;
+                return (
+                  <article className="gamecard" key={g.id}>
+                    <div className="gamemain">
+                      <span style={{ position: "relative", flex: "0 0 auto" }}>
+                        <OppBadge name={g.opponent} logo={g.opponentLogo} size={48} />
+                        {vsAt(g) && (
+                          <span className={"vsbadge " + sideClass(g)}
+                            style={{ position: "absolute", right: -8, bottom: -4, width: 22, height: 22, fontSize: 10, border: "2px solid #fff" }}>
+                            {vsAt(g)}
+                          </span>
+                        )}
+                      </span>
+                      <div style={{ minWidth: 0 }}>
+                        {!!(g.specials || []).length && (
+                          <div className="spectags">
+                            {g.specials.map((n) => <span className="spectag" key={n}>{n}</span>)}
+                          </div>
+                        )}
+                        <p style={{ margin: 0, fontWeight: 700, fontSize: 17, color: "var(--ink)" }}>{g.opponent}</p>
+                        <p className="bsm" style={{ margin: "5px 0 0", color: "var(--muted)" }}>
+                          <IcPin size={13} style={{ marginRight: 4 }} />{[g.venue, g.location].filter(Boolean).join(" · ")
+                            || (g.result ? "Venue not recorded" : "Venue TBD")}
+                        </p>
+                      </div>
+                      <div className="gameresult">
+                        {r && <p style={{ margin: 0, fontWeight: 800, fontSize: 17, color: "var(--blue)" }}><span className={"rtag " + r.tag}>{r.tag}</span>, {g.result.us} - {g.result.them}{decidedIn(g.result)}</p>}
+                        <p className="bsm" style={{ margin: r ? "5px 0 0" : 0, color: "var(--muted)", fontWeight: 600 }}>
+                          <strong style={{ color: "var(--ink)" }}>{fmtDateParen(g.date)}</strong> · <IcClock size={13} style={{ marginRight: 4 }} />{localTime(g.date, g.time)}
+                        </p>
+                      </div>
+                      <div className="gameacts">
+                        <WatchLink game={g} upcoming />
+                        {/* Only a home game still to be played is ours to sell a
+                            seat to. Straight to the seller where one is set,
+                            otherwise to the tickets page and its door prices -
+                            the same way the banner and the nav pill behave. */}
+                        {!g.result && g.homeAway === "H" && (
+                          ticketsFor(g, site)
+                            ? <a className="watchbtn" href={ticketsFor(g, site)}
+                                target="_blank" rel="noreferrer noopener">
+                                Tickets <IcTicket size={16} />
+                              </a>
+                            : <button className="watchbtn" onClick={() => goto && goto("tickets")}>
+                                Tickets <IcTicket size={16} />
+                              </button>
+                        )}
+                        <button className="watchbtn" onClick={() => onGame && onGame(g.id)}>
+                          Game center <IcGameCenter size={17} />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="gamefoot">
+                      <button className="gb-link" style={{ fontWeight: 700, display: "inline-flex", gap: 7, alignItems: "center" }}
+                        onClick={() => setOpenInfo(open ? null : g.id)} aria-expanded={open}>
+                        Quick look {open ? <IcMinusC size={19} /> : <IcPlusC size={19} />}
+                      </button>
+                    </div>
+                    {open && (
+                      <div className="gameinfo bsm">
+                        <span><strong>Matchup:</strong> Cal {vsAt(g)} {g.opponent}</span>
+                        <span><strong>Venue:</strong> {g.venue}</span>
+                        <span><strong>Date:</strong> {localDate(g.date, g.time)} · {localTime(g.date, g.time)}</span>
+                        {r && <span><strong>Final:</strong> {r.tag}, {g.result.us}-{g.result.them}{g.result.ot ? " (OT)" : ""}</span>}
+                        {g.roundLabel && <span><strong>Round:</strong> {g.roundLabel}</span>}
+                        <span><strong>League:</strong> ACHA PAC-8 · {sel}</span>
+                      </div>
+                    )}
+                    {open && (
+                      <GameBoxScore site={site} game={g} roster={season.roster}
+                        schedule={season.schedule}
+                        usAbbr={((site.settings || {}).org || {}).abbr || gameName(site)}
+                        themAbbr={((site.opponents || []).find((o) => o.id === g.opponentId) || {}).short || g.opponent}
+                        onPlayer={(id) => onPlayer && onPlayer(id)} />
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {pdfOpen && (
+        <div className="pdfoverlay" role="dialog" aria-modal="true" aria-label="Schedule PDF preview">
+          <div className="pdfbar">
+            <button className="calbtn" onClick={() => window.print()}><IcPrint /> Save as PDF / Print</button>
+            <button className="ghostbtn" onClick={() => setPdfOpen(false)}>Close</button>
+          </div>
+          <div className="pdfsheet">
+            <div style={{ display: "flex", alignItems: "center", gap: 16, borderBottom: "3px solid var(--blue)", paddingBottom: 16 }}>
+              <Logo size={46} color="var(--blue)" />
+              <div>
+                <p style={{ margin: 0, fontWeight: 800, fontSize: 21, color: "var(--blue)" }}>{officialName(site)} — {sel} Schedule</p>
+                <p className="bsm" style={{ margin: "3px 0 0", color: "var(--muted)" }}>
+                  ACHA PAC-8 · Overall {s.w}-{s.l}{s.t ? `-${s.t}` : ""} · Home {s.home} · Away {s.away} · GF {s.gf} / GA {s.ga}
+                </p>
+              </div>
+            </div>
+            <table className="pdftable">
+              <thead><tr><th>Date</th><th>Opponent</th><th>H/A</th><th>Venue</th><th>Result / Time</th></tr></thead>
+              <tbody>
+                {rows.map((g) => {
+                  const r = resultText(g);
+                  return (
+                    <tr key={g.id}>
+                      <td>{fmtDateParen(g.date)}</td>
+                      <td style={{ fontWeight: 700 }}>{vsAt(g)} {g.opponent}</td>
+                      <td>{g.homeAway}</td>
+                      <td>{g.venue}</td>
+                      <td>{r ? `${r.tag}, ${g.result.us}-${g.result.them}${g.result.ot ? " (OT)" : ""}` : localTime(g.date, g.time)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <p className="bsm" style={{ color: "var(--muted)", marginTop: 22 }}>Generated from the {officialName(site)} site</p>
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}
+
+/* ================================================================
+ * ROSTER PAGE
+ * ================================================================ */
+function RosterPage({ site, onPlayer }) {
+  const seasonNames = Object.keys(site.seasons).sort().reverse();
+  const [sel, setSel] = useState(site.currentSeason);
+  const [mode, setMode] = useSticky("roster.view", "list"); // list | card | table
+  const [sortBy, setSortBy] = useSticky("roster.sort", "number");
+  const season = site.seasons[sel] || { roster: [], coaches: [] };
+
+  const POS_LABEL = { F: "F", D: "D", G: "G" };
+  const POS_FULL = { F: "Forward", D: "Defense", G: "Goaltender" };
+  const sorted = useMemo(() => {
+    const r = [...season.roster];
+    if (sortBy === "number") r.sort((a, b) => (Number(a.number) || 0) - (Number(b.number) || 0));
+    if (sortBy === "name") r.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    if (sortBy === "position") r.sort((a, b) => (a.position || "").localeCompare(b.position || "") || (Number(a.number) || 0) - (Number(b.number) || 0));
+    if (sortBy === "year") r.sort((a, b) => (a.year || "").localeCompare(b.year || ""));
+    return r;
+  }, [season.roster, sortBy]);
+
+  /* The list view reads like a team sheet, and a team sheet is grouped by
+   * position — you look for the goaltenders as a set, not for whoever happens
+   * to wear 31. The chosen sort still orders players inside each group. */
+  const POS_ORDER = [["F", "Forwards"], ["D", "Defensemen"], ["G", "Goaltenders"]];
+  const byPosition = useMemo(() => {
+    const known = new Set(POS_ORDER.map(([k]) => k));
+    const groups = POS_ORDER
+      .map(([key, label]) => ({ key, label, players: sorted.filter((p) => p.position === key) }))
+      .filter((g) => g.players.length);
+    // Anything with an unrecognized position still has to appear somewhere.
+    const rest = sorted.filter((p) => !known.has(p.position));
+    if (rest.length) groups.push({ key: "other", label: "Other", players: rest });
+    return groups;
+  }, [sorted]);
+
+  const Sep = () => <span style={{ color: "var(--border)", margin: "0 8px" }}>|</span>;
+  const MetaLine = ({ p }) => (
+    <p className="bsm" style={{ margin: "5px 0 0", color: "var(--muted)", fontWeight: 600 }}>
+      <span style={{ color: "var(--blue)", fontWeight: 800 }}>{POS_LABEL[p.position] || p.position}</span>
+      {p.year && <><Sep />{p.year}</>}<Sep />{p.height}
+      {p.weight && <><Sep />{p.weight}</>}{p.shoots && <><Sep />{p.shoots}</>}
+    </p>
+  );
+
+  return (
+    <main style={{ background: "var(--page)" }}>
+      <section className="section" style={{ paddingTop: 44 }}>
+        <div className="wrap">
+          <h1 className="stitle">{sel} Roster</h1>
+
+          {/* Controls row */}
+          <div className="sctrl">
+            <button className="iconbtn iconbtn-solid" aria-label="Print roster" title="Print" onClick={() => window.print()}><IcPrint /></button>
+            <select className="rsel" value={sel} onChange={(e) => setSel(e.target.value)} aria-label="Season">
+              {seasonNames.map((n) => <option key={n}>{n}</option>)}
+            </select>
+            <select className="rsel" value={sortBy} onChange={(e) => setSortBy(e.target.value)} aria-label="Sort roster">
+              <option value="number">Jersey</option>
+              <option value="name">Name</option>
+              <option value="position">Position</option>
+              <option value="year">Class</option>
+            </select>
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+              <span className="bsm" style={{ color: "var(--muted)", lineHeight: 1.2 }}>View<br />Type:</span>
+              <button className={`vtbtn ${mode === "list" ? "on" : ""}`} aria-label="List view" onClick={() => setMode("list")}><IcList /></button>
+              <button className={`vtbtn ${mode === "card" ? "on" : ""}`} aria-label="Card view" onClick={() => setMode("card")}><IcGrid /></button>
+              <button className={`vtbtn ${mode === "table" ? "on" : ""}`} aria-label="Table view" onClick={() => setMode("table")}><IcTable /></button>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 32 }}>
+            {!sorted.length && <p className="blg" style={{ color: "var(--muted)" }}>No roster entered for {sel} yet — add players in the admin panel.</p>}
+
+            {/* LIST VIEW */}
+            {mode === "list" && (
+              <div style={{ display: "grid", gap: 30 }}>
+                {byPosition.map((group) => (
+                  <section key={group.key}>
+                    <h2 className="posgroup">
+                      {group.label}
+                      <span className="posgroupn">{group.players.length}</span>
+                    </h2>
+                    <div style={{ display: "grid", gap: 18 }}>
+                {group.players.map((p) => {
+                  const { home, prev } = splitHome(p.hometown);
+                  return (
+                    <article className="gamecard" key={p.id} style={{ borderLeft: "1px solid #E7EBEF" }}>
+                      <div className="gamemain">
+                        <span style={{ position: "relative", flex: "0 0 auto" }}>
+                          <PlayerAvatar size={78} photo={p.photo} />
+                          {p.number && <span className="numbadge">{p.number}</span>}
+                        </span>
+                        <div style={{ minWidth: 0, flex: "1 1 200px" }}>
+                          <button onClick={() => onPlayer(p.id)} style={{ background: "none", border: 0, padding: 0, cursor: "pointer", fontFamily: "var(--body)", fontWeight: 800, fontSize: 18, color: "var(--ink)", textAlign: "left" }}>{p.name}</button>
+                          <MetaLine p={p} />
+                        </div>
+                        <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+                          <p className="bsm" style={{ margin: 0, color: "var(--ink)" }}><IcPin size={14} style={{ marginRight: 5 }} />{home}</p>
+                          {prev && <p className="bsm" style={{ margin: "4px 0 0 19px", color: "var(--ink)" }}>{prev}</p>}
+                        </div>
+                        <button className="fullbio" onClick={() => onPlayer(p.id)}>
+                          Full Bio <IcArrowR size={16} />
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            )}
+
+            {/* CARD VIEW */}
+            {mode === "card" && (
+              <div className="cards" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
+                {sorted.map((p) => {
+                  const { home, prev } = splitHome(p.hometown);
+                  return (
+                    <article className="pcard" key={p.id} onClick={() => onPlayer(p.id)} style={{ cursor: "pointer" }}>
+                      <div className="pcard-photo" style={{ position: "relative" }}>
+                        <PlayerAvatar size={300} flat photo={p.photo} />
+                        {p.number && <span className="numbadge numbadge-lg">{p.number}</span>}
+                        <span className="pcard-name">{p.name}</span>
+                      </div>
+                      <div style={{ padding: "14px 16px" }}>
+                        <p className="bsm" style={{ margin: 0, fontWeight: 700 }}>
+                          <span style={{ color: "var(--blue)", fontWeight: 800 }}>{POS_LABEL[p.position]}</span>
+                          <span style={{ color: "var(--border)", margin: "0 8px" }}>|</span>{p.year}
+                          <span style={{ color: "var(--border)", margin: "0 8px" }}>|</span>{p.height}
+                          {p.weight && <><span style={{ color: "var(--border)", margin: "0 8px" }}>|</span>{p.weight}</>}
+                          <span style={{ color: "var(--border)", margin: "0 8px" }}>|</span>{p.shoots || "—"}
+                        </p>
+                        <p className="bsm" style={{ margin: "10px 0 0", color: "var(--muted)" }}>
+                          <IcPin size={13} style={{ marginRight: 5 }} />{home}
+                          {prev && <><span style={{ color: "var(--border)", margin: "0 8px" }}>|</span>{prev}</>}
+                        </p>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* TABLE VIEW */}
+            {mode === "table" && (
+              <div className="twrap">
+                <table className="stats">
+                  <thead><tr><th>No</th><th>Name</th><th>Pos</th><th>Shoots</th><th>Ht</th><th>Wt</th><th>Class</th><th>Hometown / Prior Team</th><th>Previous School</th></tr></thead>
+                  <tbody>
+                    {sorted.map((p) => {
+                      const { home, prev } = splitHome(p.hometown);
+                      return (
+                        <tr key={p.id}>
+                          <td>{p.number}</td>
+                          <td><button onClick={() => onPlayer(p.id)} style={{ background: "none", border: 0, padding: 0, cursor: "pointer", font: "inherit", fontWeight: 700, color: "var(--blue)" }}>{p.name}</button></td>
+                          <td>{p.position}</td><td>{p.shoots || "—"}</td><td>{p.height}</td><td>{p.weight || "—"}</td><td>{p.year}</td>
+                          <td>{home}</td><td>{prev}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+        </div>
+      </section>
+    </main>
+  );
+}
+
+/* ---------------- Nav dropdown ----------------
+ * Opens on hover and on click, closes on outside click or Escape. No caret:
+ * the menu is discoverable enough without one and the arrow read as clutter.
+ */
+function NavMenu({ label, items, view, setView }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const active = items.some(([k]) => k === view);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="navmenu" ref={ref}
+      onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+      <button className={"navlink " + (active ? "on" : "")} aria-haspopup="true" aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}>
+        {label}
+      </button>
+      {open && (
+        <div className="navdrop" role="menu">
+          {/* A third element makes the item a link out rather than a view. */}
+          {items.map(([k, text, href]) => (href ? (
+            <a key={k} role="menuitem" className="navdropitem" href={href}
+              target="_blank" rel="noreferrer noopener" onClick={() => setOpen(false)}>
+              {text}
+            </a>
+          ) : (
+            <button key={k} role="menuitem" className={"navdropitem " + (view === k ? "on" : "")}
+              onClick={() => { setView(k); setOpen(false); }}>
+              {text}
+            </button>
+          )))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Hockey operations staff ----------------
+ * Its own layout rather than a grid of identical cards: a head coach carries
+ * the program's identity and belongs at the top at size, with the rest
+ * grouped by what they actually do.
+ */
+const ROLE_GROUPS = [
+  ["coaching", "Coaching", true],
+  ["operations", "Executive", false],
+  ["medical", "Medical & Performance", true],
+  ["other", "Support", false],
+];
+
+/**
+ * A staff portrait, or their initials where there is no photograph on file.
+ *
+ * The generic silhouette is right at thumbnail size and wrong at this one -
+ * a card-width grey figure says "missing" louder than the person's name says
+ * anything. Initials fill the same well and read as a considered blank.
+ */
+function StaffFace({ person }) {
+  if (person.photo) return <img className="stphoto" src={person.photo} alt="" aria-hidden="true" />;
+  const initials = String(person.name || "")
+    .trim().split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase();
+  return <span className="stmono" aria-hidden="true">{initials || "\u2013"}</span>;
+}
+
+function StaffPage({ site }) {
+  /* Current staff only. There is no archive to browse: the database dropped
+   * season_id from staff, so a season picker here would have been a control
+   * that changed nothing. */
+  /* site.staff is the list the console edits. season.coaches is the old
+   * per-season shape, left in place by the migration that lifted staff out of
+   * seasons — reading it here meant every edit made in the console silently
+   * failed to reach this page. */
+  const all = site.staff || [];
+
+  const lead = all.find((c) => c.featured) || null;
+  const rest = all.filter((c) => c !== lead);
+
+  return (
+    <main style={{ background: "var(--page)" }}>
+      <section className="section" style={{ paddingTop: 40 }}>
+        <div className="wrap">
+          <div className="sctrl" style={{ marginBottom: 26 }}>
+            <h1 className="stitle" style={{ flex: "1 1 auto" }}>Hockey Operations</h1>
+          </div>
+
+          {!all.length && (
+            <div className="emptybox">
+              <p style={{ margin: 0, fontWeight: 700, color: "var(--ink)" }}>Staff not posted yet</p>
+              <p className="bsm" style={{ margin: "6px 0 0", color: "var(--muted)" }}>
+                Added from the Staff tab in the admin console.
+              </p>
+            </div>
+          )}
+
+          {lead && (
+            <article className="leadstaff">
+              <div className="leadphoto"><StaffFace person={lead} /></div>
+              <div className="leadbody">
+                <p className="eyebrow" style={{ color: "var(--blue)" }}>{lead.title}</p>
+                <h2 className="leadname">{lead.name}</h2>
+                {lead.since && <p className="leadsince">With the program since {lead.since}</p>}
+                {lead.bio && <div className="leadbio">{renderArticle(lead.bio, () => {})}</div>}
+                {(lead.email || lead.phone) && (
+                  <dl className="leadcontact">
+                    {lead.email && <><dt>Email</dt>
+                      <dd><a href={"mailto:" + lead.email}>{lead.email}</a></dd></>}
+                    {lead.phone && <><dt>Phone</dt>
+                      <dd><a href={"tel:" + lead.phone.replace(/[^\d+]/g, "")}>{lead.phone}</a></dd></>}
+                  </dl>
+                )}
+              </div>
+            </article>
+          )}
+
+          {ROLE_GROUPS.map(([key, label, faces]) => {
+            const group = rest.filter((c) => (c.roleGroup || "coaching") === key);
+            if (!group.length) return null;
+            return (
+              <div className="staffsec" key={key}>
+                <h2 className="staffseclab">{label}<span className="staffsecn">{group.length}</span></h2>
+                <div className={"staffgrid" + (faces ? "" : " roll")}>
+                  {group.map((c) => (
+                    <article className={"staffcard" + (faces ? "" : " noface")} key={c.id}>
+                      {faces && <div className="staffwell"><StaffFace person={c} /></div>}
+                      <div className="staffbody">
+                        <p className="staffname">{c.name}</p>
+                        <p className="stafftitle">{c.title}</p>
+                        {c.since && <p className="staffbio">Since {c.since}</p>}
+                        {c.bio && <p className="staffbio">{c.bio}</p>}
+                        {c.email && <a className="staffmail" href={"mailto:" + c.email}>{c.email}</a>}
+                        {/* The editor takes a phone number, so the card has to show one -
+                           otherwise it is typed in and silently goes nowhere. */}
+                        {c.phone && <a className="staffmail" href={"tel:" + c.phone.replace(/[^\d+]/g, "")}>{c.phone}</a>}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    </main>
+  );
+}
+
+/* ---------------- Volunteer openings ----------------
+ * A list of what the club needs, not who already helps. Someone lands here
+ * asking "can I be useful", so the page answers that and nothing else.
+ */
+function VolunteersPage({ site, goto }) {
+  /* Everything listed is an opening. There is no filled/private state to
+   * reason about: a role that is covered gets deleted, which is the only
+   * distinction this page ever needed. */
+  const open = site.volunteerRoles || [];
+  const contact = (site.settings || {}).contactEmail;
+
+  return (
+    <main style={{ background: "var(--page)" }}>
+      <section className="section" style={{ paddingTop: 40 }}>
+        <div className="wrap" style={{ maxWidth: 900 }}>
+          <h1 className="stitle">Volunteer with the program</h1>
+          <p className="volintro">
+            Cal Ice Hockey is student-run. Everything from the scoresheet to the livestream
+            is somebody giving up an evening — these are the jobs we need filled.
+          </p>
+
+          {!open.length && (
+            <div className="emptybox">
+              <p style={{ margin: 0, fontWeight: 700, color: "var(--ink)" }}>No openings listed</p>
+              <p className="bsm" style={{ margin: "6px 0 0", color: "var(--muted)" }}>
+                Check back, or get in touch if you would like to help.
+              </p>
+            </div>
+          )}
+
+          <div className="volgrid">
+            {open.map((r) => (
+              <article className="volcard" key={r.id}>
+                <div className="volhead">
+                  <h2 className="voltitle">{r.title}</h2>
+                  <span className="volopen">Open</span>
+                </div>
+                {r.summary && <p className="volsummary">{r.summary}</p>}
+                {r.description && <div className="voldesc">{renderArticle(r.description, () => {})}</div>}
+                <div className="volmeta">
+                  {r.commitment && (
+                    <span><IcClock size={13} style={{ marginRight: 6 }} />{r.commitment}</span>
+                  )}
+                </div>
+                <a className="btn bNavy volapply"
+                  href={"mailto:" + (r.contactEmail || contact || "") + "?subject=" + encodeURIComponent("Volunteering: " + r.title)}>
+                  Get in touch <IcArrowR size={16} />
+                </a>
+              </article>
+            ))}
+          </div>
+
+          <div className="volfoot">
+            <p style={{ margin: 0, fontWeight: 700, color: "var(--ink)" }}>
+              Something else you could help with?
+            </p>
+            <p className="bsm" style={{ margin: "6px 0 14px", color: "var(--muted)" }}>
+              We are a club team; if you have a skill we have probably got a use for it.
+            </p>
+            {contact && <a className="btn bNavy" href={"mailto:" + contact}>Email the program</a>}
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+/* ---------------- News index ---------------- */
+function NewsIndexPage({ site, openPost }) {
+  const posts = (site.news || [])
+    .filter(isLive)
+    .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+
+  return (
+    <main style={{ background: "var(--page)" }}>
+      <section className="section" style={{ paddingTop: 40 }}>
+        <div className="wrap">
+          <h1 className="stitle">News</h1>
+
+          {!posts.length && (
+            <div className="emptybox" style={{ marginTop: 24 }}>
+              <p style={{ margin: 0, fontWeight: 700, color: "var(--ink)" }}>No stories yet</p>
+            </div>
+          )}
+
+          <div className="newslist">
+            {posts.map((n, i) => (
+              <article className={"newsrow" + (i === 0 ? " lead" : "")} key={n.id}
+                role="link" tabIndex={0} onClick={() => openPost(n.id)}
+                onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), openPost(n.id))}>
+                <div className="newsrowart">
+                  <img src={n.image || STOCK_IMAGES[i % STOCK_IMAGES.length]} alt="" loading="lazy"
+                    onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} />
+                  <span className="newstag">{n.tag}</span>
+                </div>
+                <div className="newsrowbody">
+                  <h2 className="newsrowtitle">{n.title}</h2>
+                  {n.blurb && <p className="newsrowblurb">{n.blurb}</p>}
+                  <p className="newsrowmeta">
+                    {n.author ? n.author + " · " : ""}{fmtDate(n.date)}
+                  </p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+/* ---------------- Recruits ----------------
+ * For players thinking about playing at Cal, not a list of who has committed.
+ * Everything here is editable from the console, because what a program wants
+ * to say to a recruit changes every year and should not need a developer.
+ */
+function RecruitsPage({ site, goto }) {
+  const r = (site.recruiting || {});
+  const contact = (site.settings || {}).contactEmail;
+
+  return (
+    <main style={{ background: "var(--page)" }}>
+      <section className="section" style={{ paddingTop: 40 }}>
+        <div className="wrap" style={{ maxWidth: 940 }}>
+          <h1 className="stitle">{r.headline || "Play hockey at Cal"}</h1>
+          {r.intro && <p className="recintro">{r.intro}</p>}
+
+          <div className="recgrid2">
+            <div>
+              {(r.sections || []).map((sec, i) => (
+                <section className="reccard" key={i}>
+                  <h2 className="rectitle">{sec.title}</h2>
+                  {sec.body && <div className="recbody">{renderArticle(sec.body, () => {})}</div>}
+                </section>
+              ))}
+
+              {!(r.sections || []).length && (
+                <div className="emptybox">
+                  <p style={{ margin: 0, fontWeight: 700, color: "var(--ink)" }}>
+                    Recruiting information coming soon
+                  </p>
+                  <p className="bsm" style={{ margin: "6px 0 0", color: "var(--muted)" }}>
+                    In the meantime, the interest form below reaches the coaching staff.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <aside className="recside">
+              <div className="reccard">
+                <h2 className="rectitle" style={{ marginBottom: 10 }}>At a glance</h2>
+                <dl className="recfacts">
+                  <dt>League</dt><dd>{r.league || "ACHA Division II"}</dd>
+                  <dt>Home rink</dt><dd>{(site.settings || {}).homeVenue || "—"}</dd>
+                  <dt>Season</dt><dd>{r.seasonLength || "October to March"}</dd>
+                  {r.tryouts && <><dt>Tryouts</dt><dd>{r.tryouts}</dd></>}
+                  {r.dues && <><dt>Player dues</dt><dd>{r.dues}</dd></>}
+                </dl>
+              </div>
+
+              <div className="reccard reccta">
+                <h2 className="rectitle">Tell us about your game</h2>
+                <p className="bsm" style={{ color: "var(--muted)", margin: "8px 0 14px" }}>
+                  The coaching staff reads every submission.
+                </p>
+                {recruitTarget(site).mode === "link"
+                  ? <a className="btn bNavy" href={recruitTarget(site).url} target="_blank" rel="noreferrer">
+                      Interest form <IcArrowR size={15} />
+                    </a>
+                  : <button className="btn bNavy" onClick={() => goto("recruit")}>
+                      Interest form <IcArrowR size={15} />
+                    </button>}
+                {contact && (
+                  <p className="bsm" style={{ marginTop: 14, color: "var(--muted)" }}>
+                    Questions? <a href={"mailto:" + contact} className="staffmail">{contact}</a>
+                  </p>
+                )}
+              </div>
+            </aside>
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+/* ---------------- Recruiting page editor ---------------- */
+function RecruitingEditor({ site, setDraft }) {
+  const r = site.recruiting || {};
+  const set = (k, v) => setDraft((s) => ({ ...s, recruiting: { ...(s.recruiting || {}), [k]: v } }));
+  const sections = r.sections || [];
+  const setSections = (next) => set("sections", next);
+
+  return (
+    <>
+      <p className="auhint" style={{ marginBottom: 18, maxWidth: 700 }}>
+        What a prospective player sees under Team → Recruits. Sections appear in order.
+      </p>
+
+      <div style={{ display: "grid", gap: 16, maxWidth: 760 }}>
+        <section className="card">
+          <p className="h6" style={{ marginBottom: 12 }}>Header</p>
+          <div className="field">
+            <label className="h6">Headline</label>
+            <input value={r.headline || ""} placeholder="Play hockey at Cal"
+              onChange={(e) => set("headline", e.target.value)} />
+          </div>
+          <div className="field" style={{ marginTop: 12 }}>
+            <label className="h6">Intro</label>
+            <textarea className="ta" rows={3} value={r.intro || ""}
+              placeholder="A paragraph for someone deciding whether to get in touch."
+              onChange={(e) => set("intro", e.target.value)} />
+          </div>
+        </section>
+
+        <section className="card">
+          <p className="h6" style={{ marginBottom: 12 }}>At a glance</p>
+          <div className="arow" style={{ gridTemplateColumns: "1fr 1fr", borderBottom: 0, padding: 0, minWidth: 0 }}>
+            <div className="field">
+              <label className="h6">League</label>
+              <input value={r.league || ""} placeholder="ACHA Division II"
+                onChange={(e) => set("league", e.target.value)} />
+            </div>
+            <div className="field">
+              <label className="h6">Season length</label>
+              <input value={r.seasonLength || ""} placeholder="October to March"
+                onChange={(e) => set("seasonLength", e.target.value)} />
+            </div>
+          </div>
+          <div className="arow" style={{ gridTemplateColumns: "1fr 1fr", borderBottom: 0, padding: 0, minWidth: 0, marginTop: 12 }}>
+            <div className="field">
+              <label className="h6">Tryouts</label>
+              <input value={r.tryouts || ""} placeholder="Late September"
+                onChange={(e) => set("tryouts", e.target.value)} />
+            </div>
+            <div className="field">
+              <label className="h6">Player dues</label>
+              <input value={r.dues || ""} placeholder="Roughly $1,200 a season"
+                onChange={(e) => set("dues", e.target.value)} />
+              <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
+                Being upfront about cost saves everyone a conversation.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {sections.map((sec, i) => (
+          <section className="card" key={i}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+              <p className="h6" style={{ margin: 0 }}>Section {i + 1}</p>
+              <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+                <button className="btn bGhost bSm" disabled={i === 0}
+                  onClick={() => {
+                    const next = [...sections];
+                    [next[i - 1], next[i]] = [next[i], next[i - 1]];
+                    setSections(next);
+                  }}>↑</button>
+                <button className="btn bGhost bSm" disabled={i === sections.length - 1}
+                  onClick={() => {
+                    const next = [...sections];
+                    [next[i + 1], next[i]] = [next[i], next[i + 1]];
+                    setSections(next);
+                  }}>↓</button>
+                <button className="btn bDanger" aria-label="Remove section"
+                  onClick={() => setSections(sections.filter((_, j) => j !== i))}>✕</button>
+              </div>
+            </div>
+            <div className="field">
+              <label className="h6">Title</label>
+              <input value={sec.title || ""} placeholder="What we look for"
+                onChange={(e) => setSections(sections.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)))} />
+            </div>
+            <div className="field" style={{ marginTop: 12 }}>
+              <label className="h6">Body</label>
+              <textarea className="ta" rows={5} value={sec.body || ""}
+                placeholder={"Plain paragraphs.\\n\\n# Subheading\\n- Bullet"}
+                onChange={(e) => setSections(sections.map((x, j) => (j === i ? { ...x, body: e.target.value } : x)))} />
+            </div>
+          </section>
+        ))}
+      </div>
+
+      <button className="btn bNavy bSm" style={{ marginTop: 18 }}
+        onClick={() => setSections([...sections, { title: "", body: "" }])}>
+        + Add Section
+      </button>
+    </>
+  );
+}
+
+
+function Meta({ k, v }) {
+  if (!v) return null;
+  return (
+    <span style={{ marginRight: 16, display: "inline-block" }}>
+      <span style={{ fontFamily: "var(--disp)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", fontSize: 11, color: "var(--muted)", marginRight: 5 }}>{k}</span>
+      <span style={{ fontWeight: 600 }}>{v}</span>
+    </span>
+  );
+}
+
+function PlayerAvatar({ size = 72, flat = false, photo }) {
+  if (photo) {
+    return (
+      <img src={photo} alt="" aria-hidden="true"
+        style={{
+          width: flat ? "100%" : size, height: flat ? "100%" : size, objectFit: "cover",
+          objectPosition: "center top", borderRadius: flat ? 0 : "50%",
+          flex: "0 0 auto", display: "block", background: "var(--ice)",
+        }} />
+    );
+  }
+  return (
+    <svg width={flat ? "100%" : size} height={flat ? "100%" : size} viewBox="0 0 72 72" aria-hidden="true"
+      preserveAspectRatio="xMidYMax slice"
+      style={{ background: "var(--ice)", borderRadius: flat ? 0 : "50%", flex: "0 0 auto", display: "block" }}>
+      <circle cx="36" cy="27" r="13" fill="#B9C6D2" />
+      <path d="M12 72 C12 52 24 46 36 46 C48 46 60 52 60 72 Z" fill="#B9C6D2" />
+    </svg>
+  );
+}
+
+/* ================================================================
+ * STATS PAGE — Sidearm cumulative-statistics layout
+ * ================================================================ */
+const pstat = (p, k) => (p.stats && Number(p.stats[k])) || 0;
+
+/* Same figure, but null where a season imported as totals never carried it -
+   an unrecorded power-play goal is unknown, not none. */
+const pstatOrNull = (p, k) =>
+  (p.stats && p.stats.fromRow && (p.stats.absent || []).includes(k) ? null : pstat(p, k));
+const ppts = (p) => pstat(p, "g") + pstat(p, "a");
+/* Shots on goal for a finished game. A live game keeps its own counters; for
+   anything else the number falls out of the goaltenders' lines - saves plus
+   goals allowed is what they faced. Returns null rather than 0 when nobody
+   counted, because those are different claims. */
+function gameShots(site, game) {
+  const faced = (rows) => {
+    const keepers = rows.filter((x) => x && x.isGoalie !== false && (x.saves != null || x.ga != null));
+    if (!keepers.length) return null;
+    return keepers.reduce((n, x) => n + (Number(x.saves) || 0) + (Number(x.ga) || 0), 0) || null;
+  };
+  const live = game.live || {};
+  const ourLines = Object.values((site.gameStats || {})[game.id] || {})
+    .filter((l) => l && (l.saves != null || l.ga != null));
+  const theirRows = ((site.opponentStats || {})[game.id] || []).filter(isOppGoalie);
+  return {
+    /* Our shots are what their goaltender faced, and the other way round. */
+    us: live.shotsUs || faced(theirRows.map((x) => ({ ...x, isGoalie: true }))),
+    them: live.shotsThem || faced(ourLines.map((l) => ({ ...l, isGoalie: true }))),
+  };
+}
+
+const lastFirst = (name) => {
+  const parts = (name || "").trim().split(/\s+/);
+  return parts.length > 1 ? `${parts[parts.length - 1]}, ${parts.slice(0, -1).join(" ")}` : name;
+};
+
+function StatsPage({ site, onPlayer, onGame }) {
+  const seasonNames = Object.keys(site.seasons).sort().reverse();
+  const [sel, setSel] = useState(site.currentSeason);
+  const [tab, setTab] = useSticky("stats.tab", "player");
+  const [cat, setCat] = useSticky("stats.category", "offensive");
+  const [glossary, setGlossary] = useState(false);
+  const [pdfOpen, setPdfOpen] = useState(false);
+  const season = site.seasons[sel] || { roster: [], schedule: [] };
+  const s = schedStats(season.schedule, season.record);
+
+  /* Click a column to sort by it. Numbers start high-to-low because that is
+   * what a stats table is read for; name and number start ascending. */
+  const [sortKey, setSortKey] = useState("pts");
+  const [sortDir, setSortDir] = useState("desc");
+
+  const STAT_COLS = [
+    { key: "number", label: "#", numeric: true, get: (p) => Number(p.number) || 0 },
+    { key: "name", label: "Player", numeric: false, get: (p) => lastFirst(p.name) || "" },
+    /* A defender is a defender; a forward is whichever forward the roster
+       says. Unset stays a dash - it is not known, not a position. */
+    { key: "pos", label: "Pos", numeric: false, title: "Position",
+      /* A defenceman or a goaltender is what it is. Everyone else is a
+         forward, and where nobody has said which wing - older seasons carry
+         no spot at all - "F" is the honest answer. */
+      get: (p) => (p.position === "D" || p.position === "G" ? p.position : p.spot || "F") },
+    { key: "gp", label: "GP", numeric: true, get: (p) => pstat(p, "gp") },
+    { key: "g", label: "G", numeric: true, get: (p) => pstat(p, "g") },
+    { key: "a", label: "A", numeric: true, get: (p) => pstat(p, "a") },
+    { key: "pts", label: "PTS", numeric: true, get: (p) => ppts(p) },
+    /* Shots are attributed on the play, not the roster row, so this counts the
+       ones somebody logged a shooter for. */
+    { key: "sh", label: "S", numeric: true, title: "Shots", get: (p) => shotsBy(p) },
+    { key: "pim", label: "PIM", numeric: true, get: (p) => pstat(p, "pim") },
+    { key: "ppg", label: "PPG", numeric: true, get: (p) => pstatOrNull(p, "ppg") },
+    { key: "shg", label: "SHG", numeric: true, get: (p) => pstatOrNull(p, "shg") },
+    { key: "sog", label: "SOG", numeric: true, title: "Shootout goals",
+      get: (p) => shootoutGoals(p) },
+    { key: "gwg", label: "GWG", numeric: true, get: (p) => pstatOrNull(p, "gwg") },
+    { key: "tg", label: "TG", numeric: true, title: "Tying goals", get: (p) => tyingGoals(p) },
+  ];
+
+  const toggleSort = (col) => {
+    if (sortKey === col.key) {
+      setSortDir((d) => (d === "desc" ? "asc" : "desc"));
+    } else {
+      setSortKey(col.key);
+      setSortDir(col.numeric ? "desc" : "asc");
+    }
+  };
+
+  const sortRows = (list) => {
+    /* By key, not by index: inserting a column used to change which one this
+       fell back to. */
+    const col = STAT_COLS.find((c) => c.key === sortKey)
+      || STAT_COLS.find((c) => c.key === "pts");
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...list].sort((a, b) => {
+      const x = col.get(a);
+      const y = col.get(b);
+      const cmp = col.numeric ? x - y : String(x).localeCompare(String(y));
+      // Points then goals as the tiebreak, so equal rows keep a stable order.
+      return cmp * dir || ppts(b) - ppts(a) || pstat(b, "g") - pstat(a, "g");
+    });
+  };
+
+  const skaters = useMemo(() =>
+    [...season.roster].sort((a, b) => ppts(b) - ppts(a) || pstat(b, "g") - pstat(a, "g") || (Number(a.number) || 0) - (Number(b.number) || 0)),
+  [season.roster]);
+
+  const finals = useMemo(() => [...season.schedule].sort(cmpDate).filter((g) => g.result), [season.schedule]);
+
+  const leaders = (key) => [...season.roster]
+    .map((p) => ({ p, v: key === "pts" ? ppts(p) : pstat(p, key) }))
+    .sort((a, b) => b.v - a.v).slice(0, 5).filter((x) => x.v > 0);
+
+  const hiLo = useMemo(() => {
+    if (!finals.length) return null;
+    const by = (fn) => [...finals].sort(fn)[0];
+    return {
+      mostGF: by((a, b) => b.result.us - a.result.us),
+      mostGA: by((a, b) => b.result.them - a.result.them),
+      fewestGA: by((a, b) => a.result.them - b.result.them),
+      bigWin: by((a, b) => (b.result.us - b.result.them) - (a.result.us - a.result.them)),
+    };
+  }, [finals]);
+
+  /* A game log belongs to one player, so it lives on that player's page. The
+     season-wide tabs here stay about the team. */
+  const TABS = [["player", "Player Stats"], ["team", "Team Stats"], ["gbg", "Game-By-Game"],
+    ["hilo", "Game High/Low"], ["leaders", "Category Leaders"]];
+  /* Ordered the way the tables read - skater columns left to right, then the
+   goaltender table, then the team columns on game-by-game. Anyone looking a
+   letter up has just met it in a header, so the list should follow the header
+   rather than make them hunt. */
+  const GLOSSARY = [
+    /* Skaters */
+    ["GP", "Games played"],
+    ["G", "Goals"],
+    ["A", "Assists"],
+    ["PTS", "Points (G + A)"],
+    ["S", "Shots"],
+    ["PIM", "Penalty minutes"],
+    ["PPG", "Power play goals"],
+    ["SHG", "Short handed goals"],
+    ["SOG", "Shootout goals"],
+    ["GWG", "Game winning goals"],
+    ["TG", "Tying goals"],
+    /* Goaltenders */
+    ["W-L-T", "Wins, losses, ties"],
+    ["GA", "Goals against"],
+    ["SV", "Saves"],
+    ["SV%", "Save percentage"],
+    ["GAA", "Goals against average"],
+    ["SO", "Shutouts"],
+    /* Game by game */
+    ["GF", "Goals for"],
+    ["SHA", "Shots against"],
+  ];
+
+  /* Goaltenders are judged on entirely different numbers, so they get their
+   * own table rather than skater columns that read as zeroes — and their own
+   * sort state, because "most saves" and "most points" are different questions. */
+  const [gSortKey, setGSortKey] = useState("sv");
+  const [gSortDir, setGSortDir] = useState("desc");
+
+  /* The name column carries a face and a link. A stats table is often where
+   * someone first meets a name, so it should be the shortest route to the
+   * player rather than a dead end. */
+  /* Three counts that live in the play-by-play rather than on the roster row.
+     A season with no play-by-play at all cannot answer them, and zero would
+     be a claim - that nobody took a shot all year - rather than an absence.
+     Null instead, which the cell renders as a dash. Within a season that does
+     have plays, a genuine zero is still a zero. */
+  const anyPlays = (season.schedule || []).some((g) => (g.plays || []).length);
+  const eachGame = (fn) => (p) => (anyPlays
+    ? (season.schedule || [])
+        .reduce((n, g) => n + fn(p, g, (g.plays || []).filter((x) => x.kind === "goal")), 0)
+    : null);
+
+  const shotsBy = eachGame((p, g) => (g.plays || [])
+    .filter((x) => x.kind === "shot" && x.shooterId === p.id).length);
+
+  const shootoutGoals = eachGame((p, g, goals) => goals
+    .filter((x) => x.team === "us" && x.period === "SO" && x.scorerId === p.id).length);
+
+  /* A tying goal is one that left the score level the moment it went in. */
+  const tyingGoals = eachGame((p, g, goals) => goals
+    .filter((x) => {
+      if (x.team !== "us" || x.scorerId !== p.id) return false;
+      const at = scoreAfter(goals, x);
+      return at.us === at.them;
+    }).length);
+
+  const NameCell = ({ p }) => (
+    <td>
+      <button className="statname" onClick={() => onPlayer(p.id)}>
+        <PlayerAvatar size={30} photo={p.photo} />
+        <span>{lastFirst(p.name)}</span>
+      </button>
+    </td>
+  );
+
+  const gTot = (p) => boxScoreTotals(site, season, p) || {};
+  const gLine = (p) => keeperLine(gTot(p));
+  const GOALIE_COLS = [
+    { key: "number", label: "#", numeric: true, get: (p) => Number(p.number) || 0 },
+    { key: "name", label: "Goaltender", numeric: false, get: (p) => lastFirst(p.name) || "" },
+    { key: "gp", label: "GP", numeric: true, get: (p) => gLine(p).gp },
+    { key: "w", label: "W-L-T", numeric: true, get: (p) => gTot(p).w || 0 },
+    { key: "ga", label: "GA", numeric: true, title: "Goals against", get: (p) => gLine(p).ga },
+    { key: "sv", label: "SV", numeric: true, title: "Saves", get: (p) => gLine(p).saves },
+    { key: "svpct", label: "SV%", numeric: true, title: "Save percentage",
+      get: (p) => gLine(p).svpct || 0 },
+    { key: "gaa", label: "GAA", numeric: true, title: "Goals against average",
+      get: (p) => gLine(p).gaa || 0 },
+    { key: "so", label: "SO", numeric: true, title: "Shutouts", get: (p) => gLine(p).so },
+  ];
+
+  const sortGoalies = (list) => {
+    const col = GOALIE_COLS.find((c) => c.key === gSortKey) || GOALIE_COLS[5];
+    const dir = gSortDir === "asc" ? 1 : -1;
+    return [...list].sort((a, b) => {
+      const x = col.get(a), y = col.get(b);
+      const cmp = col.numeric ? x - y : String(x).localeCompare(String(y));
+      return cmp * dir || (gTot(b).saves || 0) - (gTot(a).saves || 0);
+    });
+  };
+
+  const goalieTable = (list) => (
+    <table className="stats sortable">
+      <thead>
+        <tr>
+          {GOALIE_COLS.map((col) => {
+            const on = gSortKey === col.key;
+            return (
+              <th key={col.key} title={col.title}
+                aria-sort={on ? (gSortDir === "asc" ? "ascending" : "descending") : "none"}>
+                <button className={`sortbtn ${on ? "on" : ""}`}
+                  onClick={() => {
+                    if (gSortKey === col.key) setGSortDir((d) => (d === "desc" ? "asc" : "desc"));
+                    else { setGSortKey(col.key); setGSortDir(col.numeric ? "desc" : "asc"); }
+                  }}>
+                  {col.label}
+                  <span className="sortcaret" aria-hidden="true">
+                    {on ? (gSortDir === "asc" ? "▲" : "▼") : "▾"}
+                  </span>
+                </button>
+              </th>
+            );
+          })}
+        </tr>
+      </thead>
+      <tbody>
+        {sortGoalies(list).map((p) => {
+          const t = boxScoreTotals(site, season, p) || {};
+          const k = keeperLine(t);
+          return (
+            <tr key={p.id}>
+              <td>{p.number}</td>
+              <NameCell p={p} />
+              <td>{k.gp}</td>
+              {/* Decisions come from the game log. A season imported as
+                  totals has none, and 0-0-0 would claim a winless year. */}
+              <td>{t.noRecord ? "—" : (t.w || 0) + "-" + (t.l || 0) + "-" + (t.tie || 0)}</td>
+              <td>{k.gaText}</td>
+              <td>{k.svText}</td>
+              <td style={{ fontWeight: 700 }}>{pctText(k.svpct)}</td>
+              <td>{k.gaa === null ? "—" : k.gaa.toFixed(2)}</td>
+              <td>{k.so}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+
+  const statTable = (list) => (
+    <table className="stats sortable">
+      <thead>
+        <tr>
+          {STAT_COLS.map((col) => {
+            const on = sortKey === col.key;
+            return (
+              <th key={col.key} aria-sort={on ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
+                <button className={`sortbtn ${on ? "on" : ""}`} onClick={() => toggleSort(col)}
+                  title={"Sort by " + col.label}>
+                  {col.label}
+                  <span className="sortcaret" aria-hidden="true">
+                    {on ? (sortDir === "asc" ? "▲" : "▼") : "▾"}
+                  </span>
+                </button>
+              </th>
+            );
+          })}
+        </tr>
+      </thead>
+      <tbody>
+        {/* Both the header and the body walk STAT_COLS, so adding a column
+            cannot leave the two out of step - which is exactly what happened
+            when the cells were written out by hand. */}
+        {sortRows(list).map((p) => (
+          <tr key={p.id}>
+            {STAT_COLS.map((col) => {
+              if (col.key === "name") return <NameCell p={p} key={col.key} />;
+              return (
+                <td key={col.key} style={col.key === "pts" ? { fontWeight: 700 } : undefined}>
+                  {col.key === "number" ? p.number
+                    : (() => { const v = col.get(p); return v == null || v === "" ? "—" : v; })()}
+                </td>
+              );
+            })}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+
+  return (
+    <main style={{ background: "var(--page)", minHeight: "60vh" }}>
+      <section className="section" style={{ paddingTop: 44 }}>
+        <div className="wrap">
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+            <h1 className="stitle" style={{ flex: "1 1 auto" }}>{sel} Statistics</h1>
+            <select className="rsel" value={sel} onChange={(e) => setSel(e.target.value)} aria-label="Season">
+              {seasonNames.map((n) => <option key={n}>{n}</option>)}
+            </select>
+            <button className="calbtn" onClick={() => setPdfOpen(true)}><IcDoc size={17} /> View PDF</button>
+          </div>
+
+          {/* Tabs + category dropdowns card */}
+          <div className="statcard">
+            <div className="stattabs" role="tablist">
+              {TABS.map(([k, label]) => (
+                <button key={k} role="tab" aria-selected={tab === k} className={`stattab ${tab === k ? "on" : ""}`} onClick={() => setTab(k)}>{label}</button>
+              ))}
+            </div>
+            {tab === "player" && (
+              <div className="statfilter">
+                <span className="statfilterlab">Showing</span>
+                <div className="statseg" role="tablist" aria-label="Player category">
+                  {[["offensive", "Skaters"], ["goalies", "Goaltenders"]].map(([k, label]) => (
+                    <button key={k} role="tab" aria-selected={cat === k}
+                      className={`statsegbtn ${cat === k ? "on" : ""}`}
+                      onClick={() => setCat(k)}>{label}</button>
+                  ))}
+                </div>
+                <span className="bsm" style={{ color: "var(--muted)", marginLeft: "auto" }}>
+                  {(cat === "goalies"
+                    ? skaters.filter((p) => p.position === "G")
+                    : skaters.filter((p) => p.position !== "G")).length} players
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Content card */}
+          <div className="statcard" style={{ padding: "26px 22px" }}>
+            {tab === "player" && (
+              <>
+                <h2 className="statsec">{cat === "goalies" ? "Goaltenders" : "Skaters"}</h2>
+                <div className="twrap" style={{ border: 0 }}>
+                  {cat === "goalies"
+                    ? goalieTable(skaters.filter((p) => p.position === "G"))
+                    : statTable(skaters.filter((p) => p.position !== "G"))}
+                </div>
+              </>
+            )}
+
+            {tab === "team" && (
+              <>
+                <h2 className="statsec">Team Stats</h2>
+                <div className="recgrid" style={{ marginTop: 8 }}>
+                  <div className="reccell"><p className="reclab">Overall</p><p className="recnum">{s.w}-{s.l}{s.t ? `-${s.t}` : ""}</p></div>
+                  <div className="reccell"><PctRing pct={s.pct} /></div>
+                  <div className="reccell"><p className="reclab">Home</p><p className="recnum">{s.home}</p></div>
+                  <div className="reccell"><p className="reclab">Away</p><p className="recnum">{s.away}</p></div>
+                  <div className="reccell"><p className="reclab">Goals For</p><p className="recnum">{s.gf}</p></div>
+                  <div className="reccell"><p className="reclab">Goals Against</p><p className="recnum">{s.ga}</p></div>
+                  <div className="reccell"><p className="reclab">Goal Diff</p><p className="recnum">{s.gf - s.ga > 0 ? "+" : ""}{s.gf - s.ga}</p></div>
+                  <div className="reccell"><p className="reclab">Streak</p><p className="recnum">{s.streak}</p></div>
+                </div>
+              </>
+            )}
+
+            {tab === "gbg" && (
+              <>
+                <h2 className="statsec">Game-By-Game</h2>
+                <div className="twrap" style={{ border: 0 }}>
+                  <table className="stats">
+                    <thead><tr><th>Date</th><th>Opponent</th><th>Result</th><th>GF</th><th>GA</th>
+                      <th>SH</th><th>SHA</th><th>PIM</th><th>Record</th></tr></thead>
+                    <tbody>
+                      {(() => {
+                        let w = 0, l = 0, tt = 0;
+                        return finals.map((g) => {
+                          const r = resultText(g);
+                          if (r.tag === "W") w++; else if (r.tag === "L") l++; else tt++;
+                          const sog = gameShots(site, g);
+                          const pim = Object.values((site.gameStats || {})[g.id] || {})
+                            .reduce((n, l) => n + (Number(l && l.pim) || 0), 0);
+                          return (
+                            <tr key={g.id} className="l5row" role={onGame ? "link" : undefined}
+                              tabIndex={onGame ? 0 : undefined}
+                              onClick={() => onGame && onGame(g.id)}
+                              onKeyDown={(e) => onGame && (e.key === "Enter" || e.key === " ")
+                                && (e.preventDefault(), onGame(g.id))}>
+                              <td>{fmtDateParen(g.date)}</td>
+                              <td className="l5opp" style={{ fontWeight: 600 }}>
+                                <span>{vsAt(g)} {g.opponent}</span>
+                              </td>
+                              <td style={{ fontWeight: 700, color: "var(--blue)" }}>{r.tag}, {g.result.us}-{g.result.them}{decidedIn(g.result)}</td>
+                              <td>{g.result.us}</td><td>{g.result.them}</td>
+                              <td>{sog.us == null ? "\u2014" : sog.us}</td>
+                              <td>{sog.them == null ? "\u2014" : sog.them}</td>
+                              <td>{pim}</td>
+                              <td>{w}-{l}{tt ? `-${tt}` : ""}</td>
+                            </tr>
+                          );
+                        });
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+
+            {tab === "hilo" && (
+              <>
+                <h2 className="statsec">Game High/Low</h2>
+                {!hiLo ? <p className="blg" style={{ color: "var(--muted)" }}>No completed games yet.</p> : (
+                  <div className="cards" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))" }}>
+                    {[["Most Goals Scored", hiLo.mostGF, hiLo.mostGF.result.us],
+                      ["Largest Win Margin", hiLo.bigWin, `${hiLo.bigWin.result.us}-${hiLo.bigWin.result.them}`],
+                      ["Fewest Goals Allowed", hiLo.fewestGA, hiLo.fewestGA.result.them],
+                      ["Most Goals Allowed", hiLo.mostGA, hiLo.mostGA.result.them]].map(([label, g, val]) => (
+                      <article className="card" key={label} style={{ borderTop: "4px solid var(--gold)" }}>
+                        <p className="reclab" style={{ textAlign: "left" }}>{label}</p>
+                        <p className="recnum" style={{ fontSize: 34, margin: "8px 0 4px" }}>{val}</p>
+                        <p className="bsm" style={{ color: "var(--muted)", margin: 0 }}>{vsAt(g)} {g.opponent} · {fmtDateParen(g.date)}</p>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
+            {tab === "leaders" && (
+              <>
+                <h2 className="statsec">Category Leaders</h2>
+                <div className="cards" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
+                  {[["Goals", "g"], ["Assists", "a"], ["Points", "pts"]].map(([label, key]) => (
+                    <article className="card" key={key} style={{ borderTop: "4px solid var(--gold)" }}>
+                      <p className="cleadcat">{label}</p>
+                      {leaders(key).slice(0, 1).map(({ p, v }) => (
+                        <button className="cleadtop" key={p.id} onClick={() => onPlayer(p.id)}>
+                          <PlayerAvatar size={56} photo={p.photo} />
+                          <span className="cleadtopwho">
+                            <span className="cleadtopname">{p.name}</span>
+                            <span className="cleadtopmeta">
+                              {[p.number ? "#" + p.number : null,
+                                p.position === "D" || p.position === "G" ? p.position : p.spot || "F"]
+                                .filter(Boolean).join(" \u00b7 ")}
+                            </span>
+                          </span>
+                          <span className="cleadtopval">{v}</span>
+                        </button>
+                      ))}
+                      {leaders(key).slice(1).map(({ p, v }, i) => (
+                        <p className="bsm cleadrow" key={p.id}>
+                          <span className="cleadrank">{i + 2}.</span>
+                          <button className="statname" style={{ flex: 1 }}
+                            onClick={() => onPlayer(p.id)}>
+                            <PlayerAvatar size={26} photo={p.photo} />
+                            <span>{lastFirst(p.name)}</span>
+                          </button>
+                          <span className="cleadval">{v}</span>
+                        </p>
+                      ))}
+                      {!leaders(key).length && <p className="bsm" style={{ color: "var(--muted)" }}>No stats recorded.</p>}
+                    </article>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Glossary lives at the foot of the page — reference material, not a
+              control, so it should not sit between the filter and the numbers. */}
+          <div className="glosswrap">
+            <button className="glossbar" aria-expanded={glossary} onClick={() => setGlossary((v) => !v)}>
+              {glossary ? <IcMinusC size={17} /> : <IcPlusC size={17} />} Glossary of abbreviations
+            </button>
+            {glossary && (
+              <div className="glossgrid">
+                {GLOSSARY.map(([k, v]) => (
+                  <p className="glossitem" key={k}><strong>{k}</strong> — {v}</p>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {pdfOpen && (
+        <div className="pdfoverlay" role="dialog" aria-modal="true" aria-label="Statistics PDF preview">
+          <div className="pdfbar">
+            <button className="calbtn" onClick={() => window.print()}><IcPrint /> Save as PDF / Print</button>
+            <button className="ghostbtn" onClick={() => setPdfOpen(false)}>Close</button>
+          </div>
+          <div className="pdfsheet">
+            <div style={{ display: "flex", alignItems: "center", gap: 16, borderBottom: "3px solid var(--blue)", paddingBottom: 16 }}>
+              <Logo size={46} color="var(--blue)" />
+              <div>
+                <p style={{ margin: 0, fontWeight: 800, fontSize: 21, color: "var(--blue)" }}>Cal Ice Hockey — {sel} Cumulative Statistics</p>
+                <p className="bsm" style={{ margin: "3px 0 0", color: "var(--muted)" }}>
+                  Overall {s.w}-{s.l}{s.t ? `-${s.t}` : ""} · GF {s.gf} / GA {s.ga}
+                </p>
+              </div>
+            </div>
+            <table className="pdftable">
+              <thead><tr><th>#</th><th>Player</th><th>GP</th><th>G</th><th>A</th><th>PTS</th><th>PIM</th></tr></thead>
+              <tbody>
+                {skaters.map((p) => (
+                  <tr key={p.id}>
+                    <td>{p.number}</td><td style={{ fontWeight: 700 }}>{lastFirst(p.name)}</td>
+                    <td>{pstat(p, "gp")}</td><td>{pstat(p, "g")}</td><td>{pstat(p, "a")}</td>
+                    <td style={{ fontWeight: 700 }}>{ppts(p)}</td><td>{pstat(p, "pim")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="bsm" style={{ color: "var(--muted)", marginTop: 22 }}>Generated from the Cal Ice Hockey site (prototype)</p>
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}
+
+/* ================================================================
+ * PLAYER PAGE — Sidearm bio layout
+ * ================================================================ */
+function renderBio(text) {
+  if (!text || !text.trim()) return null;
+  const blocks = [];
+  let bullets = [];
+  const flush = () => {
+    if (bullets.length) {
+      blocks.push(<ul key={`ul${blocks.length}`} style={{ margin: "6px 0 14px", paddingLeft: 22 }}>
+        {bullets.map((b, i) => <li key={i} style={{ margin: "6px 0", fontSize: 15, lineHeight: 1.55 }}>{b}</li>)}
+      </ul>);
+      bullets = [];
+    }
+  };
+  text.split("\n").forEach((line) => {
+    const l = line.trim();
+    if (!l) return;
+    if (l.startsWith("# ")) { flush(); blocks.push(<p key={`h${blocks.length}`} style={{ margin: "16px 0 4px", fontWeight: 800, fontSize: 15.5, color: "var(--ink)" }}>{l.slice(2)}</p>); }
+    else if (l.startsWith("- ")) bullets.push(l.slice(2));
+    else { flush(); blocks.push(<p key={`p${blocks.length}`} style={{ margin: "8px 0", fontSize: 15, lineHeight: 1.6 }}>{l}</p>); }
+  });
+  flush();
+  return blocks;
+}
+
+function PlayerPage({ site, playerId, onBack, onPlayer, onGame }) {
+  const [tab, setTab] = useState("bio");
+  const POS_FULL = { F: "Forward", D: "Defense", G: "Goaltender" };
+  let player = null, seasonName = site.currentSeason, siblings = [];
+  for (const [sn, se] of Object.entries(site.seasons)) {
+    const found = (se.roster || []).find((p) => p.id === playerId);
+    if (found) {
+      player = found; seasonName = sn;
+      siblings = [...se.roster].sort((a, b) => (Number(a.number) || 0) - (Number(b.number) || 0));
+      break;
+    }
+  }
+  const idx = siblings.findIndex((p) => p.id === playerId);
+  const prevP = idx > 0 ? siblings[idx - 1] : null;
+  const nextP = idx >= 0 && idx < siblings.length - 1 ? siblings[idx + 1] : null;
+  if (!player) {
+    return (
+      <main className="section"><div className="wrap">
+        <p className="blg" style={{ color: "var(--muted)" }}>Player not found.</p>
+        <button className="fullbio" onClick={onBack}>Back to Roster <IcArrowR size={16} /></button>
+      </div></main>
+    );
+  }
+  const { home, prev } = splitHome(player.hometown);
+  const isKeeper = player.position === "G";
+  const F = ({ k, v }) => (
+    <p style={{ margin: "0 0 20px", fontSize: 15 }}>
+      <span style={{ color: "var(--blue)", fontWeight: 800, marginRight: 8 }}>{k}:</span>{v || "—"}
+    </p>
+  );
+  const TABS = [["bio", "Bio", IcPeople], ["stats", "Stats", IcBars], ["media", "Media", IcDoc]];
+
+  return (
+    <main style={{ background: "var(--page)" }}>
+      <section className="section" style={{ paddingTop: 30 }}>
+        <div className="wrap" style={{ maxWidth: 980 }}>
+          <div style={{ display: "flex", gap: 14, alignItems: "center", margin: "0 0 16px", flexWrap: "wrap" }}>
+            <button className="fullbio" style={{ margin: 0, marginLeft: 0 }} onClick={onBack}>
+              <IcChevL size={16} /> Back to Roster
+            </button>
+            <div className="ppsiblings">
+              {prevP && (
+                <button className="fullbio" style={{ margin: 0 }} onClick={() => { setTab("bio"); onPlayer(prevP.id); }}>
+                  <IcChevL size={16} /> {prevP.number ? `#${prevP.number} ` : ""}{prevP.name.split(" ").slice(-1)[0]}
+                </button>
+              )}
+              {nextP && (
+                <button className="fullbio" style={{ margin: 0 }} onClick={() => { setTab("bio"); onPlayer(nextP.id); }}>
+                  {nextP.number ? `#${nextP.number} ` : ""}{nextP.name.split(" ").slice(-1)[0]} <IcChevR size={16} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* The name is the headline, with the badge details reading across
+              beside it and the rest of the roster one dropdown away. */}
+          <div className="statcard pptop">
+            <div className="pphead">
+              <h1 className="ppname">{player.name}</h1>
+              <span className="ppdiv" />
+              <Logo size={26} color="var(--blue)" />
+              {player.number ? (<><span className="ppdiv" /><span className="ppnum">#{player.number}</span></>) : null}
+              {/* The wing or the middle when the roster knows it - "C" says more
+                  than "F", and F is what it falls back to when it does not. */}
+              {player.position ? (<><span className="ppdiv" /><span className="pppos">{player.spot || player.position}</span></>) : null}
+              <label className="ppjump">
+                <span className="pprosterlab">Roster</span>
+                <select value={player.id}
+                  onChange={(e) => { setTab("bio"); onPlayer(e.target.value); }}>
+                  {siblings.map((p) => (
+                    <option key={p.id} value={p.id}>{lastFirst(p.name)}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            {/* An action shot if the team has uploaded one, the navy otherwise. */}
+            <div className="ppbanner">
+              {player.cover ? (
+                <img src={player.cover} alt=""
+                  onError={(e) => { e.currentTarget.style.display = "none"; }} />
+              ) : null}
+            </div>
+
+            <div className="ppinfo">
+              <span className="ppshot"><PlayerAvatar size={148} photo={player.photo} /></span>
+              <div className="ppvitals">
+                <p><b>Height:</b> {player.height || "\u2014"}</p>
+                <p><b>Weight:</b> {player.weight || "\u2014"}</p>
+                <p><b>Position:</b> {POS_FULL[player.position] || player.position || "\u2014"}</p>
+                <p><b>Shoots:</b> {player.shoots || "\u2014"}</p>
+                <p><b>Class:</b> {player.year || "\u2014"}</p>
+                <p><b>Hometown:</b> {home || "\u2014"}</p>
+                {prev ? <p><b>Prior Team:</b> {prev}</p> : null}
+                <PlayerSocials player={player} />
+              </div>
+
+              {/* Season and career side by side, the way a card front reads.
+                  A goaltender is judged on entirely different numbers, so the
+                  cards change rather than showing them a row of zero goals. */}
+              <div className="ppcards">
+                {(() => {
+                  const across = Object.entries(site.seasons)
+                    .map(([sn, se]) => ({ sn, p: (se.roster || []).find((x) => (x.name || "").trim() === (player.name || "").trim()) }))
+                    .filter((r) => r.p);
+
+                  if (isKeeper) {
+                    /* Saves and goals against live on the game sheets, not on
+                       the roster row, so these come from the box scores. */
+                    const per = across.map(({ sn, p }) => ({
+                      sn, t: boxScoreTotals(site, site.seasons[sn], p) || {},
+                    }));
+                    const sum = (k) => per.reduce((n, x) => n + (Number(x.t[k]) || 0), 0);
+                    const line = (t) => {
+                      const k = keeperLine(t);
+                      return [
+                        ["GP", k.gp],
+                        ["SV", k.svText],
+                        ["GA", k.gaText],
+                        ["GAA", k.gaa === null ? "—" : k.gaa.toFixed(2)],
+                        ["SV%", pctText(k.svpct)],
+                        ["SO", k.so],
+                      ];
+                    };
+                    const thisSeason = (per.find((x) => x.sn === seasonName) || {}).t || {};
+                    /* Rates cannot be added up. Where every season a keeper
+                       played arrived as rates alone, and there is only one of
+                       them, the career line is that season; where there are
+                       several, the totals behind them are unknown and the
+                       cells say so rather than averaging. */
+                    const rateOnly = per.filter((x) => keeperLine(x.t).rateOnly);
+                    const soleRate = sum("saves") || sum("ga") || !rateOnly.length ? {}
+                      : rateOnly.length === 1
+                        ? { gaa: rateOnly[0].t.gaa, svpct: rateOnly[0].t.svpct }
+                        : { rateOnly: true };
+                    /* Some seasons counted, some only rated: the totals are
+                       real but incomplete, and a dagger says so rather than
+                       letting them read as the whole career. */
+                    const partial = rateOnly.length && (sum("saves") || sum("ga"));
+                    const short = rateOnly.map((x) => x.sn).join(", ");
+                    /* GP counts every season; saves and goals against can only
+                       count the ones that published them. Naming the gap here
+                       rather than under the table, because the card is where
+                       the mismatched pair is actually read. */
+                    const why = partial
+                      ? short + " published rates only, with no saves or ice time behind them,"
+                        + " so it is not in the career totals."
+                      : "";
+                    const cards = [
+                      [seasonName, line(thisSeason)],
+                      /* Minutes come along because goals-against average is per
+                         sixty of them; without them it would fall back to a
+                         per-appearance figure over games it has no goals for. */
+                      ["Career", line({
+                        gp: sum("gp"), saves: sum("saves"), ga: sum("ga"), so: sum("so"),
+                        minutes: sum("minutes"),
+                        ...soleRate,
+                      })],
+                    ];
+                    return (<>
+                      {cards.map(([label, cells]) => (
+                        <div className="ppcard" key={label}>
+                          <span className="ppcardname">{label}</span>
+                          {cells.map(([k, v]) => (
+                            <span className="ppcell" key={k}>
+                              <span className="ppcellk">{k}</span>
+                              <span className="ppcellv">{v}</span>
+                            </span>
+                          ))}
+                        </div>
+                      ))}
+                      {partial ? <p className="statnote">{why}</p> : null}
+                    </>);
+                  }
+
+                  const career = across.reduce((acc, { p }) => ({
+                    gp: acc.gp + pstat(p, "gp"), g: acc.g + pstat(p, "g"),
+                    a: acc.a + pstat(p, "a"), pim: acc.pim + pstat(p, "pim"),
+                  }), { gp: 0, g: 0, a: 0, pim: 0 });
+                  const cards = [
+                    [seasonName, { gp: pstat(player, "gp"), g: pstat(player, "g"), a: pstat(player, "a"), pim: pstat(player, "pim") }],
+                    ["Career", career],
+                  ];
+                  return cards.map(([label, v]) => (
+                    <div className="ppcard" key={label}>
+                      <span className="ppcardname">{label}</span>
+                      {[["GP", v.gp], ["G", v.g], ["A", v.a], ["P", v.g + v.a], ["PIM", v.pim]].map(([k, n]) => (
+                        <span className="ppcell" key={k}>
+                          <span className="ppcellk">{k}</span>
+                          <span className="ppcellv">{n}</span>
+                        </span>
+                      ))}
+                    </div>
+                  ));
+                })()}
+              </div>
+            </div>
+          </div>
+
+          {/* Tabs card */}
+          <div className="statcard" style={{ marginTop: 18, padding: "6px 22px 26px" }}>
+            <div className="stattabs" role="tablist" style={{ padding: "0 0 0" }}>
+              {TABS.map(([k, label, Icon]) => (
+                <button key={k} role="tab" aria-selected={tab === k} className={`stattab ${tab === k ? "on" : ""}`}
+                  onClick={() => setTab(k)} style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+                  <Icon size={16} /> {label}
+                </button>
+              ))}
+            </div>
+
+            {tab === "bio" && (
+              <div style={{ paddingTop: 20 }}>
+                {renderBio(player.bio) || (
+                  <p className="blg" style={{ color: "var(--muted)" }}>
+                    Bio coming soon.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {tab === "stats" && (() => {
+              const rows = Object.entries(site.seasons)
+                .map(([sn, se]) => ({ sn, p: (se.roster || []).find((x) => (x.name || "").trim() === (player.name || "").trim()) }))
+                .filter((r) => r.p)
+                /* Oldest at the top, reading down to the present and then to
+                   the career line under it. */
+                .sort((a, b) => a.sn.localeCompare(b.sn));
+              const career = rows.reduce((acc, { p }) => ({
+                gp: acc.gp + pstat(p, "gp"), g: acc.g + pstat(p, "g"),
+                a: acc.a + pstat(p, "a"), pim: acc.pim + pstat(p, "pim"),
+              }), { gp: 0, g: 0, a: 0, pim: 0 });
+              return (
+                <div style={{ paddingTop: 20 }}>
+                  <div className="twrap">
+                    {isKeeper ? (() => {
+                      const per = rows.map(({ sn, p }) => ({
+                        sn, t: boxScoreTotals(site, site.seasons[sn], p) || {},
+                      }));
+                      const sum = (k) => per.reduce((n, x) => n + (Number(x.t[k]) || 0), 0);
+                      /* Seasons whose source published a save percentage and
+                         nothing to count. Where they sit beside seasons that
+                         do count, the career line is real but short of those
+                         years, and the note under the table names them. */
+                      const rated = per.filter((x) => keeperLine(x.t).rateOnly);
+                      const partial = rated.length && (sum("saves") || sum("ga"));
+                      return (<>
+                        <table className="stats">
+                          <thead><tr><th>Season</th><th>GP</th><th>W-L-T</th><th>SV</th><th>GA</th>
+                            <th title="Goals against average">GAA</th>
+                            <th title="Save percentage">SV%</th><th>SO</th></tr></thead>
+                          <tbody>
+                            {per.map(({ sn, t }) => (
+                              <tr key={sn}>
+                                <td style={{ fontWeight: 600 }}>{sn}</td>
+                                <td>{keeperLine(t).gp}</td>
+                                <td>{t.noRecord
+                                  ? "—"
+                                  : (Number(t.w) || 0) + "-" + (Number(t.l) || 0) + "-" + (Number(t.tie) || 0)}</td>
+                                <td>{keeperLine(t).svText}</td>
+                                <td>{keeperLine(t).gaText}</td>
+                                <td>{keeperLine(t).gaa === null ? "—" : keeperLine(t).gaa.toFixed(2)}</td>
+                                <td style={{ fontWeight: 700 }}>{pctText(keeperLine(t).svpct)}</td>
+                                <td>{keeperLine(t).so}</td>
+                              </tr>
+                            ))}
+                            <tr style={{ background: "var(--ice)" }}>
+                              <td style={{ fontWeight: 800, color: "var(--blue)" }}>Career</td>
+                              <td style={{ fontWeight: 800 }}>{sum("gp")}</td>
+                              <td style={{ fontWeight: 800 }}>
+                                {per.every((x) => x.t.noRecord)
+                                  ? "—"
+                                  : sum("w") + "-" + sum("l") + "-" + sum("tie")}
+                              </td>
+                              {(() => {
+                                /* Same rule as the cards: a career with no
+                                   counting stats behind it has no totals to
+                                   print, only the rates it arrived as. */
+                                const c = keeperLine(sum("saves") || sum("ga") || !rated.length
+                                  ? { saves: sum("saves"), ga: sum("ga"), gp: sum("gp"), minutes: sum("minutes") }
+                                  : rated.length === 1
+                                    ? { gaa: rated[0].t.gaa, svpct: rated[0].t.svpct }
+                                    : { rateOnly: true });
+                                return (<>
+                                  <td style={{ fontWeight: 800 }}>{c.svText}</td>
+                                  <td style={{ fontWeight: 800 }}>{c.gaText}</td>
+                                  <td style={{ fontWeight: 800 }}>{c.gaa === null ? "—" : c.gaa.toFixed(2)}</td>
+                                  <td style={{ fontWeight: 800 }}>{pctText(c.svpct)}</td>
+                                </>);
+                              })()}
+                              <td style={{ fontWeight: 800 }}>{sum("so")}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                        {partial ? (
+                          <p className="statnote">
+                            {rated.map((x) => x.sn).join(", ")
+                              + " published rates only, with no saves or ice time behind"
+                              + " them, so " + (rated.length > 1 ? "those seasons are" : "it is")
+                              + " not in the career totals."}
+                          </p>
+                        ) : null}
+                      </>);
+                    })() : (
+                      <table className="stats">
+                        <thead><tr><th>Season</th><th>GP</th><th>G</th><th>A</th><th>PTS</th><th>PIM</th></tr></thead>
+                        <tbody>
+                          {rows.map(({ sn, p }) => (
+                            <tr key={sn}>
+                              <td style={{ fontWeight: 600 }}>{sn}</td>
+                              <td>{pstat(p, "gp")}</td><td>{pstat(p, "g")}</td><td>{pstat(p, "a")}</td>
+                              <td style={{ fontWeight: 700 }}>{ppts(p)}</td><td>{pstat(p, "pim")}</td>
+                            </tr>
+                          ))}
+                          <tr style={{ background: "var(--ice)" }}>
+                            <td style={{ fontWeight: 800, color: "var(--blue)" }}>Career</td>
+                            <td style={{ fontWeight: 800 }}>{career.gp}</td>
+                            <td style={{ fontWeight: 800 }}>{career.g}</td>
+                            <td style={{ fontWeight: 800 }}>{career.a}</td>
+                            <td style={{ fontWeight: 800 }}>{career.g + career.a}</td>
+                            <td style={{ fontWeight: 800 }}>{career.pim}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                  {(() => {
+                    /* Season totals say how the year went; this says how the
+                       last few nights went, which is the question anyone
+                       actually arrives with. Built from the game box scores,
+                       so a game with no sheet simply is not listed. */
+                    const keeper = player.position === "G";
+                    const recent = rows
+                      .flatMap(({ sn, p }) => ((site.seasons[sn] || {}).schedule || [])
+                        .filter((g) => g.result)
+                        .map((g) => ({ g, l: ((site.gameStats || {})[g.id] || {})[p.id] }))
+                        .filter((x) => x.l && x.l.dressed !== false))
+                      .sort((a, b) => String(b.g.date).localeCompare(String(a.g.date)));
+                    if (!recent.length) return null;
+                    const oppOf = (g) =>
+                      ((site.opponents || []).find((o) => o.id === g.opponentId) || {}).name
+                      || g.opponent || "Opponent";
+                    const n = (v) => Number(v) || 0;
+                    /* Shots are attributed on the play, so the column only
+                       appears once somebody has logged who took them. */
+                    const shotsIn = (g) => (g.plays || [])
+                      .filter((x) => x.kind === "shot" && x.shooterId === player.id).length;
+                    const anyShots = recent.some((x) => shotsIn(x.g) > 0);
+                    return (
+                      <div style={{ marginTop: 26 }}>
+                        <h3 className="statsec" style={{ marginBottom: 12 }}>Game log</h3>
+                        <div className="twrap">
+                          <table className="stats">
+                            <thead>
+                              <tr>
+                                <th>Date</th><th>Opponent</th><th>Result</th>
+                                {keeper
+                                  ? <><th>SV</th><th>GA</th><th>SV%</th></>
+                                  : <><th>G</th><th>A</th><th>PTS</th>{anyShots ? <th>S</th> : null}<th>PIM</th></>}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {recent.map(({ g, l }) => {
+                                const sv = n(l.saves), ga = n(l.ga), shots = sv + ga;
+                                return (
+                                  <tr key={g.id} className="l5row"
+                                    role={onGame ? "link" : undefined}
+                                    tabIndex={onGame ? 0 : undefined}
+                                    onClick={() => onGame && onGame(g.id)}
+                                    onKeyDown={(e) => onGame && (e.key === "Enter" || e.key === " ")
+                                      && (e.preventDefault(), onGame(g.id))}>
+                                    <td style={{ fontWeight: 600 }}>{fmtDate(g.date)}</td>
+                                    <td className="l5opp">
+                                      <span>{vsAtSp(g) + oppOf(g)}</span>
+                                    </td>
+                                    {/* resultText returns { tag, line }, not a
+                                        string - the tag colours the result. */}
+                                    <td style={{ fontWeight: 700 }}>
+                                      {(() => {
+                                        const r = resultText(g);
+                                        return r ? r.tag + ", " + r.line : "—";
+                                      })()}
+                                    </td>
+                                    {keeper ? (
+                                      <>
+                                        <td>{sv}</td><td>{ga}</td>
+                                        <td>{shots ? (sv / shots).toFixed(3).replace(/^0/, "") : "\u2014"}</td>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <td>{n(l.g)}</td><td>{n(l.a)}</td>
+                                        <td style={{ fontWeight: 700 }}>{n(l.g) + n(l.a)}</td>
+                                        {anyShots ? <td>{shotsIn(g)}</td> : null}
+                                        <td>{n(l.pim)}</td>
+                                      </>
+                                    )}
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              );
+            })()}
+
+            {tab === "media" && (
+              <div style={{ paddingTop: 20 }}>
+                <p className="blg" style={{ color: "var(--muted)" }}>
+                  No photos or highlights uploaded for {player.name.split(" ")[0]} yet.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+/* ================================================================
+ * TICKETS PAGE
+ * ================================================================ */
+function TicketsPage({ site, goto }) {
+  const season = site.seasons[site.currentSeason] || { schedule: [] };
+  const homeGames = [...season.schedule].sort(cmpDate).filter((g) => g.homeAway === "H" && !g.result);
+
+  return (
+    <main style={{ background: "var(--page)" }}>
+      <section className="section" style={{ paddingTop: 44 }}>
+        <div className="wrap">
+          <h1 className="stitle">Tickets</h1>
+          <p className="blg" style={{ color: "var(--muted)", maxWidth: "62ch", margin: "0 0 30px" }}>
+            All home games are played at Oakland Ice Center. Tickets are sold at the door — no advance
+            purchase needed. Pricing below is for the {site.currentSeason} season.
+          </p>
+
+          <div className="cards" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", maxWidth: 820 }}>
+            {[["Students", "Free", "With a valid Cal student ID"],
+              ["General Admission", "$10", "Cash or card at the door"],
+              ["Kids 12 & Under", "Free", "With a paying adult"]].map(([label, price, note]) => (
+              <article className="card" key={label} style={{ borderTop: "4px solid var(--gold)", textAlign: "center" }}>
+                <p className="reclab" style={{ margin: 0 }}>{label}</p>
+                <p className="recnum" style={{ fontSize: 40, margin: "10px 0 6px", color: "var(--blue)" }}>{price}</p>
+                <p className="bsm" style={{ color: "var(--muted)", margin: 0 }}>{note}</p>
+              </article>
+            ))}
+          </div>
+
+          <h2 className="stitle" style={{ marginTop: 50, fontSize: "1.4rem" }}>Upcoming Home Games</h2>
+          <div style={{ display: "grid", gap: 18 }}>
+            {!homeGames.length && <p className="blg" style={{ color: "var(--muted)" }}>No upcoming home games on the schedule — check back soon.</p>}
+            {homeGames.map((g) => (
+              <article className="gamecard" key={g.id}>
+                <div className="gamemain">
+                  <span style={{ position: "relative", flex: "0 0 auto" }}>
+                    <OppBadge name={g.opponent} logo={g.opponentLogo} size={48} />
+                    <span className="vsbadge home" style={{ position: "absolute", right: -8, bottom: -4, width: 22, height: 22, fontSize: 10, border: "2px solid #fff" }}>vs</span>
+                  </span>
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ margin: 0, fontWeight: 700, fontSize: 17, color: "var(--ink)" }}>{g.opponent}</p>
+                    <p className="bsm" style={{ margin: "5px 0 0", color: "var(--muted)" }}>
+                      <IcPin size={13} style={{ marginRight: 4 }} />{g.venue} · Berkeley, CA
+                    </p>
+                  </div>
+                  <div className="gameresult" style={{ display: "flex", gap: 14, alignItems: "center" }}>
+                    <p className="bsm" style={{ margin: 0, color: "var(--muted)", fontWeight: 600 }}>
+                      <strong style={{ color: "var(--ink)" }}>{fmtDateParen(g.date)}</strong> · <IcClock size={13} style={{ marginRight: 4 }} />{localTime(g.date, g.time)}
+                    </p>
+                    <button className="calbtn" style={{ padding: "11px 18px" }} onClick={() => downloadICS([g], site.currentSeason, officialName(site))}>
+                      <IcPlusC size={15} /> Add to Calendar
+                    </button>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <div className="statcard" style={{ marginTop: 40, padding: "24px 26px", display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}>
+            <div>
+              <p style={{ margin: 0, fontWeight: 800, fontSize: 17, color: "var(--blue)" }}>Group nights &amp; student orgs</p>
+              <p className="bsm" style={{ margin: "5px 0 0", color: "var(--muted)" }}>
+                Bringing 10 or more? Email the team manager from the roster page to set up a group night.
+              </p>
+            </div>
+            <button className="goldpill" style={{ marginLeft: "auto" }} onClick={() => goto("roster")}>Contact the Team</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+/* ================================================================
+ * RECRUIT PAGE
+ * ================================================================ */
+const EMPTY_RECRUIT = { name: "", email: "", gradYear: "2028", position: "Forward", shoots: "Left", height: "", currentTeam: "", gpa: "", highlightLink: "", message: "" };
+
+/* ---------------- Where an interest form goes ----------------
+ * Three programs, three answers:
+ *   inbox  — submissions land in this console (the default)
+ *   email  — no dashboard, just mail to a staff address
+ *   link   — the program already runs a Google Form and wants that instead
+ *
+ * The public site reads this in one place so a change in Settings takes effect
+ * everywhere the form is offered.
+ */
+function recruitTarget(site) {
+  const st = site.settings || {};
+  const mode = st.recruitMode || "inbox";
+  if (mode === "link" && (st.recruitFormUrl || "").trim()) {
+    return { mode: "link", url: st.recruitFormUrl.trim() };
+  }
+  if (mode === "email") {
+    const to = (st.recruitEmail || st.contactEmail || "").trim();
+    if (to) return { mode: "email", email: to };
+  }
+  return { mode: "inbox" };
+}
+
+/* Hands the submission to the visitor's mail client. No server, no stored
+ * copy — which is the point of this mode. */
+function recruitMailto(to, f) {
+  const rows = [
+    ["Name", f.name], ["Email", f.email], ["Grad year", f.gradYear],
+    ["Position", f.position], ["Shoots / catches", f.shoots], ["Height", f.height],
+    ["Current team", f.currentTeam], ["GPA", f.gpa], ["Highlight", f.highlightLink],
+  ].filter(([, v]) => (v || "").toString().trim());
+  const body = rows.map(([k, v]) => k + ": " + v).join("\n") +
+    (f.message ? "\n\n" + f.message : "");
+  return "mailto:" + encodeURIComponent(to) +
+    "?subject=" + encodeURIComponent("Player interest — " + (f.name || "")) +
+    "&body=" + encodeURIComponent(body);
+}
+
+function RecruitPage({ site, onSubmit }) {
+  const target = recruitTarget(site);
+  const [form, setForm] = useState(EMPTY_RECRUIT);
+  const [done, setDone] = useState(false);
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const submit = () => {
+    if (!form.name.trim() || !form.email.trim()) return;
+    if (target.mode === "email") {
+      window.location.href = recruitMailto(target.email, form);
+    } else {
+      onSubmit(form);
+    }
+    setDone(true);
+  };
+
+  /* The program runs its own form elsewhere. Sending someone to a page that
+     only says "go over there" is worse than just going, so this page carries
+     the link and nothing else. */
+  if (target.mode === "link") {
+    return (
+      <main>
+        <section className="phead">
+          <div className="wrap">
+            <p className="eyebrow">Recruiting</p>
+            <h1 className="h1" style={{ marginTop: 6 }}>Join the Team</h1>
+            <p className="blg">Tell the coaching staff about your game.</p>
+          </div>
+        </section>
+        <section className="section">
+          <div className="wrap" style={{ maxWidth: 620 }}>
+            <div className="card" style={{ textAlign: "center" }}>
+              <p style={{ margin: "0 0 16px", color: "var(--muted)", lineHeight: 1.6 }}>
+                Our interest form is hosted off-site. It opens in a new tab.
+              </p>
+              <a className="btn bGold" href={target.url} target="_blank" rel="noreferrer">
+                Open the interest form <IcArrowR size={16} />
+              </a>
+            </div>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <main>
+      <section className="phead">
+        <div className="wrap">
+          <p className="eyebrow">Recruiting</p>
+          <h1 className="h1" style={{ marginTop: 6 }}>Join the Team</h1>
+          <p className="blg">Play college hockey while you're at Berkeley. Submissions go straight to the coaching staff's inbox.</p>
+        </div>
+      </section>
+      <section className="section">
+        <div className="wrap" style={{ maxWidth: 820 }}>
+          {done ? (
+            <div className="card" role="status" style={{ textAlign: "center" }}>
+              <p className="eyebrow" style={{ color: "var(--blue)" }}>Received</p>
+              <h2 className="h2" style={{ color: "var(--blue)", margin: "8px 0 12px" }}>See you at the rink.</h2>
+              <p style={{ color: "var(--muted)", lineHeight: 1.6 }}>
+                The coaching staff reads every submission and replies from the team email.
+              </p>
+              <button className="btn bNavy bSm" style={{ marginTop: 18 }} onClick={() => { setForm(EMPTY_RECRUIT); setDone(false); }}>Submit Another</button>
+            </div>
+          ) : (
+            <div className="fgrid">
+              <div className="field"><label className="h6">Full name *</label><input value={form.name} onChange={set("name")} autoComplete="name" /></div>
+              <div className="field"><label className="h6">Email *</label><input type="email" value={form.email} onChange={set("email")} autoComplete="email" /></div>
+              <div className="field"><label className="h6">Grad year</label>
+                <select value={form.gradYear} onChange={set("gradYear")}>
+                  {["2027", "2028", "2029", "2030", "Other"].map((y) => <option key={y}>{y}</option>)}
+                </select></div>
+              <div className="field"><label className="h6">Position</label>
+                <select value={form.position} onChange={set("position")}>
+                  {["Forward", "Defense", "Goalie"].map((p) => <option key={p}>{p}</option>)}
+                </select></div>
+              <div className="field"><label className="h6">Shoots / catches</label>
+                <select value={form.shoots} onChange={set("shoots")}><option>Left</option><option>Right</option></select></div>
+              <div className="field"><label className="h6">Height</label><input value={form.height} onChange={set("height")} placeholder="5′11″" /></div>
+              <div className="field"><label className="h6">Current team / league</label><input value={form.currentTeam} onChange={set("currentTeam")} /></div>
+              <div className="field"><label className="h6">GPA</label><input value={form.gpa} onChange={set("gpa")} inputMode="decimal" /></div>
+              <div className="field full"><label className="h6">Highlight link</label><input type="url" value={form.highlightLink} onChange={set("highlightLink")} placeholder="https://" /></div>
+              <div className="field full"><label className="h6">Message</label><textarea rows={5} value={form.message} onChange={set("message")} placeholder="Tell us about your game." /></div>
+              <div className="full">
+                <button className="btn bGold" onClick={submit}>
+                  {target.mode === "email" ? "Open Email To Send" : "Send to the Coaching Staff"}
+                </button>
+                <p className="bsm" style={{ color: "var(--muted)", marginTop: 10 }}>
+                  {target.mode === "email"
+                    ? "Opens your email app with the details filled in — you still press send."
+                    : "Stored in the shared recruit inbox (visible to site admins)."}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+    </main>
+  );
+}
+
+/* ================================================================
+ * ADMIN
+ * ================================================================ */
+
+/* ---------------- Reorder control ----------------
+ * Two buttons, not drag-and-drop: these lists are short, and a keyboard user
+ * gets the same control as a mouse user for a fraction of the code.
+ */
+function MoveBtns({ i, count, onMove, label }) {
+  return (
+    <span className="aumove">
+      <button className="btn bGhost bSm" disabled={i === 0} aria-label={"Move " + label + " up"}
+        onClick={() => onMove(i, i - 1)}>↑</button>
+      <button className="btn bGhost bSm" disabled={i === count - 1} aria-label={"Move " + label + " down"}
+        onClick={() => onMove(i, i + 1)}>↓</button>
+    </span>
+  );
+}
+
+/* Move one item of an array to another index, returning a new array. */
+function moved(list, from, to) {
+  if (to < 0 || to >= list.length) return list;
+  const next = [...list];
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
+}
+
+/* ---------------- Console themes ----------------
+ * Slack's model: the sidebar carries the identity, the content area stays a
+ * readable neutral. That is what lets a school's colors show without wrecking
+ * contrast on dense data — navy-on-navy roster rows would be unusable.
+ *
+ * Sidebars are gradients rather than flats, kept deliberately shallow (a ~12%
+ * shift top to bottom). Enough to give the panel depth, not enough to read as
+ * a decorative stripe.
+ *
+ * Each theme is a set of CSS custom properties applied inline to .adminui, so
+ * they override the stylesheet defaults without any per-theme CSS.
+ */
+
+/* ---- small color helpers, so school gradients can be derived ---- */
+function hexToRgb(hex) {
+  const h = String(hex || "").replace("#", "").trim();
+  const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  if (full.length !== 6 || /[^0-9a-f]/i.test(full)) return null;
+  return {
+    r: parseInt(full.slice(0, 2), 16),
+    g: parseInt(full.slice(2, 4), 16),
+    b: parseInt(full.slice(4, 6), 16),
+  };
+}
+
+const clamp = (n) => Math.max(0, Math.min(255, Math.round(n)));
+const toHex = (r, g, b) =>
+  "#" + [r, g, b].map((c) => clamp(c).toString(16).padStart(2, "0")).join("").toUpperCase();
+
+/** amount > 0 lightens toward white, < 0 darkens toward black. */
+function shade(hex, amount) {
+  const c = hexToRgb(hex);
+  if (!c) return hex;
+  const f = (v) => (amount >= 0 ? v + (255 - v) * amount : v * (1 + amount));
+  return toHex(f(c.r), f(c.g), f(c.b));
+}
+
+/** Blend two colors; t = 0 returns a, t = 1 returns b. */
+function mix(a, b, t) {
+  const x = hexToRgb(a);
+  const y = hexToRgb(b);
+  if (!x || !y) return a;
+  return toHex(x.r + (y.r - x.r) * t, x.g + (y.g - x.g) * t, x.b + (y.b - x.b) * t);
+}
+
+/** hex -> rgba() string, for translucent overlays. */
+function rgba(hex, alpha) {
+  const c = hexToRgb(hex);
+  if (!c) return "rgba(255,255,255," + alpha + ")";
+  return "rgba(" + c.r + "," + c.g + "," + c.b + "," + alpha + ")";
+}
+
+/**
+ * A shallow gradient plus a soft accent glow in the top corner.
+ *
+ * The obvious approach — blending the base toward the accent — desaturates
+ * badly whenever the two are far apart on the wheel: Cal navy mixed toward
+ * gold lands on a muddy grey, so the sidebar stops reading as navy at all.
+ * Varying lightness keeps the hue intact, and the glow supplies the accent
+ * as a translucent layer instead of a blend.
+ */
+function sidebarGradient(base, tint) {
+  const top = shade(base, 0.13);
+  const foot = shade(base, -0.24);
+  const glow = tint ? rgba(tint, 0.1) : "rgba(255,255,255,0.05)";
+  return (
+    "radial-gradient(132% 70% at 78% -6%, " + glow + " 0%, transparent 62%), " +
+    "linear-gradient(163deg, " + top + " 0%, " + base + " 52%, " + foot + " 100%)"
+  );
+}
+
+/**
+ * Everything a light theme changes about the content area. The sidebar and
+ * accent are layered on top, so any base color can be taken light or dark.
+ */
+const LIGHT_SURFACES = {
+  "--au-bg": "#FFFFFF",
+  "--au-panel": "#F7F8FA",
+  "--au-surface": "#FFFFFF",
+  "--au-raised": "#EEF0F4",
+  "--au-line": "#DFE3EA",
+  "--au-line-soft": "#EBEEF3",
+  "--au-text": "#131720",
+  "--au-dim": "#5A6473",
+  "--au-faint": "#8A93A1",
+  "--au-topbar": "rgba(255,255,255,0.86)",
+  "--au-danger": "#D92D3F",
+  "--au-warn": "#A96206",
+};
+
+const CUSTOM_DEFAULT = { mode: "dark", base: "#101317", accent: "#6366F1" };
+
+const THEMES = {
+  midnight: {
+    label: "Midnight",
+    base: "#101317",
+    accent: "#6366F1",
+    vars: {
+      "--au-sidebar": sidebarGradient("#101317", "#6366F1"),
+      "--au-sidebar-line": "rgba(255,255,255,0.07)",
+    },
+  },
+  slate: {
+    label: "Slate",
+    base: "#16202B",
+    accent: "#22D3EE",
+    vars: {
+      "--au-sidebar": sidebarGradient("#16202B", "#22D3EE"),
+      "--au-sidebar-line": "rgba(255,255,255,0.08)",
+      "--au-primary": "#22D3EE",
+      "--au-primary-hot": "#5BE1F5",
+      "--au-on-primary": "#04222A",
+    },
+  },
+  forest: {
+    label: "Forest",
+    base: "#122019",
+    accent: "#34D399",
+    vars: {
+      "--au-sidebar": sidebarGradient("#122019", "#34D399"),
+      "--au-sidebar-line": "rgba(255,255,255,0.08)",
+      "--au-primary": "#34D399",
+      "--au-primary-hot": "#5FE3B1",
+      "--au-on-primary": "#04231A",
+    },
+  },
+  maroon: {
+    label: "Maroon",
+    base: "#231318",
+    accent: "#F43F5E",
+    vars: {
+      "--au-sidebar": sidebarGradient("#231318", "#F43F5E"),
+      "--au-sidebar-line": "rgba(255,255,255,0.08)",
+      "--au-primary": "#F43F5E",
+      "--au-primary-hot": "#FB7185",
+      "--au-on-primary": "#2B040D",
+    },
+  },
+  plum: {
+    label: "Plum",
+    base: "#1E1526",
+    accent: "#C084FC",
+    vars: {
+      "--au-sidebar": sidebarGradient("#1E1526", "#C084FC"),
+      "--au-sidebar-line": "rgba(255,255,255,0.08)",
+      "--au-primary": "#C084FC",
+      "--au-primary-hot": "#D3A6FD",
+      "--au-on-primary": "#230A38",
+    },
+  },
+  daylight: {
+    label: "Daylight",
+    base: "#F1F3F6",
+    accent: "#4F46E5",
+    vars: {
+      ...LIGHT_SURFACES,
+      "--au-sidebar": sidebarGradient("#F1F3F6", "#4F46E5"),
+      "--au-sidebar-line": "rgba(0,0,0,0.09)",
+      "--au-sidebar-text": "#131720",
+      "--au-sidebar-dim": "#5A6473",
+      "--au-primary": "#4F46E5",
+      "--au-primary-hot": "#6366F1",
+      "--au-on-primary": "#FFFFFF",
+    },
+  },
+};
+
+/** A theme built entirely from the two colors a user picked. */
+function customTheme(custom) {
+  const c = { ...CUSTOM_DEFAULT, ...(custom || {}) };
+  const onSidebar = readableOn(c.base);
+  return {
+    label: "Custom",
+    base: c.base,
+    accent: c.accent,
+    vars: {
+      ...(c.mode === "light" ? LIGHT_SURFACES : {}),
+      "--au-sidebar": sidebarGradient(c.base, c.accent),
+      "--au-sidebar-line": onSidebar === "#FFFFFF" ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.14)",
+      "--au-sidebar-text": onSidebar,
+      "--au-sidebar-dim": onSidebar === "#FFFFFF" ? "rgba(255,255,255,0.66)" : "rgba(0,0,0,0.6)",
+      "--au-primary": c.accent,
+      "--au-primary-hot": shade(c.accent, 0.12),
+      "--au-on-primary": readableOn(c.accent),
+    },
+  };
+}
+
+/**
+ * WCAG contrast ratio, 1 (identical) to 21 (black on white). Used to warn when
+ * an accent will be unreadable as text — a very dark school color on a dark
+ * console is the common way this goes wrong.
+ */
+function contrastRatio(a, b) {
+  const lum = (hex) => {
+    const c = hexToRgb(hex);
+    if (!c) return 0;
+    const f = (v) => {
+      const x = v / 255;
+      return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+  };
+  const la = lum(a), lb = lum(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+/** The school-colors theme, derived from whatever the organization has set. */
+function schoolTheme(org) {
+  const primary = (org && org.primary) || "#041E42";
+  const accent = (org && org.accent) || "#FFC72C";
+  const onSidebar = readableOn(primary);
+  return {
+    label: "School colors",
+    base: primary,
+    accent: accent,
+    vars: {
+      "--au-sidebar": sidebarGradient(primary, accent),
+      "--au-sidebar-line": onSidebar === "#FFFFFF" ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.14)",
+      "--au-sidebar-text": onSidebar,
+      "--au-sidebar-dim": onSidebar === "#FFFFFF" ? "rgba(255,255,255,0.66)" : "rgba(0,0,0,0.6)",
+      "--au-primary": accent,
+      "--au-primary-hot": shade(accent, 0.12),
+      "--au-on-primary": readableOn(accent),
+    },
+  };
+}
+
+/**
+ * Black or white text for a given background, by relative luminance.
+ * Gold #FFC72C needs dark text; navy #041E42 needs light — guessing gets one
+ * of the two badly wrong, so it is worth computing.
+ */
+function readableOn(hex) {
+  const c = hexToRgb(hex);
+  if (!c) return "#FFFFFF";
+  const lin = (v) => {
+    const s = v / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+  const L = 0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b);
+  return L > 0.42 ? "#0B0D10" : "#FFFFFF";
+}
+
+/** What a theme card previews: the real sidebar gradient plus its accent. */
+function themeSwatch(theme) {
+  return [theme.vars["--au-sidebar"] || sidebarGradient(theme.base), theme.accent];
+}
+
+function resolveTheme(account, org) {
+  const key = (account && account.theme) || "midnight";
+  if (key === "school") return schoolTheme(org);
+  if (key === "custom") return customTheme(account && account.custom);
+  return THEMES[key] || THEMES.midnight;
+}
+
+function themeVars(account, org) {
+  return resolveTheme(account, org).vars;
+}
+
+/** Initials for a school with no logo uploaded — "Cal Ice Hockey" -> "CI". */
+/** The formal program name for print, feeds and titles. */
+function officialName(site) {
+  const org = (site && site.settings && site.settings.org) || {};
+  return org.officialName || org.name || "Ice Hockey";
+}
+
+/** What we are called on a scorebug, beside the opponent. */
+function gameName(site) {
+  const org = (site && site.settings && site.settings.org) || {};
+  return org.gameName || org.name || "Home";
+}
+
+/** The short name, for navigation and headings. */
+function shortName(site) {
+  const org = (site && site.settings && site.settings.org) || {};
+  return org.name || org.officialName || "Ice Hockey";
+}
+
+function orgInitials(name) {
+  return (name || "")
+    .trim().split(/\s+/).filter(Boolean).slice(0, 2)
+    .map((w) => w[0].toUpperCase()).join("") || "CH";
+}
+
+/* ---------------- Stats ----------------
+ * One place for every level of the same numbers, with a deliberate precedence:
+ *
+ *   By game    — box scores. The source of truth.
+ *   By season  — derived from box scores where they exist; typed by hand only
+ *                for seasons with no game log (imported history).
+ *   Career     — always derived. Never typed, because a career total that
+ *                disagreed with the seasons under it could not be reconciled.
+ *
+ * That is the same rule seasons already use for record_override, applied to
+ * players.
+ */
+const STATS_VIEWS = [
+  ["game", "By game", "Enter a box score"],
+  ["season", "By season", "Totals for one season"],
+  ["career", "Career", "Across every season"],
+];
+
+function StatsEditor({ site, setDraft, updateSeason, onSave, dirty, view, setView }) {
+  const [sel, setSel] = useState(site.currentSeason);
+  const [openBox, setOpenBox] = useState(null);
+  const [openPerson, setOpenPerson] = useState(null);
+
+  const season = site.seasons[sel] || { roster: [], schedule: [] };
+  const roster = season.roster || [];
+  const schedule = season.schedule || [];
+
+  const oppName = (g) => {
+    const o = (site.opponents || []).find((x) => x.id === g.opponentId);
+    return o ? o.name : "";
+  };
+  const linesFor = (gameId) => Object.keys((site.gameStats || {})[gameId] || {}).length;
+
+  /* Only games with a final score can carry a box score. */
+  const playable = [...schedule].filter((g) => g.result).sort(cmpDate);
+  const entered = playable.filter((g) => linesFor(g.id) > 0).length;
+
+  return (
+    <div className="ausettings">
+      <nav className="ausubnav" aria-label="Stats views">
+        {STATS_VIEWS.map(([k, label, hint]) => (
+          <button key={k} className={"ausubitem " + (view === k ? "on" : "")}
+            onClick={() => setView(k)}>
+            <span className="ausubname">{label}</span>
+            <span className="ausubhint">{hint}</span>
+          </button>
+        ))}
+      </nav>
+
+      <div className="ausettingsbody">
+        {view !== "career" && (
+          <SeasonPicker site={site} sel={sel} setSel={setSel} />
+        )}
+
+        {/* ================= BY GAME ================= */}
+        {view === "game" && (
+          <>
+            <p className="auhint" style={{ marginBottom: 16 }}>
+              {playable.length === 0
+                ? "No completed games yet. Mark a game Final on the Schedule tab first."
+                : entered + " of " + playable.length + " completed game" +
+                  (playable.length === 1 ? "" : "s") + " have a box score."}
+            </p>
+
+            {playable.length === 0 && (
+              <div className="auempty">
+                <p style={{ margin: 0, fontWeight: 600, color: "var(--au-text)" }}>Nothing to enter</p>
+                <p className="bsm" style={{ margin: "6px 0 0" }}>
+                  Box scores open up once a game has a final score.
+                </p>
+              </div>
+            )}
+
+            {playable.map((g) => {
+              const n = linesFor(g.id);
+              const open = openBox === g.id;
+              return (
+                <div key={g.id}>
+                  <button className={"augamerow " + (open ? "on" : "")}
+                    onClick={() => setOpenBox(open ? null : g.id)}>
+                    <span className="augamedate">{fmtDate(g.date) || "TBD"}</span>
+                    <span className="augameopp">
+                      {vsAt(g)} {oppName(g) || "—"}
+                      {gameType(g) !== "regular" && (
+                        <span className="augametag">{gameType(g)}</span>
+                      )}
+                    </span>
+                    <span className="augamescore">
+                      {g.result.us}–{g.result.them}
+                    </span>
+                    <span className={"augamestate " + (n ? "done" : "todo")}>
+                      {n ? n + " players" : "not entered"}
+                    </span>
+                  </button>
+                  {open && (
+                    <BoxScore game={g} oppName={oppName(g)} roster={roster} site={site}
+                      opponent={(site.opponents || []).find((o) => o.id === g.opponentId)}
+                      setGame={(id, patch) => updateSeason(sel, {
+                        schedule: schedule.map((x) => (x.id === id ? { ...x, ...patch } : x)),
+                      })}
+                      setDraft={setDraft} onSave={onSave} dirty={dirty}
+                      onClose={() => setOpenBox(null)} />
+                  )}
+                </div>
+              );
+            })}
+          </>
+        )}
+
+        {/* ================= BY SEASON ================= */}
+        {view === "season" && (
+          <SeasonStats site={site} season={season} sel={sel} roster={roster}
+            updateSeason={updateSeason} />
+        )}
+
+        {/* ================= CAREER ================= */}
+        {view === "career" && (
+          <CareerStats site={site} openPerson={openPerson} setOpenPerson={setOpenPerson} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Season totals ---------------- */
+function SeasonStats({ site, season, sel, roster, updateSeason }) {
+  const [sort, setSort] = useState("pts");
+
+  const setStat = (id, key, val) => {
+    const p = roster.find((x) => x.id === id);
+    updateSeason(sel, {
+      roster: roster.map((x) =>
+        x.id === id ? { ...x, stats: { ...(p.stats || {}), [key]: val === "" ? 0 : Number(val) } } : x
+      ),
+    });
+  };
+
+  const rows = roster.map((p) => {
+    const box = boxScoreTotals(site, season, p);
+    const s = box || p.stats || {};
+    return {
+      p,
+      derived: !!box,
+      gp: Number(s.gp) || 0,
+      g: Number(s.g) || 0,
+      a: Number(s.a) || 0,
+      pim: Number(s.pim) || 0,
+      pts: (Number(s.g) || 0) + (Number(s.a) || 0),
+    };
+  });
+
+  const sorted = [...rows].sort((x, y) =>
+    sort === "name" ? (x.p.name || "").localeCompare(y.p.name || "") : y[sort] - x[sort] || y.g - x.g
+  );
+
+  const anyDerived = rows.some((r) => r.derived);
+  const cols = "44px 1fr 46px 52px 46px 46px 52px 52px";
+
+  if (!roster.length) {
+    return (
+      <div className="auempty">
+        <p style={{ margin: 0, fontWeight: 600, color: "var(--au-text)" }}>No roster for {sel}</p>
+        <p className="bsm" style={{ margin: "6px 0 0" }}>Add players on the Roster tab.</p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <p className="auhint" style={{ marginBottom: 14 }}>
+        {anyDerived
+          ? "Greyed rows are calculated from box scores — edit the game to change them. Players with no box score can still be typed in."
+          : "No box scores for " + sel + " yet, so these are typed in directly. Enter a box score and the player's row switches to calculated."}
+      </p>
+
+      <div className="austat head" style={{ gridTemplateColumns: cols }}>
+        <span>#</span>
+        <button className="austatsort" onClick={() => setSort("name")}>Player</button>
+        <button className="austatsort" onClick={() => setSort("gp")}>GP</button>
+        <button className="austatsort" onClick={() => setSort("g")}>G</button>
+        <button className="austatsort" onClick={() => setSort("a")}>A</button>
+        <button className="austatsort" onClick={() => setSort("pts")}>PTS</button>
+        <button className="austatsort" onClick={() => setSort("pim")}>PIM</button>
+        <span>Source</span>
+      </div>
+
+      {sorted.map((r) => (
+        <div className="austat" style={{ gridTemplateColumns: cols }} key={r.p.id}>
+          <span className="aunum">{r.p.number || "—"}</span>
+          <span className="austatname">{r.p.name || "(unnamed)"}</span>
+          {["gp", "g", "a"].map((k) => (
+            <span key={k}>
+              {r.derived
+                ? <input className="derived" readOnly value={r[k]} />
+                : <input type="number" value={(r.p.stats && r.p.stats[k]) || ""} placeholder="0"
+                    onChange={(e) => setStat(r.p.id, k, e.target.value)} />}
+            </span>
+          ))}
+          <span className="aupts">{r.pts}</span>
+          <span>
+            {r.derived
+              ? <input className="derived" readOnly value={r.pim} />
+              : <input type="number" value={(r.p.stats && r.p.stats.pim) || ""} placeholder="0"
+                  onChange={(e) => setStat(r.p.id, "pim", e.target.value)} />}
+          </span>
+          <span className={"ausource " + (r.derived ? "calc" : "typed")}>
+            {r.derived ? "box scores" : "typed"}
+          </span>
+        </div>
+      ))}
+    </>
+  );
+}
+
+/* ---------------- Career totals ---------------- */
+function CareerStats({ site, openPerson, setOpenPerson }) {
+  /* One line per person, summed across every season they appear in. The
+   * prototype matches on name; the database keys on person_id, which is what
+   * makes this survive a name being respelled. */
+  const bySeason = {};
+  for (const [name, season] of Object.entries(site.seasons || {})) {
+    for (const p of season.roster || []) {
+      const box = boxScoreTotals(site, season, p);
+      const s = box || p.stats || {};
+      const key = p.name || "(unnamed)";
+      (bySeason[key] = bySeason[key] || []).push({
+        season: name,
+        number: p.number,
+        gp: Number(s.gp) || 0,
+        g: Number(s.g) || 0,
+        a: Number(s.a) || 0,
+        pim: Number(s.pim) || 0,
+        derived: !!box,
+      });
+    }
+  }
+
+  const people = Object.entries(bySeason)
+    .map(([name, seasons]) => {
+      const t = seasons.reduce(
+        (acc, s) => ({
+          gp: acc.gp + s.gp, g: acc.g + s.g, a: acc.a + s.a, pim: acc.pim + s.pim,
+        }),
+        { gp: 0, g: 0, a: 0, pim: 0 }
+      );
+      return { name, seasons: seasons.sort((a, b) => b.season.localeCompare(a.season)), ...t, pts: t.g + t.a };
+    })
+    .sort((a, b) => b.pts - a.pts || b.g - a.g || a.name.localeCompare(b.name));
+
+  const cols = "1fr 62px 46px 46px 46px 52px 52px";
+
+  if (!people.length) {
+    return (
+      <div className="auempty">
+        <p style={{ margin: 0, fontWeight: 600, color: "var(--au-text)" }}>No players yet</p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <p className="auhint" style={{ marginBottom: 14 }}>
+        Always calculated — the sum of every season below. Click a player to see the
+        breakdown. To change a number, edit the season or the game it came from.
+      </p>
+
+      <div className="austat head" style={{ gridTemplateColumns: cols }}>
+        <span>Player</span><span>Seasons</span><span>GP</span><span>G</span>
+        <span>A</span><span>PTS</span><span>PIM</span>
+      </div>
+
+      {people.map((p) => {
+        const open = openPerson === p.name;
+        return (
+          <div key={p.name}>
+            <button className={"austat asrow " + (open ? "on" : "")}
+              style={{ gridTemplateColumns: cols }}
+              onClick={() => setOpenPerson(open ? null : p.name)}>
+              <span className="austatname">{p.name}</span>
+              <span className="aunum">{p.seasons.length}</span>
+              <span className="aunum">{p.gp}</span>
+              <span className="aunum">{p.g}</span>
+              <span className="aunum">{p.a}</span>
+              <span className="aupts">{p.pts}</span>
+              <span className="aunum">{p.pim}</span>
+            </button>
+
+            {open && (
+              <div className="aubreakdown">
+                {p.seasons.map((s) => (
+                  <div className="austat sub" style={{ gridTemplateColumns: cols }} key={s.season}>
+                    <span className="bsm">{s.season}{s.number ? " · #" + s.number : ""}</span>
+                    <span className="bsm ausource">{s.derived ? "box scores" : "typed"}</span>
+                    <span className="aunum">{s.gp}</span>
+                    <span className="aunum">{s.g}</span>
+                    <span className="aunum">{s.a}</span>
+                    <span className="aupts">{s.g + s.a}</span>
+                    <span className="aunum">{s.pim}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+/* ---------------- Settings ----------------
+ * One destination, three sections. Organization settings are shared by everyone
+ * at the school; Account and Appearance are yours alone. Splitting them across
+ * two nav items made that distinction look like duplication.
+ */
+const SETTINGS_SECTIONS = [
+  ["organization", "Organization", "Shared by everyone at your school"],
+  ["appearance", "Appearance", "Only affects your view"],
+  ["account", "Account", "Only affects you"],
+];
+
+function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
+  const ask = useAsk();
+  const st = site.settings || {};
+  const org = st.org || {};
+  const acct = site.account || {};
+
+  /* Venue lives one level down in settings, and its directions one level
+     below that, so each gets a setter rather than the call sites rebuilding
+     the nesting by hand. */
+  const setVenue = (k) => (e) => {
+    const val = e && e.target ? e.target.value : e;
+    setDraft((s) => ({
+      ...s,
+      settings: { ...(s.settings || {}),
+        venue: { ...((s.settings || {}).venue || {}), [k]: val } },
+    }));
+  };
+  const setDirection = (i) => (e) => {
+    const val = e && e.target ? e.target.value : e;
+    setDraft((s) => {
+      const venue = (s.settings || {}).venue || {};
+      const directions = [...(venue.directions || [])];
+      directions[i] = { ...(directions[i] || {}), body: val };
+      return { ...s, settings: { ...(s.settings || {}), venue: { ...venue, directions } } };
+    });
+  };
+
+  const setLegal = (k) => (e) => {
+    const val = e && e.target ? e.target.value : e;
+    setDraft((s) => ({
+      ...s,
+      settings: { ...(s.settings || {}),
+        legal: { ...((s.settings || {}).legal || {}), [k]: val } },
+    }));
+  };
+
+  const setSetting = (k) => (e) =>
+    setDraft((s) => ({ ...s, settings: { ...(s.settings || {}), [k]: e.target.value } }));
+  const setOrg = (k, v) =>
+    setDraft((s) => ({
+      ...s,
+      settings: { ...(s.settings || {}), org: { ...((s.settings || {}).org || {}), [k]: v } },
+    }));
+  const setAcct = (k, v) => setDraft((s) => ({ ...s, account: { ...(s.account || {}), [k]: v } }));
+
+  const readImage = (file, onDone) => {
+    if (!file) return;
+    if (file.size > 400 * 1024) {
+      ask({ title: "Image too large", message: "Images must be under 400KB.", blocked: true });
+      return;
+    }
+    const fr = new FileReader();
+    fr.onload = () => onDone(fr.result);
+    fr.readAsDataURL(file);
+  };
+
+  const acctInitials = (acct.name || "")
+    .trim().split(/\s+/).filter(Boolean).slice(0, 2)
+    .map((w) => w[0].toUpperCase()).join("") || "?";
+
+  return (
+    <div className="ausettings">
+      <nav className="ausubnav" aria-label="Settings sections">
+        {SETTINGS_SECTIONS.map(([k, label, hint]) => (
+          <button key={k} className={"ausubitem " + (section === k ? "on" : "")}
+            onClick={() => setSection(k)}>
+            <span className="ausubname">{label}</span>
+            <span className="ausubhint">{hint}</span>
+          </button>
+        ))}
+      </nav>
+
+      <div className="ausettingsbody">
+        {/* ================= ORGANISATION ================= */}
+        {section === "organization" && (
+          <div style={{ display: "grid", gap: 18, maxWidth: 620 }}>
+            <section className="card">
+              <p className="h6" style={{ marginBottom: 14 }}>Identity</p>
+
+              <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 18 }}>
+                <span className="auorgpreview">
+                  {org.logo
+                    ? <img src={org.logo} alt="" />
+                    : <span className="aumark">{orgInitials(org.name)}</span>}
+                </span>
+                <div style={{ display: "grid", gap: 7 }}>
+                  <input type="file" accept="image/*" style={{ fontSize: 12 }}
+                    onChange={(e) => readImage(e.target.files && e.target.files[0],
+                      (d) => setOrg("logo", d))} />
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    {org.logo && (
+                      <button className="btn bGhost bSm" onClick={() => setOrg("logo", null)}>Remove</button>
+                    )}
+                    <span className="bsm" style={{ color: "var(--au-faint)" }}>
+                      Shown top-left. A square mark on transparent works best.
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="field">
+                <label className="h6">Short name</label>
+                <input value={org.name || ""} placeholder="Cal Ice Hockey"
+                  onChange={(e) => setOrg("name", e.target.value)} />
+                <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
+                  Used in navigation and headings, where a long name does not fit.
+                </p>
+              </div>
+
+              <div className="arow" style={{ gridTemplateColumns: "1fr 110px", borderBottom: 0, padding: 0, minWidth: 0, marginTop: 16 }}>
+                <div className="field">
+                  <label className="h6">Game name</label>
+                  <input value={org.gameName || ""} placeholder="California"
+                    onChange={(e) => setOrg("gameName", e.target.value)} />
+                </div>
+                <div className="field">
+                  <label className="h6">Abbreviation</label>
+                  <input value={org.abbr || ""} placeholder="CAL"
+                    onChange={(e) => setOrg("abbr", e.target.value)} />
+                </div>
+              </div>
+              <div className="field" style={{ marginTop: 16 }}>
+                <label className="h6">Mascot</label>
+                <input value={org.mascot || ""} placeholder="Golden Bears"
+                  onChange={(e) => setOrg("mascot", e.target.value)} />
+                <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
+                  Sits above the school name on the game center banner.
+                </p>
+              </div>
+              <p className="bsm" style={{ marginTop: -6, marginBottom: 4, color: "var(--au-faint)" }}>
+                Shown beside the opponent on box scores and previews.
+              </p>
+
+              <div className="field" style={{ marginTop: 16 }}>
+                <label className="h6">Official name</label>
+                <input value={org.officialName || ""} placeholder="California Golden Bears Ice Hockey"
+                  onChange={(e) => setOrg("officialName", e.target.value)} />
+                <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
+                  Printed schedules, PDF headers, calendar feeds and page titles.
+                </p>
+              </div>
+
+              <div className="arow" style={{ gridTemplateColumns: "1fr 1fr", borderBottom: 0, marginTop: 16, minWidth: 0 }}>
+                <div className="field">
+                  <label className="h6">Primary color</label>
+                  <ColorField value={org.primary || "#041E42"} onChange={(v) => setOrg("primary", v)} />
+                </div>
+                <div className="field">
+                  <label className="h6">Accent color</label>
+                  <ColorField value={org.accent || "#FFC72C"} onChange={(v) => setOrg("accent", v)} />
+                </div>
+              </div>
+              <p className="bsm" style={{ marginTop: 8, color: "var(--au-faint)" }}>
+                Used by the “School colors” theme under Appearance.
+              </p>
+            </section>
+
+            <section className="card">
+              <p className="h6" style={{ marginBottom: 6 }}>Social links</p>
+              <p className="bsm" style={{ marginBottom: 14 }}>
+                Only networks with a link are shown in the header.
+              </p>
+              {SOCIALS.map(([key, label]) => (
+                <div className="field" key={key} style={{ marginBottom: 12 }}>
+                  <label className="h6">{label}</label>
+                  <UrlField
+                    value={((site.settings || {}).socials || {})[key] || ""}
+                    placeholder={"https://" + (key === "x" ? "x.com" : key + ".com") + "/…"}
+                    onChange={(v) => setDraft((s) => ({
+                      ...s,
+                      settings: { ...(s.settings || {}), socials: { ...((s.settings || {}).socials || {}), [key]: v } },
+                    }))} />
+                </div>
+              ))}
+            </section>
+
+            <section className="card">
+              <p className="h6" style={{ marginBottom: 14 }}>Public site</p>
+              <div className="field">
+                <label className="h6">Tickets URL</label>
+                <input value={st.ticketsUrl || ""} placeholder="https://…" onChange={setSetting("ticketsUrl")} />
+                <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
+                  The Tickets button links straight here. Leave blank to hide it.
+                </p>
+              </div>
+              <div className="field" style={{ marginTop: 16 }}>
+                <label className="h6">Watch live URL</label>
+                <input value={st.watchUrl || ""} placeholder="https://…" onChange={setSetting("watchUrl")} />
+                <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
+                  The broadcaster's channel for this club. The Watch Live button goes
+                  here whenever it is set; leave it blank and the button falls back to
+                  the nearest game with a stream or replay link.
+                </p>
+              </div>
+              <div className="field" style={{ marginTop: 16 }}>
+                <label className="h6">Public site address</label>
+                <input value={st.siteUrl || ""} placeholder="https://calicehockey.com"
+                  onChange={setSetting("siteUrl")} />
+                <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
+                  Share links on news stories are built from this. Leave it blank and they
+                  point at whatever address the page happens to be open on.
+                </p>
+              </div>
+              <div className="field" style={{ marginTop: 16 }}>
+                <label className="h6">Game preview before a season starts</label>
+                <select value={st.previewForm || "previous"} onChange={setSetting("previewForm")}>
+                  <option value="previous">Show last season's form</option>
+                  <option value="current">Show this season only</option>
+                </select>
+                <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
+                  A preview needs numbers and the new season has none yet. Last season's
+                  are shown labelled as last season's, with anyone who graduated left out
+                  of the players to watch. Switch to this season and the cards stay empty
+                  until the first game is played.
+                </p>
+              </div>
+              <div className="field" style={{ marginTop: 16 }}>
+                <label className="h6">Contact email</label>
+                <input value={st.contactEmail || ""} placeholder="hockey@berkeley.edu"
+                  onChange={setSetting("contactEmail")} />
+              </div>
+              <div className="arow" style={{ gridTemplateColumns: "1fr 160px", borderBottom: 0, padding: 0, minWidth: 0, marginTop: 16 }}>
+                <div className="field">
+                  <label className="h6">Home venue</label>
+                  <input value={st.homeVenue || ""} placeholder="Oakland Ice Center"
+                    onChange={setSetting("homeVenue")} />
+                </div>
+                <div className="field">
+                  <label className="h6">Home city</label>
+                  <input value={st.homeCity || ""} placeholder="Oakland, CA"
+                    onChange={setSetting("homeCity")} />
+                </div>
+              </div>
+              <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
+                Prefilled on new home games. Away games take the opponent's rink and city.
+              </p>
+            </section>
+
+            <section className="card">
+              <p className="h6" style={{ marginBottom: 4 }}>Footer pages</p>
+              <p className="bsm" style={{ marginBottom: 6 }}>
+                Terms, privacy and accessibility, linked at the very bottom of every
+                public page. Markdown; a <code>#</code> starts a heading.
+              </p>
+              <p className="bsm" style={{ marginBottom: 14, color: "var(--au-warn)" }}>
+                What is here is a draft describing how this site actually behaves. It has
+                not been through anybody legal — have the university read it before launch.
+              </p>
+              {LEGAL.map(([k, label]) => (
+                <div className="field" key={k} style={{ marginTop: 12 }}>
+                  <label className="h6">{label}</label>
+                  <textarea rows={8} value={((st.legal || {})[k]) || ""}
+                    onChange={setLegal(k)} />
+                </div>
+              ))}
+            </section>
+
+            <section className="card">
+              <p className="h6" style={{ marginBottom: 4 }}>Venue page</p>
+              <p className="bsm" style={{ marginBottom: 14 }}>
+                What the public Venue tab shows. Clear a field and it stops appearing —
+                better an absent line than a wrong one about somebody else's building.
+              </p>
+              {[
+                ["name", "Rink name", "Oakland Ice Center"],
+                ["address", "Address", "519 18th Street, Oakland, CA 94612"],
+                ["phone", "Phone", "(510) 268-9000"],
+                ["website", "Rink website", "https://www.oaklandice.com"],
+                ["mapUrl", "Directions link", "https://www.google.com/maps/dir/?api=1&destination=…"],
+              ].map(([k, label, ph]) => (
+                <div className="field" key={k} style={{ marginTop: 12 }}>
+                  <label className="h6">{label}</label>
+                  <input value={(st.venue || {})[k] || ""} placeholder={ph}
+                    onChange={setVenue(k)} />
+                </div>
+              ))}
+              <div className="field" style={{ marginTop: 12 }}>
+                <label className="h6">About the rink</label>
+                <textarea rows={5} value={(st.venue || {}).about || ""}
+                  placeholder="What the building is, who runs it, how many sheets."
+                  onChange={setVenue("about")} />
+              </div>
+
+              <p className="h6" style={{ margin: "22px 0 4px" }}>Getting there</p>
+              <p className="bsm" style={{ marginBottom: 10 }}>
+                One card each on the public page. Empty ones are skipped.
+              </p>
+              {((st.venue || {}).directions || []).map((d, i) => (
+                <div className="field" key={i} style={{ marginTop: 12 }}>
+                  <label className="h6">{d.mode || "Untitled"}</label>
+                  <textarea rows={4} value={d.body || ""}
+                    onChange={setDirection(i)} />
+                </div>
+              ))}
+            </section>
+
+            <section className="card">
+              <p className="h6" style={{ marginBottom: 4 }}>Interest form</p>
+              <p className="bsm" style={{ marginBottom: 14 }}>
+                Where a prospective player's details end up. Not every program wants a
+                dashboard to check.
+              </p>
+
+              <div className="auvis">
+                {[
+                  ["inbox", "This console", "Submissions collect under Inbox → Interest forms."],
+                  ["email", "Email only", "Goes to a staff address. Nothing is stored here."],
+                  ["link", "Link to a form you already run", "Google Forms, Typeform, anything with a URL."],
+                ].map(([k, label, help]) => (
+                  <label className={"auvisrow " + ((st.recruitMode || "inbox") === k ? "on" : "")} key={k}>
+                    <input type="radio" name="recruitmode" checked={(st.recruitMode || "inbox") === k}
+                      onChange={() => setDraft((s) => ({ ...s, settings: { ...(s.settings || {}), recruitMode: k } }))} />
+                    <span>
+                      <span className="auvislabel">{label}</span>
+                      <span className="auvishelp">{help}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+
+              {st.recruitMode === "email" && (
+                <div className="field" style={{ marginTop: 12 }}>
+                  <label className="h6">Send to</label>
+                  <input value={st.recruitEmail || ""} placeholder={st.contactEmail || "coach@berkeley.edu"}
+                    onChange={setSetting("recruitEmail")} />
+                  <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
+                    Blank falls back to the contact email above. In the prototype the form
+                    opens the visitor's mail app with the details filled in; the built site
+                    sends it server-side instead, so nothing depends on their having one.
+                  </p>
+                </div>
+              )}
+
+              {st.recruitMode === "link" && (
+                <div className="field" style={{ marginTop: 12 }}>
+                  <label className="h6">Form URL</label>
+                  <input value={st.recruitFormUrl || ""} placeholder="https://forms.gle/…"
+                    onChange={setSetting("recruitFormUrl")} />
+                  <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
+                    Every &ldquo;Interest form&rdquo; button links straight here. Leave blank and the
+                    built-in form comes back, so a bad paste cannot strand the page.
+                  </p>
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+
+        {/* ================= APPEARANCE ================= */}
+        {section === "appearance" && (
+          <div style={{ display: "grid", gap: 18, maxWidth: 620 }}>
+            <section className="card">
+              <p className="h6" style={{ marginBottom: 4 }}>Theme</p>
+              <p className="bsm" style={{ marginBottom: 14 }}>
+                Yours alone — teammates keep their own. The sidebar carries the color;
+                data stays on a neutral background so dense rows remain readable.
+              </p>
+
+              <div className="authemes">
+                {Object.entries(THEMES).map(([key, t]) => (
+                  <ThemeCard key={key} id={key} label={t.label} swatch={themeSwatch(t)}
+                    active={(acct.theme || "midnight") === key}
+                    onPick={() => setAcct("theme", key)} />
+                ))}
+                <ThemeCard id="school" label="School colors"
+                  swatch={themeSwatch(schoolTheme(org))}
+                  active={acct.theme === "school"}
+                  onPick={() => setAcct("theme", "school")} />
+                <ThemeCard id="custom" label="Custom"
+                  swatch={themeSwatch(customTheme(acct.custom))}
+                  active={acct.theme === "custom"}
+                  onPick={() => setAcct("theme", "custom")} />
+              </div>
+
+              {acct.theme === "school" && (
+                <p className="bsm" style={{ marginTop: 12, color: "var(--au-faint)" }}>
+                  Follows the colors set under Organization. Change them there and this
+                  updates with them.
+                </p>
+              )}
+
+              {acct.theme === "custom" && (
+                <CustomTheme custom={acct.custom} org={org}
+                  onChange={(patch) => setAcct("custom", { ...CUSTOM_DEFAULT, ...(acct.custom || {}), ...patch })} />
+              )}
+            </section>
+
+            <section className="card">
+              <p className="h6" style={{ marginBottom: 14 }}>Density</p>
+              <div className="tabs">
+                {[["comfortable", "Comfortable"], ["compact", "Compact"]].map(([k, label]) => (
+                  <button key={k} className={"tab " + ((acct.density || "comfortable") === k ? "on" : "")}
+                    onClick={() => setAcct("density", k)}>{label}</button>
+                ))}
+              </div>
+              <p className="bsm" style={{ marginTop: 8, color: "var(--au-faint)" }}>
+                Compact fits roughly a third more rows on screen — useful when entering a
+                full roster.
+              </p>
+
+              <div className="field" style={{ marginTop: 18 }}>
+                <label className="h6">Season to open on</label>
+                <select value={acct.defaultSeason || ""} onChange={(e) => setAcct("defaultSeason", e.target.value)}>
+                  <option value="">Current season</option>
+                  {Object.keys(site.seasons || {}).sort().reverse().map((n) => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+              </div>
+            </section>
+          </div>
+        )}
+
+        {/* ================= ACCOUNT ================= */}
+        {section === "account" && (
+          <div style={{ display: "grid", gap: 18, maxWidth: 620 }}>
+            <section className="card">
+              <p className="h6" style={{ marginBottom: 14 }}>Profile</p>
+
+              <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 18 }}>
+                {acct.avatar
+                  ? <img className="auavatar lg" src={acct.avatar} alt="" />
+                  : <span className="auavatar lg fallback">{acctInitials}</span>}
+                <div style={{ display: "grid", gap: 7 }}>
+                  <input type="file" accept="image/*" style={{ fontSize: 12 }}
+                    onChange={(e) => readImage(e.target.files && e.target.files[0],
+                      (d) => setAcct("avatar", d))} />
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    {acct.avatar && (
+                      <button className="btn bGhost bSm" onClick={() => setAcct("avatar", null)}>Remove</button>
+                    )}
+                    <span className="bsm" style={{ color: "var(--au-faint)" }}>PNG or JPG, under 400KB.</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="field">
+                <label className="h6">Display name</label>
+                <input value={acct.name || ""} placeholder="Alex Rivera"
+                  onChange={(e) => setAcct("name", e.target.value)} />
+                <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
+                  Shown in the console. News bylines are set per article, so this does not
+                  appear on the public site.
+                </p>
+              </div>
+
+              <div className="field" style={{ marginTop: 16 }}>
+                <label className="h6">Email</label>
+                <input value={acct.email || ""} placeholder="you@berkeley.edu"
+                  onChange={(e) => setAcct("email", e.target.value)} />
+              </div>
+            </section>
+
+            <section className="card">
+              <p className="h6" style={{ marginBottom: 6 }}>Sign-in</p>
+              <p className="bsm" style={{ marginBottom: 14 }}>
+                Accounts support a one-time email link and a password. The link always
+                works, so a forgotten password never locks anyone out mid-season.
+              </p>
+              <div className="field">
+                <label className="h6">New password</label>
+                <input type="password" placeholder="At least 10 characters" disabled />
+              </div>
+              <div className="field" style={{ marginTop: 12 }}>
+                <label className="h6">Confirm new password</label>
+                <input type="password" disabled />
+              </div>
+              <button className="btn bNavy bSm" style={{ marginTop: 14 }} disabled>Update password</button>
+              <p className="bsm" style={{ marginTop: 10, color: "var(--au-warn)" }}>
+                Inactive in the prototype — there is no real account behind it. Wired up
+                against Supabase Auth in Phase 3.
+              </p>
+            </section>
+
+            <section className="card">
+              <p className="h6" style={{ marginBottom: 12 }}>Session</p>
+              <button className="btn bGhost bSm"
+                onClick={async () => {
+                  const ok = await ask({
+                    title: "Sign out?",
+                    message: "You will need the passcode to get back into the console.",
+                    confirmLabel: "Sign out",
+                  });
+                  if (ok) onSignOut();
+                }}>
+                Sign out
+              </button>
+              <p className="bsm" style={{ marginTop: 10, color: "var(--au-faint)" }}>
+                You stay signed in across reloads until you sign out here.
+              </p>
+            </section>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Custom theme builder ----------------
+ * Two colors and a mode is the whole surface: the sidebar takes the base, the
+ * accent drives every primary control, and the mode decides whether the content
+ * area is light or dark. Everything else is derived, so there is no way to
+ * build a combination whose text cannot be read.
+ */
+function CustomTheme({ custom, org, onChange }) {
+  const c = { ...CUSTOM_DEFAULT, ...(custom || {}) };
+  const surface = c.mode === "light" ? "#FFFFFF" : "#14181D";
+  const accentOnSurface = contrastRatio(c.accent, surface);
+  const weakAccent = accentOnSurface < 3;
+
+  const startFrom = (key) => {
+    if (key === "school") {
+      onChange({ base: org.primary || "#041E42", accent: org.accent || "#FFC72C" });
+      return;
+    }
+    const t = THEMES[key];
+    if (t) onChange({ base: t.base, accent: t.accent, mode: key === "daylight" ? "light" : "dark" });
+  };
+
+  return (
+    <div className="aucustom">
+      <div className="field">
+        <label className="h6">Mode</label>
+        <div className="tabs" style={{ marginTop: 6 }}>
+          {[["dark", "Dark"], ["light", "Light"]].map(([k, label]) => (
+            <button key={k} className={"tab " + (c.mode === k ? "on" : "")}
+              onClick={() => onChange({ mode: k })}>{label}</button>
+          ))}
+        </div>
+      </div>
+
+      <div className="field">
+        <label className="h6">Sidebar color</label>
+        <ColorField value={c.base} onChange={(v) => onChange({ base: v })} />
+      </div>
+
+      <div className="field">
+        <label className="h6">Accent color</label>
+        <ColorField value={c.accent} onChange={(v) => onChange({ accent: v })} />
+        <p className="bsm" style={{ marginTop: 6, color: weakAccent ? "var(--au-warn)" : "var(--au-faint)" }}>
+          {weakAccent
+            ? "Low contrast (" + accentOnSurface.toFixed(1) + ":1) against the content area — links and labels in this color will be hard to read."
+            : "Contrast " + accentOnSurface.toFixed(1) + ":1 against the content area."}
+        </p>
+      </div>
+
+      <div className="field" style={{ gridColumn: "1 / -1" }}>
+        <label className="h6">Start from</label>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
+          {Object.entries(THEMES).map(([key, t]) => (
+            <button key={key} className="btn bGhost bSm" onClick={() => startFrom(key)}>{t.label}</button>
+          ))}
+          <button className="btn bGhost bSm" onClick={() => startFrom("school")}>School colors</button>
+          <button className="btn bGhost bSm" style={{ marginLeft: "auto" }}
+            onClick={() => onChange(CUSTOM_DEFAULT)}>Reset</button>
+        </div>
+        <p className="bsm" style={{ marginTop: 8, color: "var(--au-faint)" }}>
+          Copies that theme's colors in so you can adjust from there. Changes apply
+          immediately — what you see is what you get.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* A color input paired with its hex, so it can be typed or picked. */
+function ColorField({ value, onChange }) {
+  return (
+    <div className="aucolor">
+      <input type="color" value={value} onChange={(e) => onChange(e.target.value)} />
+      <input className="aucolorhex" value={value} spellCheck={false}
+        onChange={(e) => {
+          const v = e.target.value.trim();
+          onChange(v.startsWith("#") ? v : "#" + v);
+        }} />
+    </div>
+  );
+}
+
+function ThemeCard({ id, label, swatch, active, onPick }) {
+  return (
+    <button className={"autheme " + (active ? "on" : "")} onClick={onPick} aria-pressed={active}>
+      <span className="authemeswatch" style={{ background: swatch[0] }}>
+        <span className="authemebar" />
+        <span className="authemebar short" />
+        <span className="authemedot" style={{ background: swatch[1] }} />
+      </span>
+      <span className="authemelabel">{label}</span>
+    </button>
+  );
+}
+
+/* ---------------- Image upload ----------------
+ * Production uploads the original file to Supabase Storage and keeps a URL.
+ * The prototype has only localStorage — roughly 5MB for everything — so a
+ * 31-player roster with two photos each would blow the quota on the first
+ * dozen. Images are downscaled and re-encoded before being stored, which is
+ * also what the real upload should do: nobody needs a 4000px headshot.
+ */
+const IMAGE_PRESETS = {
+  headshot: { w: 640, h: 640, quality: 0.82, hint: "Portrait. Square-ish crops work best." },
+  cover: { w: 1600, h: 900, quality: 0.78, hint: "Wide action shot, used as a banner." },
+  logo: { w: 512, h: 512, quality: 0.9, hint: "Square mark on transparent works best." },
+  avatar: { w: 256, h: 256, quality: 0.85, hint: "Square. Shown small." },
+};
+
+/**
+ * Read a file, scale it to fit within the preset, and return a data URI.
+ * Keeps PNG for anything with transparency (logos) so marks do not gain a
+ * black box; everything else becomes JPEG, which is far smaller for photos.
+ */
+function readScaledImage(file, preset) {
+  return new Promise((resolve, reject) => {
+    const p = IMAGE_PRESETS[preset] || IMAGE_PRESETS.cover;
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Could not read that file."));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("That file is not an image the browser can read."));
+      img.onload = () => {
+        const scale = Math.min(1, p.w / img.width, p.h / img.height);
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+        const keepAlpha = /png|svg|webp/i.test(file.type);
+        resolve({
+          dataUrl: canvas.toDataURL(keepAlpha ? "image/png" : "image/jpeg", p.quality),
+          width: w,
+          height: h,
+        });
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/** Rough byte size of a data URI, for the storage warning. */
+function dataUrlBytes(s) {
+  if (!s || s.indexOf(",") === -1) return 0;
+  const b64 = s.slice(s.indexOf(",") + 1);
+  return Math.round((b64.length * 3) / 4);
+}
+
+const kb = (bytes) => Math.max(1, Math.round(bytes / 1024)) + "KB";
+
+/**
+ * Preview, pick, replace, remove — used for headshots, covers, news art,
+ * school logos and avatars so they all behave the same way.
+ */
+function ImageField({ value, preset, label, aspect, onChange }) {
+  const ask = useAsk();
+  const [busy, setBusy] = useState(false);
+  const inputRef = useRef(null);
+  const p = IMAGE_PRESETS[preset] || IMAGE_PRESETS.cover;
+
+  const pick = async (file) => {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const { dataUrl, width, height } = await readScaledImage(file, preset);
+      onChange(dataUrl);
+      // Warn rather than block: the image is already scaled, and the person
+      // should know if they are filling the prototype's storage.
+      if (dataUrlBytes(dataUrl) > 600 * 1024) {
+        await ask({
+          title: "That is a large image",
+          message: "Stored at " + width + "×" + height + ", about " + kb(dataUrlBytes(dataUrl)) + ".",
+          detail: "Fine in production, but the prototype keeps images in browser storage — a few of these will fill it.",
+          blocked: true,
+        });
+      }
+    } catch (e) {
+      await ask({ title: "Could not use that image", message: String(e.message || e), blocked: true });
+    } finally {
+      setBusy(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  return (
+    <div className="auimage">
+      <div className={"auimgpreview " + (aspect === "wide" ? "wide" : "square")}>
+        {value
+          ? <img src={value} alt="" />
+          : <span className="auimgempty">No {label ? label.toLowerCase() : "image"}</span>}
+      </div>
+      <div className="auimgctl">
+        <input ref={inputRef} type="file" accept="image/*" disabled={busy}
+          onChange={(e) => pick(e.target.files && e.target.files[0])} />
+        <div className="auimgmeta">
+          {busy && <span className="bsm">Processing…</span>}
+          {!busy && value && (
+            <>
+              <span className="bsm" style={{ color: "var(--au-faint)" }}>{kb(dataUrlBytes(value))}</span>
+              <button className="btn bGhost bSm" onClick={() => onChange(null)}>Remove</button>
+            </>
+          )}
+          {!busy && !value && (
+            <span className="bsm" style={{ color: "var(--au-faint)" }}>{p.hint}</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Hometown autocomplete ----------------
+ * House style, matching the EliteProspects import already in the data:
+ *   United States -> "City, ST"     (two-letter state)
+ *   Everywhere    -> "City, Country" (spelled out)
+ *
+ * The bundled list is a starting point, not an authority — free text is always
+ * accepted. Suggestions also include every hometown already entered in this
+ * install, so the list gets better at your program's recruiting map over time.
+ */
+const US_STATES = {
+  alabama: "AL", alaska: "AK", arizona: "AZ", arkansas: "AR", california: "CA",
+  colorado: "CO", connecticut: "CT", delaware: "DE", florida: "FL", georgia: "GA",
+  hawaii: "HI", idaho: "ID", illinois: "IL", indiana: "IN", iowa: "IA",
+  kansas: "KS", kentucky: "KY", louisiana: "LA", maine: "ME", maryland: "MD",
+  massachusetts: "MA", michigan: "MI", minnesota: "MN", mississippi: "MS",
+  missouri: "MO", montana: "MT", nebraska: "NE", nevada: "NV",
+  "new hampshire": "NH", "new jersey": "NJ", "new mexico": "NM", "new york": "NY",
+  "north carolina": "NC", "north dakota": "ND", ohio: "OH", oklahoma: "OK",
+  oregon: "OR", pennsylvania: "PA", "rhode island": "RI", "south carolina": "SC",
+  "south dakota": "SD", tennessee: "TN", texas: "TX", utah: "UT", vermont: "VT",
+  virginia: "VA", washington: "WA", "west virginia": "WV", wisconsin: "WI",
+  wyoming: "WY", "district of columbia": "DC",
+};
+const STATE_CODES = new Set(Object.values(US_STATES));
+
+/* Weighted toward where college club hockey actually recruits.
+ * Pipe-separated because both halves can contain spaces — "South Lake Tahoe"
+ * and "United Arab Emirates" — which makes any whitespace-delimited format
+ * ambiguous about where one entry ends and the next begins. */
+const US_CITIES =
+  "Anchorage,AK|Phoenix,AZ|Scottsdale,AZ|Tempe,AZ|Chandler,AZ|Tucson,AZ|" +
+  "Anaheim,CA|Arcadia,CA|Bakersfield,CA|Berkeley,CA|Burlingame,CA|Carlsbad,CA|Concord,CA|" +
+  "Coronado,CA|Cupertino,CA|Danville,CA|Davis,CA|El Segundo,CA|Encinitas,CA|Fremont,CA|" +
+  "Fresno,CA|Glendale,CA|Granite Bay,CA|Huntington Beach,CA|Irvine,CA|La Jolla,CA|" +
+  "Laguna Beach,CA|Livermore,CA|Long Beach,CA|Los Altos,CA|Los Angeles,CA|Los Gatos,CA|" +
+  "Manhattan Beach,CA|Menlo Park,CA|Mill Valley,CA|Modesto,CA|Monterey,CA|Mountain View,CA|" +
+  "Napa,CA|Newport Beach,CA|Oakland,CA|Orange,CA|Palo Alto,CA|Pasadena,CA|Pleasanton,CA|" +
+  "Rancho Santa Margarita,CA|Redlands,CA|Redondo Beach,CA|Redwood City,CA|Riverside,CA|" +
+  "Sacramento,CA|San Clemente,CA|San Diego,CA|San Francisco,CA|San Jose,CA|San Mateo,CA|" +
+  "San Rafael,CA|San Ramon,CA|Santa Barbara,CA|Santa Clara,CA|Santa Cruz,CA|Santa Monica,CA|" +
+  "Santa Rosa,CA|Saratoga,CA|Sonoma,CA|South Lake Tahoe,CA|Stockton,CA|Sunnyvale,CA|" +
+  "Thousand Oaks,CA|Torrance,CA|Truckee,CA|Valencia,CA|Ventura,CA|Walnut Creek,CA|" +
+  "Aliso Viejo,CA|Yorba Linda,CA|Aspen,CO|Boulder,CO|Colorado Springs,CO|Denver,CO|" +
+  "Fort Collins,CO|Highlands Ranch,CO|Littleton,CO|Vail,CO|Darien,CT|Greenwich,CT|" +
+  "Hartford,CT|New Canaan,CT|Stamford,CT|Westport,CT|Wilmington,DE|Boca Raton,FL|" +
+  "Jacksonville,FL|Miami,FL|Naples,FL|Orlando,FL|Tampa,FL|Atlanta,GA|Boise,ID|" +
+  "Arlington Heights,IL|Barrington,IL|Chicago,IL|Crystal Lake,IL|Deerfield,IL|Elmhurst,IL|" +
+  "Evanston,IL|Glenview,IL|Hinsdale,IL|Lake Forest,IL|Naperville,IL|Northbrook,IL|" +
+  "Oak Park,IL|Palatine,IL|Wilmette,IL|Winnetka,IL|Carmel,IN|Indianapolis,IN|" +
+  "Des Moines,IA|Overland Park,KS|Louisville,KY|Portland,ME|Annapolis,MD|Baltimore,MD|" +
+  "Bethesda,MD|Columbia,MD|North Potomac,MD|Potomac,MD|Rockville,MD|Andover,MA|Arlington,MA|" +
+  "Boston,MA|Braintree,MA|Brookline,MA|Cambridge,MA|Concord,MA|Danvers,MA|Dedham,MA|" +
+  "Duxbury,MA|Falmouth,MA|Framingham,MA|Hingham,MA|Lexington,MA|Marblehead,MA|Medford,MA|" +
+  "Milton,MA|Natick,MA|Needham,MA|Newton,MA|Norwell,MA|Quincy,MA|Reading,MA|Scituate,MA|" +
+  "Sudbury,MA|Wellesley,MA|Weston,MA|Westwood,MA|Winchester,MA|Ann Arbor,MI|" +
+  "Bloomfield Hills,MI|Birmingham,MI|Detroit,MI|East Lansing,MI|Farmington Hills,MI|" +
+  "Grand Rapids,MI|Grosse Pointe,MI|Novi,MI|Plymouth,MI|Rochester,MI|Royal Oak,MI|" +
+  "Traverse City,MI|Troy,MI|Apple Valley,MN|Blaine,MN|Bloomington,MN|Burnsville,MN|" +
+  "Chanhassen,MN|Chaska,MN|Duluth,MN|Eagan,MN|Eden Prairie,MN|Edina,MN|Elk River,MN|" +
+  "Grand Rapids,MN|Hopkins,MN|Lakeville,MN|Maple Grove,MN|Minneapolis,MN|Minnetonka,MN|" +
+  "Moorhead,MN|Plymouth,MN|Prior Lake,MN|Rochester,MN|Roseville,MN|Saint Cloud,MN|" +
+  "Saint Louis Park,MN|Saint Paul,MN|Shakopee,MN|Stillwater,MN|Wayzata,MN|" +
+  "White Bear Lake,MN|Woodbury,MN|Kansas City,MO|Saint Louis,MO|Bozeman,MT|Missoula,MT|" +
+  "Omaha,NE|Henderson,NV|Las Vegas,NV|Reno,NV|Bedford,NH|Hanover,NH|Manchester,NH|" +
+  "Nashua,NH|Basking Ridge,NJ|Cherry Hill,NJ|Hoboken,NJ|Montclair,NJ|Morristown,NJ|" +
+  "Princeton,NJ|Ridgewood,NJ|Summit,NJ|Albuquerque,NM|Albany,NY|Bronxville,NY|Brooklyn,NY|" +
+  "Buffalo,NY|Chappaqua,NY|Garden City,NY|Ithaca,NY|Larchmont,NY|Manhasset,NY|New York,NY|" +
+  "Pittsford,NY|Rochester,NY|Rye,NY|Saratoga Springs,NY|Scarsdale,NY|Syracuse,NY|" +
+  "Charlotte,NC|Raleigh,NC|Fargo,ND|Cincinnati,OH|Cleveland,OH|Columbus,OH|Dublin,OH|" +
+  "Shaker Heights,OH|Westlake,OH|Oklahoma City,OK|Bend,OR|Lake Oswego,OR|Portland,OR|" +
+  "Bryn Mawr,PA|Doylestown,PA|Philadelphia,PA|Pittsburgh,PA|Radnor,PA|Wayne,PA|" +
+  "Providence,RI|Charleston,SC|Sioux Falls,SD|Nashville,TN|Austin,TX|Dallas,TX|Frisco,TX|" +
+  "Houston,TX|Plano,TX|San Antonio,TX|Park City,UT|Salt Lake City,UT|Burlington,VT|" +
+  "Stowe,VT|Alexandria,VA|Arlington,VA|McLean,VA|Richmond,VA|Vienna,VA|Bellevue,WA|" +
+  "Bothell,WA|Brier,WA|Kirkland,WA|Mercer Island,WA|Redmond,WA|Seattle,WA|Spokane,WA|" +
+  "Tacoma,WA|Appleton,WI|Green Bay,WI|Madison,WI|Mequon,WI|Milwaukee,WI|Waukesha,WI|" +
+  "Jackson,WY";
+
+const INTL_CITIES =
+  "Calgary,Canada|Edmonton,Canada|Halifax,Canada|Kelowna,Canada|Kitchener,Canada|" +
+  "London,Canada|Mississauga,Canada|Montreal,Canada|Oakville,Canada|Ottawa,Canada|" +
+  "Quebec City,Canada|Regina,Canada|Saskatoon,Canada|Toronto,Canada|Vancouver,Canada|" +
+  "Victoria,Canada|Windsor,Canada|Winnipeg,Canada|" +
+  "Graz,Austria|Innsbruck,Austria|Salzburg,Austria|Tulln,Austria|Vienna,Austria|" +
+  "Antwerp,Belgium|Brussels,Belgium|Prague,Czechia|Brno,Czechia|Copenhagen,Denmark|" +
+  "Aarhus,Denmark|Tallinn,Estonia|Espoo,Finland|Helsinki,Finland|Oulu,Finland|" +
+  "Tampere,Finland|Turku,Finland|Lyon,France|Paris,France|Berlin,Germany|Cologne,Germany|" +
+  "Dusseldorf,Germany|Frankfurt,Germany|Hamburg,Germany|Mannheim,Germany|Munich,Germany|" +
+  "Budapest,Hungary|Reykjavik,Iceland|Dublin,Ireland|Milan,Italy|Rome,Italy|" +
+  "Riga,Latvia|Vilnius,Lithuania|Amsterdam,Netherlands|Rotterdam,Netherlands|" +
+  "Bergen,Norway|Oslo,Norway|Stavanger,Norway|Trondheim,Norway|Krakow,Poland|" +
+  "Warsaw,Poland|Bratislava,Slovakia|Kosice,Slovakia|Ljubljana,Slovenia|Barcelona,Spain|" +
+  "Madrid,Spain|Gothenburg,Sweden|Malmo,Sweden|Stockholm,Sweden|Uppsala,Sweden|" +
+  "Vasteras,Sweden|Bern,Switzerland|Geneva,Switzerland|Zurich,Switzerland|Zug,Switzerland|" +
+  "Kyiv,Ukraine|Belfast,Northern Ireland|Cardiff,Wales|Edinburgh,Scotland|Glasgow,Scotland|" +
+  "London,England|Manchester,England|Nottingham,England|Sheffield,England|" +
+  "Beijing,China|Shanghai,China|Hong Kong,China|Tokyo,Japan|Osaka,Japan|Sapporo,Japan|" +
+  "Seoul,South Korea|Singapore,Singapore|Taipei,Taiwan|Auckland,New Zealand|" +
+  "Melbourne,Australia|Sydney,Australia|Mexico City,Mexico|Monterrey,Mexico|" +
+  "Sao Paulo,Brazil|Buenos Aires,Argentina|Santiago,Chile|Bogota,Colombia|" +
+  "Dubai,United Arab Emirates|Tel Aviv,Israel|Istanbul,Turkey|Johannesburg,South Africa|" +
+  "Cape Town,South Africa|Mumbai,India|New Delhi,India";
+
+/** "Berkeley,CA|Oakland,CA" -> ["Berkeley, CA", "Oakland, CA"] */
+function parseCities(block) {
+  return block
+    .split("|")
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .map((t) => {
+      const i = t.lastIndexOf(",");
+      return i === -1 ? null : t.slice(0, i).trim() + ", " + t.slice(i + 1).trim();
+    })
+    .filter(Boolean);
+}
+
+const CITY_LIST = [...parseCities(US_CITIES), ...parseCities(INTL_CITIES)];
+
+/**
+ * Nudge free text toward house style without ever rejecting it:
+ * "berkeley, california" -> "Berkeley, CA"; "toronto, canada" -> "Toronto, Canada".
+ */
+function titleCase(str) {
+  // Only capitalise words that have no capitals of their own, so "berkeley"
+  // becomes "Berkeley" while "McLean" and "O'Fallon" survive as typed rather
+  // than being flattened to "Mclean".
+  return String(str || "").replace(/\b[a-z]/g, (c) => c.toUpperCase());
+}
+
+function normalizeHometown(raw) {
+  const value = (raw || "").trim().replace(/\s+/g, " ");
+  if (!value) return "";
+  const i = value.lastIndexOf(",");
+  if (i === -1) return value;
+
+  const city = titleCase(value.slice(0, i).trim());
+  const tailRaw = value.slice(i + 1).trim();
+  const tail = tailRaw.toLowerCase();
+
+  if (US_STATES[tail]) return city + ", " + US_STATES[tail];
+  if (tail.length === 2 && STATE_CODES.has(tail.toUpperCase())) {
+    return city + ", " + tail.toUpperCase();
+  }
+  // Anything else is treated as a country name.
+  return city + ", " + titleCase(tailRaw);
+}
+
+/** Which house-style rule a value follows, for the inline hint. */
+function hometownKind(value) {
+  const i = (value || "").lastIndexOf(",");
+  if (i === -1) return value.trim() ? "incomplete" : "empty";
+  const tail = value.slice(i + 1).trim();
+  if (tail.length === 2 && STATE_CODES.has(tail.toUpperCase())) return "us";
+  return tail ? "intl" : "incomplete";
+}
+
+function HometownField({ value, onChange, extra }) {
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const wrapRef = useRef(null);
+
+  /* Places already entered anywhere in this install rank first — they are the
+   * ones this program actually recruits from. */
+  const options = useMemo(() => {
+    const seen = new Set();
+    const out = [];
+    for (const v of [...(extra || []), ...CITY_LIST]) {
+      const k = v.toLowerCase();
+      if (v && !seen.has(k)) { seen.add(k); out.push(v); }
+    }
+    return out;
+  }, [extra]);
+
+  const query = (value || "").trim().toLowerCase();
+  const matches = useMemo(() => {
+    if (!query) return [];
+    const starts = [];
+    const contains = [];
+    for (const o of options) {
+      const l = o.toLowerCase();
+      if (l === query) continue;
+      if (l.startsWith(query)) starts.push(o);
+      else if (l.includes(query)) contains.push(o);
+      if (starts.length >= 8) break;
+    }
+    return [...starts, ...contains].slice(0, 8);
+  }, [query, options]);
+
+  useEffect(() => { setActive(0); }, [query]);
+
+  // Close when focus leaves the field entirely.
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  const commit = (v) => { onChange(v); setOpen(false); };
+
+  const onKeyDown = (e) => {
+    if (!open || !matches.length) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); setActive((a) => (a + 1) % matches.length); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => (a - 1 + matches.length) % matches.length); }
+    else if (e.key === "Enter") { e.preventDefault(); commit(matches[active]); }
+    else if (e.key === "Escape") { setOpen(false); }
+  };
+
+  const kind = hometownKind(value || "");
+
+  return (
+    <div className="auhometown" ref={wrapRef}>
+      <input
+        value={value || ""}
+        placeholder="City, ST or City, Country"
+        onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => onChange(normalizeHometown(value))}
+        onKeyDown={onKeyDown}
+        title={kind === "incomplete" ? "Add a state (US) or country" : undefined}
+        style={kind === "incomplete" ? { borderColor: "var(--au-warn)" } : undefined}
+      />
+      {open && matches.length > 0 && (
+        <ul className="ausuggest" role="listbox">
+          {matches.map((m, i) => (
+            <li key={m}>
+              <button className={"ausuggestitem " + (i === active ? "on" : "")}
+                onMouseEnter={() => setActive(i)}
+                onMouseDown={(e) => { e.preventDefault(); commit(m); }}>
+                <span>{m.slice(0, m.lastIndexOf(","))}</span>
+                <span className="ausuggesttail">{m.slice(m.lastIndexOf(",") + 1).trim()}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Demo data ----------------
+ * Fills the console with plausible content so the design can be reviewed
+ * against something other than empty tables.
+ *
+ * EVERY VALUE HERE IS INVENTED. The roster carries real people imported from
+ * EliteProspects, so these stats, bios, schools and measurements must never be
+ * mistaken for fact or reach the public site. It is one click to load and one
+ * click to clear, and never part of the seed.
+ */
+
+/* Deterministic pseudo-random so the same roster always produces the same
+ * numbers — a demo that reshuffles on every click is impossible to talk about. */
+function seededRandom(seed) {
+  let x = 0;
+  for (let i = 0; i < seed.length; i++) x = (x * 31 + seed.charCodeAt(i)) >>> 0;
+  return () => {
+    x = (x * 1664525 + 1013904223) >>> 0;
+    return x / 4294967296;
+  };
+}
+
+/* [name, short, logo slug]. Logos live in prototype/logos and are referenced by
+ * URL rather than inlined — that is also the production shape, where they are
+ * Supabase Storage URLs rather than base64 in the row. */
+/* ---------------- Opponent library ----------------
+ * Marks for the programs this team actually plays, so an admin building a
+ * schedule is picking from a list rather than hunting for a PNG.
+ *
+ * Deliberately not shipped as a product-wide asset pack: these are other
+ * schools' trademarks, and a team should only load the ones it has the right
+ * to show. Nothing here reaches the site until someone presses Add.
+ *
+ * [name, short, slug, primary color]
+ */
+const OPPONENT_LIBRARY = [
+  ["Northeastern", "NE", "northeastern", "#C8102E"],
+  ["Santa Clara", "SCU", "santa-clara", "#862633"],
+  ["San Diego", "USD", "san-diego", "#0C2340"],
+  ["Loyola Marymount", "LMU", "lmu", "#A6192E"],
+  ["UC Santa Barbara", "UCSB", "ucsb", "#003660"],
+  ["UC San Diego", "UCSD", "ucsd", "#182B49"],
+  ["Cal State Fullerton", "CSUF", "fullerton", "#00274C"],
+  ["UC Irvine", "UCI", "uc-irvine", "#0064A4"],
+  ["Northern Arizona", "NAU", "nau", "#003466"],
+  ["Northern Colorado", "UNC", "northern-colorado", "#013C65"],
+  ["Utah Tech", "UT", "utah-tech", "#BA1C21"],
+  ["Weber State", "WEB", "weber-state", "#492365"],
+  ["Montana State", "MSU", "montana-state", "#00205B"],
+  ["Montana", "MONT", "montana", "#7A0019"],
+  ["Eastern Washington", "EWU", "eastern-washington", "#A10022"],
+  ["Western Washington", "WWU", "western-washington", "#003F87"],
+  ["Grand Canyon", "GCU", "grand-canyon", "#522398"],
+  ["Boise State", "BSU", "boise-state", "#0033A0"],
+  ["Utah State", "USU", "utah-state", "#00263A"],
+  ["Colorado State", "CSU", "colorado-state", "#1E4D2B"],
+  ["Fresno State", "FRES", "fresno-state", "#DB0032"],
+  ["Texas", "TEX", "texas", "#BF5700"],
+  ["Texas A&M", "TAMU", "texas-am", "#500000"],
+  ["Duke", "DUKE", "duke", "#012169"],
+  ["Penn State", "PSU", "penn-state", "#041E42"],
+  ["Illinois", "ILL", "illinois", "#13294B"],
+  ["Indiana", "IU", "indiana", "#990000"],
+  ["Iowa", "IOWA", "iowa", "#000000"],
+  ["Virginia", "UVA", "virginia", "#232D4B"],
+  ["Virginia Tech", "VT", "virginia-tech", "#630031"],
+  ["Vanderbilt", "VAN", "vanderbilt", "#000000"],
+  ["NC State", "NCSU", "nc-state", "#CC0000"],
+  ["Miami", "MIA", "miami", "#005030"],
+  ["Louisville", "LOU", "louisville", "#AD0000"],
+  ["Georgia Tech", "GT", "georgia-tech", "#003057"],
+  ["Florida State", "FSU", "florida-state", "#782F40"],
+];
+
+/* The Vikings mark arrived as SVG; everything else was converted to WebP. */
+const LIBRARY_SVG = new Set(["western-washington"]);
+
+function libraryLogo(slug) {
+  return "/logos/" + slug + (LIBRARY_SVG.has(slug) ? ".svg" : ".webp");
+}
+
+const DEMO_OPPONENTS = [
+  ["Stanford", "STAN", "stanford", "#8C1515"],
+  ["UCLA", "UCLA", "ucla", "#2D68C4"],
+  ["USC", "USC", "usc", "#990000"],
+  ["San Jose State", "SJSU", "sjsu", "#0055A2"],
+  ["San Diego State", "SDSU", "sdsu", "#A6192E"],
+  ["Long Beach State", "LBSU", "long-beach-state", "#000000"],
+  ["UC Davis", "UCD", "davis", "#022851"],
+  ["Arizona", "ARIZ", "arizona", "#AB0520"],
+  ["Arizona State", "ASU", "asu", "#8C1D40"],
+  ["Utah", "UTAH", "utah", "#CC0000"],
+  ["Colorado", "COLO", "colorado", "#CFB87C"],
+  ["Oregon", "ORE", "oregon", "#154733"],
+  ["Washington", "UW", "washington", "#4B2E83"],
+  ["Washington State", "WSU", "washington-state", "#981E32"],
+  ["SMU", "SMU", "smu", "#0033A0"],
+  ["Boston College", "BC", "boston-college", "#98002E"],
+];
+
+const DEMO_CLASSES = ["Fr", "So", "Jr", "Sr", "Grad"];
+const DEMO_SCHOOLS = [
+  "Jesuit HS", "Bellarmine College Prep", "Loyola Academy", "Shattuck-St. Mary's",
+  "Culver Academies", "Edina HS", "Hill-Murray", "Cushing Academy",
+  "Northwood School", "Salisbury School", "Berkshire School", "St. Sebastian's",
+];
+/* Invented, like every other part of the demo. Written to exercise the layouts
+ * — long and short headlines, with and without a teaser, tags of varying
+ * length — rather than to read as a real newsroom. */
+/* Placeholder headshots for demo mode only.
+ *
+ * Five faces cycled across the roster, which is deliberate: the repetition
+ * reads as "placeholder" at a glance in a way a full set of distinct faces
+ * would not. They load and clear with the rest of the demo data and never
+ * touch a saved roster — see the note in buildDemoData.
+ */
+const DEMO_HEADSHOTS = [
+  "/photos/head-1.jpg", "/photos/head-2.jpg", "/photos/head-3.jpg",
+  "/photos/head-4.jpg", "/photos/head-5.jpg", "/photos/head-6.jpg",
+  "/photos/head-7.jpg", "/photos/head-8.jpg", "/photos/head-9.jpg",
+];
+
+/* Staff portraits, same rules. There are fewer of these than there are staff,
+ * so they cycle; whoever ends up on the wrong face is one click from a
+ * different one in the staff editor. */
+const DEMO_STAFF_PHOTOS = [
+  "/photos/coach-1.jpg", "/photos/coach-2.jpg", "/photos/coach-3.jpg",
+];
+
+const DEMO_NEWS = [
+  ["RECAP", "Bears Rally Past Long Beach State In Third-Period Comeback",
+   "Down two after forty minutes, Cal scored three in eleven minutes to take the series opener.",
+   "# Third period turnaround\nTrailing 3-1 heading into the third, the Bears needed nine shots to level it and another six to go ahead.\n\n- Two goals in ninety seconds pulled it back to 3-3\n- The winner came with under four minutes left\n- Cal has now won four of five at home\n\n# Between the pipes\nA thirty-one save night, twenty of them after the intermission."],
+  ["FEATURE", "Inside The 5am Practice That Sets The Tone For The Season",
+   "Ice time at a public rink means the alarm goes off before the sun does.",
+   "# The only sheet available\nClub programs take the ice nobody else wants. For Cal that means Tuesdays and Thursdays at five in the morning, an hour before the rink opens to the public.\n\n- Players arrive from three different residence halls\n- Equipment lives in cars, not a locker room\n- Practice ends in time for an eight o'clock lecture\n\n# Why it works\nThe staff argue the hour filters for commitment better than any tryout drill."],
+  ["ANNOUNCEMENT", "Home Schedule Released For The Second Half",
+   "Eight games at Oakland Ice Center between January and the conference tournament.",
+   "The second-half schedule is now live on the site, including two weekend series and the annual alumni game.\n\n- All home games start at 7:00 PM unless noted\n- Tickets are available at the door\n- Streams are linked from each game page"],
+  ["RECAP", "Special Teams Decide It Against Arizona State",
+   "Two power-play goals and a short-handed marker made the difference on the road.",
+   "# Power play finds its range\nAfter a quiet month the man advantage converted twice on four chances.\n\n# Penalty kill holds\nSeven kills, including ninety seconds of five-on-three in the second."],
+  ["PROFILE", "From Brussels To Berkeley: A Winding Route To Cal Hockey",
+   "One of the program's international players on finding a rink eight thousand kilometres from home.",
+   "# Getting here\nThere is no straight path from Belgian junior hockey to ACHA Division II, and this one went through two continents and a gap year.\n\n# Settling in\n- The ice is faster and the games are rougher\n- The travel is longer than anything back home\n- The academics are the hard part"],
+  ["ANNOUNCEMENT", "Livestream Returns For All Home Games",
+   "Every home game will be streamed free, with a volunteer crew behind the camera.",
+   "Home games are streamed from the rink for anyone who cannot make it to Oakland.\n\n- Links appear on each game page an hour before puck drop\n- Replays stay up for the rest of the season\n- We are still looking for camera operators"],
+  ["RECAP", "Shutout In Salt Lake Caps Road Trip",
+   "A twenty-one save shutout closed out a three-game swing through the mountain schools.",
+   "# Clean sheet\nThe first shutout of the season, and the first on the road in two years."],
+  ["FEATURE", "How A Club Team Pays For A Season",
+   "Dues, fundraising and a lot of driving: the economics of student-run hockey.",
+   "# What it costs\nIce time, referees, league fees and travel run to a number most students do not expect.\n\n- Ice is the single largest line\n- Officials are paid per game, in cash, on the night\n- Nobody flies anywhere\n\n# How it gets covered\nPlayer dues cover most of it; the rest comes from fundraising and alumni."],
+  ["ANNOUNCEMENT", "Alumni Game Set For Reunion Weekend",
+   "Former players are invited back for an exhibition before the Saturday home game.",
+   "The alumni game returns, with a skate for anyone who has worn the sweater."],
+  ["RECAP", "Split Weekend Against Stanford Leaves Series Level",
+   "A Friday win and a Saturday loss in the season's most-attended series.",
+   "# Friday\nA controlled sixty minutes and the best crowd of the year.\n\n# Saturday\nThe rematch went the other way, decided by a late power-play goal."],
+];
+
+const DEMO_OPP_NAMES = [
+  "T. Kowalski", "M. Lindqvist", "R. Beaumont", "J. Ferraro", "D. Whitfield",
+  "A. Okonkwo", "S. Halvorsen", "C. Mercier", "N. Petrov", "L. Grayson",
+  "B. Castellanos", "E. Nakamura", "P. Donnelly", "V. Sorensen", "K. Rasmussen",
+];
+
+const DEMO_JUNIORS = [
+  "San Jose Jr. Sharks (16U AAA)", "LA Jr. Kings (18U AAA)", "Anaheim Jr. Ducks (18U AAA)",
+  "Team Illinois (16U AAA)", "Shattuck-St. Mary's (18U)", "Minnesota Blades (18U AAA)",
+  "Colorado Thunderbirds (16U AAA)", "Boston Jr. Bruins (18U)", "Detroit Compuware (16U AAA)",
+];
+
+/** Build a full demo season: schedule, results, box scores, roster details. */
+function buildDemoData(site) {
+  const next = JSON.parse(JSON.stringify(site));
+  const rnd = seededRandom("cal-hockey-demo-v1");
+  const pick = (arr) => arr[Math.floor(rnd() * arr.length)];
+  const between = (lo, hi) => lo + Math.floor(rnd() * (hi - lo + 1));
+
+  /* --- Opponents --- */
+  const existing = new Map((next.opponents || []).map((o) => [o.name, o]));
+  for (const [name, short, slug, color] of DEMO_OPPONENTS) {
+    const logo = "/logos/" + slug + ".webp";
+    const prev = existing.get(name);
+    if (prev) {
+      existing.set(name, {
+        ...prev, short: prev.short || short,
+        color: prev.color || color, logoLight: prev.logoLight || logo,
+      });
+    } else {
+      existing.set(name, { id: uid(), name, short, color, logoLight: logo, logoDark: null });
+    }
+  }
+  next.opponents = [...existing.values()];
+  const oppIds = next.opponents.map((o) => o.id);
+  // Cycled rather than randomly picked: random selection over 16 teams produced
+  // a season against mostly one opponent, which looks like a bug in the UI.
+  for (let i = oppIds.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [oppIds[i], oppIds[j]] = [oppIds[j], oppIds[i]];
+  }
+
+  const seasonName = next.currentSeason;
+  const season = next.seasons[seasonName];
+  if (!season) return next;
+
+  /* --- Roster details --- */
+  const weightFor = (pos) =>
+    pos === "G" ? between(175, 205) : pos === "D" ? between(180, 215) : between(165, 200);
+
+  /* The roster holds real people imported from EliteProspects, and these
+   * headshots are not photographs of them. They go on only in demo mode,
+   * behind the same warning as the invented stats, and only where a player
+   * has no real photo — an uploaded headshot is never overwritten. */
+  season.roster = (season.roster || []).map((p, i) => ({
+    ...p,
+    year: p.year || pick(DEMO_CLASSES),
+    weight: p.weight || String(weightFor(p.position)) + " lbs",
+    highSchool: p.highSchool || pick(DEMO_SCHOOLS),
+    priorTeam: p.priorTeam || pick(DEMO_JUNIORS),
+    photo: p.photo || DEMO_HEADSHOTS[i % DEMO_HEADSHOTS.length],
+    captain: p.captain || "",
+    bio: p.bio || "",
+  }));
+
+  /* Captains: one C and two A's, chosen from the upperclassmen. */
+  const seniors = season.roster.filter((p) => p.year === "Sr" || p.year === "Grad");
+  const pool = seniors.length >= 3 ? seniors : season.roster;
+  const capIds = new Set();
+  for (let i = 0; i < 3 && i < pool.length; i++) {
+    let cand = pool[Math.floor(rnd() * pool.length)];
+    let guard = 0;
+    while (capIds.has(cand.id) && guard++ < 20) cand = pool[Math.floor(rnd() * pool.length)];
+    capIds.add(cand.id);
+  }
+  const capList = [...capIds];
+  season.roster = season.roster.map((p) => ({
+    ...p,
+    captain: p.id === capList[0] ? "C" : capList.slice(1).includes(p.id) ? "A" : "",
+  }));
+
+  /* --- Schedule: 22 regular season games plus a 3-game playoff run --- */
+  const skaters = season.roster.filter((p) => p.position !== "G");
+  const goalies = season.roster.filter((p) => p.position === "G");
+  const schedule = [];
+  const gameStats = { ...(next.gameStats || {}) };
+  const opponentStats = { ...(next.opponentStats || {}) };
+
+  const addGame = (dateISO, type, roundLabel, upcoming) => {
+    const id = uid();
+    const home = rnd() > 0.45;
+    // Weighted so the season reads like a good-but-not-perfect team.
+    const us = between(1, 7);
+    const them = Math.max(0, us - between(-2, 4));
+    const oppId = oppIds[schedule.length % oppIds.length];
+    const opp = (next.opponents || []).find((o) => o.id === oppId);
+    const g = {
+      id,
+      date: dateISO,
+      opponentId: oppId,
+      homeAway: home ? "H" : "A",
+      /* No filler for away venues. "Away rink" read as real content on the
+         public schedule, and it also looked like a hand-entered value to the
+         venue autofill, which then refused to fill it in. */
+      venue: home
+        ? (next.settings && next.settings.homeVenue) || "Oakland Ice Center"
+        : (opp && opp.homeVenue) || "",
+      time: pick(["7:00 PM", "7:30 PM", "8:15 PM", "5:00 PM"]),
+      gameType: type,
+      roundLabel: roundLabel || "",
+      streamUrl: upcoming ? "https://www.youtube.com/live/cal-hockey" : "",
+      replayUrl: "",
+      result: upcoming ? null : { us, them, ot: rnd() > 0.88 },
+    };
+    schedule.push(g);
+    if (upcoming) return;
+
+    /* Box score that reconciles with the score — goals recorded must equal
+     * goals scored, and goalie GA must equal goals conceded, or the console's
+     * own validation would flag every demo game. */
+    const lines = {};
+    const dressed = skaters.filter(() => rnd() > 0.12);
+    let goalsLeft = us;
+    for (const p of dressed) {
+      const goals = goalsLeft > 0 && rnd() > 0.72 ? Math.min(goalsLeft, between(1, 2)) : 0;
+      goalsLeft -= goals;
+      // Roughly a fifth of goals come on the power play, a twentieth short handed.
+      const ppg = goals > 0 && rnd() > 0.78 ? 1 : 0;
+      const shg = goals > ppg && rnd() > 0.94 ? 1 : 0;
+      lines[p.id] = {
+        dressed: true,
+        g: goals,
+        a: rnd() > 0.7 ? between(1, 2) : 0,
+        pim: rnd() > 0.82 ? pick([2, 2, 4]) : 0,
+        ppg, shg, gwg: false,
+      };
+    }
+    // Any remainder goes to the first dressed skater so the totals agree.
+    if (goalsLeft > 0 && dressed.length) lines[dressed[0].id].g += goalsLeft;
+
+    /* Exactly one game winner, and only in a win. */
+    if (us > them) {
+      const scorersInGame = dressed.filter((p) => (lines[p.id].g || 0) > 0);
+      if (scorersInGame.length) {
+        lines[scorersInGame[Math.floor(rnd() * scorersInGame.length)].id].gwg = true;
+      }
+    }
+    for (const p of skaters) {
+      if (!lines[p.id]) lines[p.id] = { dressed: false, g: 0, a: 0, pim: 0 };
+    }
+
+    const starter = goalies.length ? goalies[Math.floor(rnd() * goalies.length)] : null;
+    for (const gk of goalies) {
+      lines[gk.id] = starter && gk.id === starter.id
+        ? { dressed: true, g: 0, a: 0, pim: 0, saves: between(18, 41), ga: them, minutes: 60 }
+        : { dressed: false, g: 0, a: 0, pim: 0 };
+    }
+    gameStats[id] = lines;
+
+    /* The other team's summary, reconciling with the goals they scored. */
+    const oppLines = [];
+    let theirGoals = them;
+    const used = new Set();
+    while (theirGoals > 0) {
+      let nm = DEMO_OPP_NAMES[Math.floor(rnd() * DEMO_OPP_NAMES.length)];
+      let guard = 0;
+      while (used.has(nm) && guard++ < 20) nm = DEMO_OPP_NAMES[Math.floor(rnd() * DEMO_OPP_NAMES.length)];
+      used.add(nm);
+      const goals = Math.min(theirGoals, rnd() > 0.8 ? 2 : 1);
+      theirGoals -= goals;
+      oppLines.push({
+        id: uid(), name: nm, number: String(between(2, 97)), isGoalie: false,
+        g: goals, a: rnd() > 0.6 ? 1 : 0, pim: rnd() > 0.85 ? 2 : 0,
+      });
+    }
+    oppLines.push({
+      id: uid(), name: DEMO_OPP_NAMES[Math.floor(rnd() * DEMO_OPP_NAMES.length)],
+      number: String(between(1, 40)), isGoalie: true,
+      g: 0, a: 0, pim: 0, saves: between(16, 38), ga: us,
+    });
+    opponentStats[id] = oppLines;
+  };
+
+  let day = new Date(Date.UTC(2025, 9, 3));
+  for (let i = 0; i < 22; i++) {
+    // The last five are left unplayed: a season frozen at "complete" never
+    // exercises previews, upcoming fixtures or the watch link.
+    addGame(day.toISOString().slice(0, 10), "regular", "", i >= 17);
+    day = new Date(day.getTime() + (rnd() > 0.5 ? 7 : 5) * 86400000);
+  }
+  const rounds = ["Quarterfinal", "Semifinal", "Championship"];
+  for (const label of rounds) {
+    addGame(day.toISOString().slice(0, 10), "playoff", "ACHA Pac-8 " + label, true);
+    day = new Date(day.getTime() + 86400000);
+  }
+
+  season.schedule = schedule;
+  next.gameStats = gameStats;
+  next.opponentStats = opponentStats;
+  // A real game log supersedes the imported record.
+  season.record = null;
+
+  /* News dated backwards from the last played game, so the site reads as a
+   * season in progress rather than everything posted on one day. */
+  const lastPlayed = [...schedule].filter((g) => g.result).sort(cmpDate).pop();
+  let newsDay = lastPlayed ? new Date(lastPlayed.date + "T12:00:00") : new Date(Date.UTC(2026, 0, 15, 12));
+  const authors = ["Team Staff", "Coach Delaney", "Sports Information", "Dana Whitmore"];
+  next.news = DEMO_NEWS.map(([tag, title, blurb, body], i) => {
+    const d = new Date(newsDay.getTime() - i * (rnd() > 0.5 ? 4 : 7) * 86400000);
+    return {
+      id: uid(),
+      date: d.toISOString().slice(0, 10),
+      tag, title, blurb, body,
+      author: authors[i % authors.length],
+      /* Stock imagery, so the demo exercises the hero and card layouts.
+       * Announcements deliberately go without a cover — a real site has
+       * text-only posts and the layout has to hold for them. */
+      image: tag === "ANNOUNCEMENT" ? null : STOCK_IMAGES[i % STOCK_IMAGES.length],
+      published: true,
+    };
+  });
+
+  next.staff = (next.staff || []).map((c, i) => ({
+    ...c,
+    photo: c.photo || DEMO_STAFF_PHOTOS[i % DEMO_STAFF_PHOTOS.length],
+  }));
+
+  next.demo = true;
+  return next;
+}
+
+/** Undo everything buildDemoData added, back to the seeded starting point. */
+function clearDemoData(site) {
+  const next = JSON.parse(JSON.stringify(site));
+  const demoNames = new Set(DEMO_OPPONENTS.map(([n]) => n));
+
+  for (const season of Object.values(next.seasons || {})) {
+    season.schedule = [];
+    season.roster = (season.roster || []).map((p) => ({
+      ...p, year: "", weight: "", highSchool: "", priorTeam: "", captain: "", bio: "", stats: {},
+      // Only the placeholders. A real uploaded headshot survives a clear.
+      photo: DEMO_HEADSHOTS.includes(p.photo) ? null : p.photo,
+    }));
+  }
+  next.staff = (next.staff || []).map((c) => ({
+    ...c, photo: DEMO_STAFF_PHOTOS.includes(c.photo) ? null : c.photo,
+  }));
+  next.gameStats = {};
+  next.opponentStats = {};
+  // Demo stories go with the rest; the seeded three come back on reload.
+  next.news = (next.news || []).filter((n) => !DEMO_NEWS.some(([, title]) => title === n.title));
+  next.opponents = (next.opponents || []).filter((o) => !demoNames.has(o.name));
+  next.demo = false;
+  return next;
+}
+
+function DemoDataPanel({ site, setDraft }) {
+  const ask = useAsk();
+  const loaded = !!site.demo;
+
+  const load = async () => {
+    const ok = await ask({
+      title: "Load demo data?",
+      message: "Fills the current season with an invented schedule, results, box scores and roster details.",
+      detail: "Every value is made up. The roster contains real people — never publish this.",
+      confirmLabel: "Load demo data",
+    });
+    if (ok) setDraft((s) => buildDemoData(s));
+  };
+
+  const clear = async () => {
+    const ok = await ask({
+      title: "Clear demo data?",
+      message: "Removes the demo schedule, box scores and roster details.",
+      detail: "Anything you typed yourself in those fields goes too.",
+      confirmLabel: "Clear it",
+      danger: true,
+    });
+    if (ok) setDraft((s) => clearDemoData(s));
+  };
+
+  return (
+    <div className="card" style={{ marginTop: 24, borderColor: loaded ? "var(--au-warn)" : undefined }}>
+      <p className="h6" style={{ marginBottom: 8 }}>Demo data</p>
+      {loaded ? (
+        <p className="bsm" style={{ color: "var(--au-warn)", marginBottom: 14 }}>
+          <strong>Demo data is loaded.</strong> Schedule, results, box scores and roster
+          details are invented. Clear before this install goes anywhere near the public.
+        </p>
+      ) : (
+        <p className="bsm" style={{ marginBottom: 14 }}>
+          Fills the season with a plausible schedule, box scores and roster details so the
+          screens can be reviewed with content in them. Everything it writes is invented.
+        </p>
+      )}
+      <div style={{ display: "flex", gap: 9 }}>
+        <button className="btn bNavy bSm" onClick={load} disabled={loaded}>
+          {loaded ? "Loaded" : "Load demo data"}
+        </button>
+        <button className="btn bGhost bSm" onClick={clear} disabled={!loaded}>Clear demo data</button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Confirmation dialog ----------------
+ * window.confirm/alert/prompt are auto-dismissed in embedded browsers — they
+ * return false without ever showing anything, so every guarded delete silently
+ * did nothing. These render in-page instead, and match the console styling.
+ *
+ *   const ask = useAsk();
+ *   if (!(await ask({ title, message, confirmLabel, danger }))) return;
+ *
+ * Options: title, message, detail, confirmLabel, danger, requireText, blocked.
+ * `blocked` shows a single Close button for "you can't do this yet" cases.
+ */
+const AskContext = createContext(null);
+const useAsk = () => useContext(AskContext);
+
+function AskDialog({ state, onResolve }) {
+  const [typed, setTyped] = useState("");
+
+  useEffect(() => { setTyped(""); }, [state]);
+
+  useEffect(() => {
+    if (!state) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") onResolve(false);
+      if (e.key === "Enter" && !state.requireText && !state.blocked) onResolve(true);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [state, onResolve]);
+
+  if (!state) return null;
+
+  const needsText = !!state.requireText;
+  const ready = !needsText || typed.trim() === state.requireText;
+
+  return (
+    <div className="auoverlay">
+      <div className="auscrim" onClick={() => onResolve(false)} />
+      <div className="aumodal" role="dialog" aria-modal="true" aria-label={state.title}>
+        <h2 className="aumodaltitle">{state.title}</h2>
+        {state.message && <p className="aumodalmsg">{state.message}</p>}
+        {state.detail && <p className="aumodaldetail">{state.detail}</p>}
+
+        {needsText && (
+          <div className="field" style={{ marginTop: 16 }}>
+            <label className="h6" style={{ marginBottom: 6, display: "block" }}>
+              Type {state.requireText} to confirm
+            </label>
+            <input autoFocus value={typed} onChange={(e) => setTyped(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && ready && onResolve(true)} />
+          </div>
+        )}
+
+        <div className="aumodalfoot">
+          {state.blocked ? (
+            <button className="btn bNavy bSm" autoFocus onClick={() => onResolve(false)}>Close</button>
+          ) : (
+            <>
+              <button className="btn bGhost bSm" onClick={() => onResolve(false)}>Cancel</button>
+              <button
+                className={"btn bSm " + (state.danger ? "bDestruct" : "bNavy")}
+                autoFocus={!needsText}
+                disabled={!ready}
+                onClick={() => onResolve(true)}>
+                {state.confirmLabel || "Confirm"}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Admin console ----------------
+ * Intentionally not branded as Cal Ice Hockey. The public site is navy/gold
+ * with pill buttons and condensed display type; the console is a dark neutral
+ * tool. Looking at a screenshot should tell you which one you are in.
+ */
+const ADMIN_NAV = [
+  ["Season", [["live", "Live scoring"], ["schedule", "Schedule"], ["roster", "Roster"], ["stats", "Stats"]]],
+  ["Team", [["coaches", "Staff"], ["prospects", "Recruits page"], ["volunteers", "Volunteer roles"]]],
+  ["Library", [["opponents", "Opponents"], ["news", "News"], ["sponsors", "Sponsors"]]],
+  ["Inbox", [["inbox", "Interest forms"], ["alumni", "Alumni list"]]],
+  ["System", [["seasons", "Seasons"], ["import", "Import"], ["settings", "Settings"]]],
+];
+
+const ADMIN_TITLES = {
+  live: "Live scoring",
+  schedule: "Schedule & results",
+  roster: "Roster",
+  stats: "Statistics",
+  coaches: "Staff & volunteers",
+  prospects: "Recruits page",
+  volunteers: "Volunteer roles",
+  opponents: "Opponents",
+  news: "News",
+  sponsors: "Sponsors",
+  inbox: "Recruit inbox",
+  alumni: "Alumni list",
+  seasons: "Seasons",
+  settings: "Settings",
+  import: "Bulk import",
+};
+
+function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni, authed, setAuthed, goto }) {
+  const [tab, setTab] = useState("schedule");
+  const [settingsSection, setSettingsSection] = useState("organization");
+  const [statsView, setStatsView] = useState("game");
+  /* A game handed from the schedule to Live scoring. It has to sit above the
+     two tabs because only one of them is mounted at a time. */
+  const [liveSeed, setLiveSeed] = useState(null);
+  const [pass, setPass] = useState("");
+  const [err, setErr] = useState(false);
+
+  /* Edits go to a working copy. Nothing reaches storage until Save is pressed,
+   * so a mis-click in a 30-row grid is recoverable with Discard.
+   *
+   * The ref shadows the draft so `save` never reads a stale one. `save` used to
+   * close over `draft` at render time, which is fine for a button a person
+   * clicks — by then React has re-rendered — but wrong for anything that edits
+   * and publishes in the same turn, like live scoring. That path was writing
+   * the previous draft and silently dropping the change.
+   */
+  const [draft, setDraftState] = useState(site);
+  const draftRef = useRef(site);
+  const setDraft = useCallback((updater) => {
+    /* Computed here rather than inside the state updater: React runs an
+     * updater when it processes the batch, which is after the calling code
+     * has moved on. Live scoring edits and publishes in the same turn, so the
+     * ref has to be right the moment this returns. Successive calls still
+     * chain correctly because each one reads the ref it just wrote. */
+    const next = typeof updater === "function" ? updater(draftRef.current) : updater;
+    draftRef.current = next;
+    setDraftState(next);
+  }, []);
+  useEffect(() => { draftRef.current = site; setDraftState(site); }, [site]);
+
+  /* One dialog for the whole console; ask() resolves when the user answers. */
+  const [asking, setAsking] = useState(null);
+  const ask = useMemo(
+    () => (opts) => new Promise((resolve) => setAsking({ ...opts, resolve })),
+    []
+  );
+  const answer = (value) => {
+    setAsking((cur) => { if (cur) cur.resolve(value); return null; });
+  };
+
+  const changed = useMemo(() => diffSections(site, draft), [site, draft]);
+  const dirty = changed.length > 0;
+
+  /* Don't let a closed tab silently throw away an afternoon of roster entry. */
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+
+  if (!authed) {
+    const submit = () => (pass === ADMIN_PASSCODE ? setAuthed(true) : setErr(true));
+    return (
+      <main className="adminui">
+        <div className="augate">
+          <div className="augatecard">
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+              <span className="aumark">{orgInitials(((site.settings || {}).org || {}).name)}</span>
+              <div className="aubrandtext">
+                <span className="auname">Console</span>
+                <span className="auenv">internal · staff only</span>
+              </div>
+            </div>
+            <div className="field">
+              <label className="h6">Passcode</label>
+              <input type="password" value={pass} autoFocus
+                onChange={(e) => { setPass(e.target.value); setErr(false); }}
+                onKeyDown={(e) => e.key === "Enter" && submit()} />
+            </div>
+            {err && (
+              <p className="bsm" style={{ color: "var(--au-danger)", marginTop: 8 }}>
+                Incorrect passcode.
+              </p>
+            )}
+            <button className="btn bNavy" style={{ marginTop: 16, width: "100%" }} onClick={submit}>
+              Continue
+            </button>
+            <p className="bsm" style={{ color: "var(--au-faint)", marginTop: 16, fontSize: 11.5 }}>
+              Prototype gate only — production uses a magic-link sign-in.
+            </p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  const unread = recruits.filter((r) => !r.read).length;
+  const alumniUnread = (alumni || []).filter((a) => !a.read).length;
+  const acctInitials = ((draft.account && draft.account.name) || "")
+    .trim().split(/\s+/).filter(Boolean).slice(0, 2)
+    .map((w) => w[0].toUpperCase()).join("") || "?";
+  const density = (draft.account && draft.account.density) || "comfortable";
+  const org = (draft.settings && draft.settings.org) || {};
+
+  const updateSeason = (name, patch) =>
+    setDraft((s) => ({ ...s, seasons: { ...s.seasons, [name]: { ...s.seasons[name], ...patch } } }));
+
+  const save = () => setSite(draftRef.current);
+
+  const discard = async () => {
+    const ok = await ask({
+      title: "Discard changes?",
+      message: "Reverts everything back to the last save.",
+      detail: changed.join(", "),
+      confirmLabel: "Discard",
+      danger: true,
+    });
+    if (ok) setDraft(site);
+  };
+
+  const leave = async () => {
+    if (dirty) {
+      const ok = await ask({
+        title: "Leave with unsaved changes?",
+        message: "Your edits stay in this tab, but they are not saved yet.",
+        detail: changed.join(", "),
+        confirmLabel: "Leave anyway",
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    goto("home");
+  };
+
+  return (
+    <AskContext.Provider value={ask}>
+    <main className={"adminui " + density} style={themeVars(draft.account, org)}>
+      <AskDialog state={asking} onResolve={answer} />
+      <div className="aushell">
+        <aside className="ausidebar">
+          <div className="aubrand">
+            {org.logo
+              ? <img className="aulogo" src={org.logo} alt="" />
+              : <span className="aumark">{orgInitials(org.name)}</span>}
+            <div className="aubrandtext">
+              <span className="auname">{org.name || "Console"}</span>
+              <span className="auenv">{draft.currentSeason}</span>
+            </div>
+          </div>
+
+          <nav className="aunav" aria-label="Console sections">
+            {ADMIN_NAV.map(([group, items]) => (
+              <div className="aunavgroup" key={group}>
+                <p className="augroup">{group}</p>
+                {items.map(([k, label]) => (
+                  <button key={k} className={"aulink " + (tab === k ? "on" : "")}
+                    onClick={() => setTab(k)}>
+                    <span className="audot" />
+                    {label}
+                    {k === "inbox" && unread > 0 && <span className="aubadge">{unread}</span>}
+                    {k === "alumni" && alumniUnread > 0 && <span className="aubadge">{alumniUnread}</span>}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </nav>
+
+          <div className="ausidefoot">
+            <button className={"auacct " + (tab === "settings" && settingsSection === "account" ? "on" : "")}
+              onClick={() => { setTab("settings"); setSettingsSection("account"); }}>
+              {draft.account && draft.account.avatar
+                ? <img className="auavatar" src={draft.account.avatar} alt="" />
+                : <span className="auavatar fallback">{acctInitials}</span>}
+              <span className="auacctname">
+                {(draft.account && draft.account.name) || "Set up your account"}
+              </span>
+            </button>
+            <button className="aulink" onClick={leave}>
+              <span className="audot" />
+              Back to site
+            </button>
+          </div>
+        </aside>
+
+        <div className="aumain">
+          <header className="autop">
+            <h1 className="autitle">{ADMIN_TITLES[tab]}</h1>
+            <div className="auactions">
+              <span className={"austate " + (dirty ? "dirty" : "")}>
+                <span className="aupulse" />
+                <span className="austatetext">
+                  {dirty ? "Unsaved · " + changed.join(", ") : "All changes saved"}
+                </span>
+              </span>
+              <button className="btn bGhost bSm" onClick={discard} disabled={!dirty}>Discard</button>
+              <button className="btn bNavy bSm" onClick={save} disabled={!dirty}>Save</button>
+            </div>
+          </header>
+
+          <div className="aubody">
+            {tab === "live" && (
+              <LiveTab site={draft} setDraft={setDraft} updateSeason={updateSeason}
+                onSave={save} dirty={dirty}
+                setupSeed={liveSeed} onSeedUsed={() => setLiveSeed(null)} />
+            )}
+            {tab === "schedule" && (
+              <ScheduleEditor site={draft} setDraft={setDraft} updateSeason={updateSeason}
+                onSave={save} dirty={dirty}
+                openLive={(id) => { setLiveSeed(id); setTab("live"); }} />
+            )}
+            {tab === "roster" && <RosterEditor site={draft} updateSeason={updateSeason} />}
+            {tab === "stats" && (
+              <StatsEditor site={draft} setDraft={setDraft} updateSeason={updateSeason}
+                onSave={save} dirty={dirty} view={statsView} setView={setStatsView} />
+            )}
+            {tab === "opponents" && <OpponentsEditor site={draft} setDraft={setDraft} />}
+            {tab === "coaches" && <CoachesEditor site={draft} setDraft={setDraft} />}
+            {tab === "prospects" && <RecruitingEditor site={draft} setDraft={setDraft} />}
+            {tab === "volunteers" && <VolunteerRolesEditor site={draft} setDraft={setDraft} />}
+            {tab === "news" && <NewsEditor site={draft} setSite={setDraft} />}
+            {tab === "seasons" && <SeasonManager site={draft} setSite={setDraft} />}
+            {tab === "settings" && (
+              <SettingsEditor site={draft} setDraft={setDraft}
+                section={settingsSection} setSection={setSettingsSection}
+                onSignOut={() => setAuthed(false)} />
+            )}
+            {tab === "import" && (
+              <>
+                <Importer site={draft} updateSeason={updateSeason} />
+                <DemoDataPanel site={draft} setDraft={setDraft} />
+              </>
+            )}
+            {tab === "sponsors" && <SponsorsEditor site={draft} setDraft={setDraft} />}
+            {tab === "inbox" && <Inbox recruits={recruits} setRecruits={setRecruits} />}
+            {tab === "alumni" && <AlumniInbox alumni={alumni} setAlumni={setAlumni} />}
+          </div>
+        </div>
+      </div>
+    </main>
+    </AskContext.Provider>
+  );
+}
+
+/* Which areas differ between saved and working copy — drives the save bar. */
+function diffSections(saved, draft) {
+  if (!saved || !draft) return [];
+  const out = [];
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  if (!same(saved.news, draft.news)) out.push("News");
+  if (!same(saved.opponents, draft.opponents)) out.push("Opponents");
+  if (!same(saved.settings, draft.settings)) out.push("Settings");
+  if (!same(saved.account, draft.account)) out.push("Account");
+  if (!same(saved.recruiting, draft.recruiting)) out.push("Recruits page");
+  if (!same(saved.volunteerRoles, draft.volunteerRoles)) out.push("Volunteer roles");
+  if (!same(saved.staff, draft.staff)) out.push("Staff");
+  if (!same(saved.gameStats, draft.gameStats)) out.push("Game stats");
+  if (saved.currentSeason !== draft.currentSeason) out.push("Current season");
+
+  const names = new Set([...Object.keys(saved.seasons || {}), ...Object.keys(draft.seasons || {})]);
+  for (const n of names) {
+    const a = (saved.seasons || {})[n];
+    const b = (draft.seasons || {})[n];
+    if (!a || !b) { out.push(`Season ${n}`); continue; }
+    if (!same(a.schedule, b.schedule)) out.push(`${n} schedule`);
+    if (!same(a.roster, b.roster)) out.push(`${n} roster`);
+    if (!same(a.coaches, b.coaches)) out.push(`${n} coaches`);
+    if (!same(a.record, b.record)) out.push(`${n} record`);
+  }
+  return out;
+}
+
+
+/* ---------------- Volunteer roles ----------------
+ * Openings, not people. A club advertises what it needs help with; who ends up
+ * doing it is not what the public page is for.
+ */
+function VolunteerRolesEditor({ site, setDraft }) {
+  const ask = useAsk();
+  const roles = site.volunteerRoles || [];
+
+  const setR = (id, patch) =>
+    setDraft((s) => ({
+      ...s,
+      volunteerRoles: (s.volunteerRoles || []).map((r) => (r.id === id ? { ...r, ...patch } : r)),
+    }));
+
+  const remove = async (r) => {
+    const ok = await ask({
+      title: "Delete role?",
+      message: (r.title || "This role") + " will be removed from the volunteer page.",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
+    setDraft((s) => ({ ...s, volunteerRoles: (s.volunteerRoles || []).filter((x) => x.id !== r.id) }));
+  };
+
+  return (
+    <>
+      <p className="auhint" style={{ marginBottom: 18, maxWidth: 700 }}>
+        What the program needs help with. Everything listed here is public and open —
+        when a role is covered, delete it. They appear on the page in this order.
+      </p>
+
+      {!roles.length && (
+        <div className="auempty">
+          <p style={{ margin: 0, fontWeight: 600, color: "var(--au-text)" }}>No roles listed</p>
+          <p className="bsm" style={{ margin: "6px 0 0" }}>
+            The volunteer page shows an empty state until you add one.
+          </p>
+        </div>
+      )}
+
+      <div style={{ display: "grid", gap: 14 }}>
+        {roles.map((r, i) => (
+          <div className="card" key={r.id} style={{ display: "grid", gap: 12 }}>
+            <div className="arow" style={{ gridTemplateColumns: "1.6fr 1fr auto 30px", borderBottom: 0, padding: 0, minWidth: 0 }}>
+              <input value={r.title} placeholder="Livestream operator" style={{ fontWeight: 600 }}
+                onChange={(e) => setR(r.id, { title: e.target.value })} />
+              <input value={r.commitment || ""} placeholder="Home games, ~3 hrs"
+                onChange={(e) => setR(r.id, { commitment: e.target.value })} />
+              <MoveBtns i={i} count={roles.length} label="role"
+                onMove={(from, to) => setDraft((s) => ({ ...s, volunteerRoles: moved(s.volunteerRoles || [], from, to) }))} />
+              <button className="btn bDanger" aria-label="Delete role" onClick={() => remove(r)}>✕</button>
+            </div>
+
+            <div className="field">
+              <label className="h6">Summary</label>
+              <input value={r.summary || ""} placeholder="One line — what the job actually is."
+                onChange={(e) => setR(r.id, { summary: e.target.value })} />
+            </div>
+
+            <div className="arow" style={{ gridTemplateColumns: "1fr 260px", borderBottom: 0, padding: 0, minWidth: 0 }}>
+              <div className="field">
+                <label className="h6">Detail</label>
+                <textarea className="ta" rows={3} value={r.description || ""}
+                  placeholder={"What it involves.\n- Bullets work here\n- So do # headings"}
+                  onChange={(e) => setR(r.id, { description: e.target.value })} />
+              </div>
+              <div className="field">
+                <label className="h6">Contact email</label>
+                <input value={r.contactEmail || ""} placeholder="Falls back to the site contact"
+                  onChange={(e) => setR(r.id, { contactEmail: e.target.value })} />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <button className="btn bNavy bSm" style={{ marginTop: 18 }}
+        onClick={() => setDraft((s) => ({
+          ...s,
+          volunteerRoles: [...(s.volunteerRoles || []), {
+            id: uid(), title: "", summary: "", description: "", commitment: "",
+            contactEmail: "",
+          }],
+        }))}>
+        + Add Role
+      </button>
+    </>
+  );
+}
+
+
+/* ---------------- Opponents ----------------
+ * Opponents are rows so they can carry a logo. Deleting one that still has
+ * games is blocked rather than cascading — losing a game log to a mis-click
+ * is worse than being told to reassign it first.
+ */
+/* Height is stored the way it is read - 5′10″ - but stepped as a number, so
+   it converts both ways. Anything unparseable comes back null and the stepper
+   leaves it alone rather than guessing at 0′0″. */
+const CLASS_YEARS = ["Fr", "So", "Jr", "Sr", "Grad"];
+
+function heightToInches(h) {
+  const m = /^(\d+)\s*['′]\s*(\d{1,2})?\s*["″]?$/.exec(String(h || "").trim());
+  if (!m) return null;
+  return Number(m[1]) * 12 + Number(m[2] || 0);
+}
+
+function inchesToHeight(n) {
+  const total = Math.max(48, Math.min(84, Math.round(n)));
+  return Math.floor(total / 12) + "′" + (total % 12) + "″";
+}
+
+/* A stepper rather than a free text box: every height is a whole number of
+   inches, and typing the prime characters by hand is a nuisance. Still
+   editable, because a value pasted from elsewhere has to be able to land. */
+function HeightField({ value, onChange }) {
+  const inches = heightToInches(value);
+  const step = (by) => onChange(inchesToHeight((inches == null ? 70 : inches) + by));
+  return (
+    <span className="aufield aunum">
+      <input value={value || ""} placeholder="5′10″"
+        onChange={(e) => onChange(e.target.value)} />
+      <span className="aunumbtns">
+        <button type="button" aria-label="Taller" onClick={() => step(1)}>▲</button>
+        <button type="button" aria-label="Shorter" onClick={() => step(-1)}>▼</button>
+      </span>
+    </span>
+  );
+}
+
+/* The unit is not something anyone should have to type, and "185", "185lbs"
+   and "185 lbs" all meaning the same thing is how a column ends up ragged.
+   Type the number; the field says lbs. */
+function WeightField({ value, onChange }) {
+  const digits = String(value || "").replace(/[^\d]/g, "");
+  return (
+    <span className="aufield auweight">
+      <input value={digits} placeholder="185" inputMode="numeric"
+        onChange={(e) => {
+          const n = e.target.value.replace(/[^\d]/g, "").slice(0, 3);
+          onChange(n ? n + " lbs" : "");
+        }} />
+      <span className="auunit">lbs</span>
+    </span>
+  );
+}
+
+/* ---------------- Lineup paste ----------------
+ * A lineup arrives as whatever the person had to hand: a tidy list, a column
+ * copied out of a spreadsheet, or - most often - a roster page dragged
+ * straight off a stats site, complete with "Speaker icon", flag captions and
+ * section headings between the players.
+ *
+ * So this reads the whole blob rather than a line at a time. A player is not
+ * a line; it is a jersey number, a name, and sometimes a row of details, and
+ * those can arrive on three separate lines.
+ *
+ * It is deliberately conservative: anything it cannot place is returned in
+ * `skipped` for the person to look at, rather than invented into a player.
+ */
+
+/* Lines that are furniture, not people. */
+const LINEUP_NOISE = [
+  /^speaker icon$/i,
+  /^verified player$/i,
+  /^[a-z .]+ flag$/i,
+  /^(forwards?|defense(men)?|defencemen|goaltenders?|goalies?|skaters?)$/i,
+  /^(players?|roster|no\.?|#|pos|position|name)$/i,
+  /^acha\b.*$/i,
+  /^\d+\.$/,          /* "1." ranking columns */
+  /^[-\u2013\u2014]+$/,
+  /^\|+$/,
+];
+
+const POS_MAP = { C: "F", LW: "F", RW: "F", W: "F", F: "F", D: "D", G: "G" };
+
+const HEIGHT_RE = /^\d\s*['\u2032]\s*\d{1,2}\s*["\u2033]?$/;
+
+function normalisePos(raw) {
+  const key = String(raw || "").toUpperCase().replace(/[^A-Z]/g, "");
+  return POS_MAP[key] || "";
+}
+
+/* Pull what we can out of a detail row: "28  1998  Calgary, AB, CAN  6'1"  161  L".
+   Only fields we are sure about are returned. */
+function detailFrom(tokens) {
+  const out = {};
+  for (const t of tokens) {
+    if (!out.height && HEIGHT_RE.test(t)) { out.height = t; continue; }
+    /* Three digits in a plausible range is a weight; two digits is an age and
+       four is a birth year, and neither is wanted here. */
+    if (!out.weight && /^\d{3}$/.test(t) && +t >= 100 && +t <= 350) { out.weight = t; continue; }
+    if (!out.shoots && /^[LR]$/i.test(t)) { out.shoots = t.toUpperCase(); continue; }
+    if (!out.hometown && t.includes(",") && /[a-z]/i.test(t)) { out.hometown = t; continue; }
+  }
+  return out;
+}
+
+function parseLineup(text) {
+  const raw = String(text || "").split(/\r?\n/).map((l) => l.trim());
+  const lines = raw.filter((l) => l && !LINEUP_NOISE.some((re) => re.test(l)));
+
+  const players = [];
+  const skipped = [];
+  let pendingNumber = "";
+
+  const push = (number, name, position, detail) => {
+    const clean = String(name || "").replace(/\s+/g, " ").trim();
+    if (!clean) return;
+    players.push({
+      id: uid(),
+      number: String(number || "").replace(/\D/g, ""),
+      name: clean,
+      position: position || "F",
+      ...(detail || {}),
+    });
+  };
+
+  for (const line of lines) {
+    /* A jersey number on its own line belongs to the player named next. */
+    const solo = line.match(/^#\s*(\d{1,2})$/);
+    if (solo) { pendingNumber = solo[1]; continue; }
+
+    /* "Ethan Crick (G)" - the shape every stats site uses. */
+    const withPos = line.match(/^(.+?)\s*\(([A-Za-z]{1,2})\)$/);
+    if (withPos && normalisePos(withPos[2])) {
+      push(pendingNumber, withPos[1], normalisePos(withPos[2]));
+      pendingNumber = "";
+      continue;
+    }
+
+    const tokens = line.split(/\t+|\s{2,}|\s*[|,]\s*(?=[^,]*$)/).map((t) => t.trim()).filter(Boolean);
+
+    /* A details row for the player we just added. */
+    if (players.length && !/^#?\d{1,2}\s+\D/.test(line)) {
+      const detail = detailFrom(line.split(/\t+|\s{2,}/).map((t) => t.trim()).filter(Boolean));
+      if (detail.height || detail.weight || detail.shoots || detail.hometown) {
+        Object.assign(players[players.length - 1], detail);
+        continue;
+      }
+    }
+
+    /* One line per player: "12 Jordan Reyes F", "12, Jordan Reyes, F". */
+    const oneLine = line.match(/^#?\s*(\d{1,2})[\s,|]+(.+?)(?:[\s,|]+([A-Za-z]{1,2}))?$/);
+    if (oneLine && /[a-z]/i.test(oneLine[2])) {
+      const pos = normalisePos(oneLine[3]);
+      push(oneLine[1], oneLine[2], pos || "F");
+      pendingNumber = "";
+      continue;
+    }
+
+    /* A bare name, with the number picked up from the line before it. */
+    if (/^[A-Za-z][A-Za-z'.\- ]+$/.test(line) && line.split(/\s+/).length <= 4) {
+      push(pendingNumber, line, "F");
+      pendingNumber = "";
+      continue;
+    }
+
+    /* Comma or pipe separated with no leading number: "Reyes, Jordan, F". */
+    if (tokens.length >= 2 && /[a-z]/i.test(tokens[0])) {
+      const pos = normalisePos(tokens[tokens.length - 1]);
+      push(pendingNumber, tokens[0], pos || "F");
+      pendingNumber = "";
+      continue;
+    }
+
+    skipped.push(line);
+  }
+
+  return { players, skipped };
+}
+
+/* ---------------- Opponent roster ----------------
+ * Entered once per team, reused every time you play them. It exists so live
+ * scoring can offer a list instead of a text box, and so their box score comes
+ * out with numbers and positions rather than bare names.
+ *
+ * Deliberately thin: number, name, position. We are not tracking other teams'
+ * players, only recording who did what in our games.
+ */
+function OpponentRoster({ opponent, setOpp, onClose }) {
+  const roster = opponent.roster || [];
+  const [paste, setPaste] = useState("");
+
+  const setRow = (id, patch) =>
+    setOpp(opponent.id, { roster: roster.map((p) => (p.id === id ? { ...p, ...patch } : p)) });
+
+  const add = () =>
+    setOpp(opponent.id, { roster: [...roster, { id: uid(), number: "", name: "", position: "F" }] });
+
+  /* What the paste would produce, worked out as they type so the count and
+     anything unreadable are visible before the button is pressed. */
+  const preview = useMemo(() => parseLineup(paste), [paste]);
+
+  const importPaste = () => {
+    if (!preview.players.length) return;
+    /* Only number, name and position are kept - this is a record of who did
+       what in our games, not a roster we maintain for another club. */
+    const thin = preview.players.map((p) => ({
+      id: p.id, number: p.number, name: p.name, position: p.position,
+    }));
+    setOpp(opponent.id, { roster: [...roster, ...thin] });
+    setPaste("");
+  };
+
+  return (
+    <div className="aumore auopproster">
+      <div className="auopprosterhead">
+        <p className="h6" style={{ margin: 0 }}>{opponent.name || "Opponent"} roster</p>
+        <span className="bsm" style={{ color: "var(--au-faint)" }}>
+          {roster.length} {roster.length === 1 ? "player" : "players"}
+        </span>
+        <button className="btn bGhost bSm" style={{ marginLeft: "auto" }} onClick={onClose}>Done</button>
+      </div>
+
+      <div className="auopprows">
+        {roster.map((p) => (
+          <div className="auopprow" key={p.id}>
+            <input value={p.number} placeholder="#"
+              onChange={(e) => setRow(p.id, { number: e.target.value })} />
+            <input value={p.name} placeholder="Player name"
+              onChange={(e) => setRow(p.id, { name: e.target.value })} />
+            <select value={p.position || "F"} onChange={(e) => setRow(p.id, { position: e.target.value })}>
+              <option value="F">F</option><option value="D">D</option><option value="G">G</option>
+            </select>
+            <button className="btn bDanger" aria-label="Remove player"
+              onClick={() => setOpp(opponent.id, { roster: roster.filter((x) => x.id !== p.id) })}>✕</button>
+          </div>
+        ))}
+      </div>
+
+      <button className="btn bGhost bSm" onClick={add}>+ Add player</button>
+
+      <div className="field" style={{ marginTop: 6 }}>
+        <label className="h6">Paste a lineup</label>
+        <textarea className="ta" rows={3} value={paste}
+          placeholder={"12 Jordan Reyes F\n30 Sam Vasquez G"}
+          onChange={(e) => setPaste(e.target.value)} />
+        <div className="aupastebar">
+          <button className="btn bGold bSm" disabled={!preview.players.length}
+            onClick={importPaste}>
+            {preview.players.length
+              ? "Add " + preview.players.length + (preview.players.length === 1 ? " player" : " players")
+              : "Add pasted players"}
+          </button>
+          {preview.skipped.length > 0 && (
+            <span className="bsm aupasteskip"
+              title={preview.skipped.slice(0, 8).join("\n")}>
+              {preview.skipped.length} line{preview.skipped.length === 1 ? "" : "s"} not read
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Pick from the library instead of hunting for a file. Matching is by name,
+ * so a team already on the list is shown as added rather than duplicated. */
+function OpponentLibrary({ list, setDraft }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const have = new Set(list.map((o) => (o.name || "").toLowerCase()));
+
+  const rows = OPPONENT_LIBRARY.filter(([name, short]) => {
+    const t = q.trim().toLowerCase();
+    return !t || name.toLowerCase().includes(t) || short.toLowerCase().includes(t);
+  });
+  const missing = rows.filter(([name]) => !have.has(name.toLowerCase()));
+
+  const add = (entries) =>
+    setDraft((s) => ({
+      ...s,
+      opponents: [
+        ...(s.opponents || []),
+        ...entries.map(([name, short, slug, color]) => ({
+          id: uid(), name, short, color,
+          logoLight: libraryLogo(slug), logoDark: null,
+        })),
+      ],
+    }));
+
+  if (!open) {
+    return (
+      <button className="btn bGhost bSm" style={{ marginBottom: 16 }} onClick={() => setOpen(true)}>
+        Add from library ({OPPONENT_LIBRARY.filter(([n]) => !have.has(n.toLowerCase())).length})
+      </button>
+    );
+  }
+
+  return (
+    <section className="card aulib">
+      <div className="aulibtop">
+        <p className="h6" style={{ margin: 0 }}>Opponent library</p>
+        <input className="aulibsearch" value={q} placeholder="Search teams"
+          onChange={(e) => setQ(e.target.value)} />
+        <button className="btn bNavy bSm" disabled={!missing.length}
+          onClick={() => add(missing)}>
+          Add all {missing.length ? "(" + missing.length + ")" : ""}
+        </button>
+        <button className="btn bGhost bSm" onClick={() => setOpen(false)}>Done</button>
+      </div>
+
+      <div className="aulibgrid">
+        {rows.map((entry) => {
+          const [name, short, slug] = entry;
+          const added = have.has(name.toLowerCase());
+          return (
+            <button className={"aulibitem " + (added ? "added" : "")} key={slug}
+              disabled={added} title={added ? name + " is already on your list" : "Add " + name}
+              onClick={() => add([entry])}>
+              <span className="aulibmark"><img src={libraryLogo(slug)} alt="" /></span>
+              <span className="aulibname">{name}</span>
+              <span className="aulibadd">{added ? "Added" : "+ Add"}</span>
+            </button>
+          );
+        })}
+        {!rows.length && <p className="bsm" style={{ color: "var(--au-faint)" }}>No match.</p>}
+      </div>
+    </section>
+  );
+}
+
+function OpponentsEditor({ site, setDraft }) {
+  const ask = useAsk();
+  const [q, setQ] = useState("");
+  const [openRoster, setOpenRoster] = useState(null);
+  const list = site.opponents || [];
+
+  const gamesUsing = (id) =>
+    Object.values(site.seasons || {})
+      .flatMap((s) => s.schedule || [])
+      .filter((g) => g.opponentId === id).length;
+
+  const setOpp = (id, patch) =>
+    setDraft((s) => ({ ...s, opponents: s.opponents.map((o) => (o.id === id ? { ...o, ...patch } : o)) }));
+
+  const remove = async (o) => {
+    const n = gamesUsing(o.id);
+    if (n > 0) {
+      // Blocked on purpose: deleting would orphan a game log.
+      await ask({
+        title: "Still in use",
+        message: (o.name || "This opponent") + " is on " + n + " game" + (n === 1 ? "" : "s") + ".",
+        detail: "Reassign those games to another opponent first, then delete.",
+        blocked: true,
+      });
+      return;
+    }
+    const ok = await ask({
+      title: "Delete opponent?",
+      message: (o.name || "This opponent") + " will be removed.",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
+    setDraft((s) => ({ ...s, opponents: s.opponents.filter((x) => x.id !== o.id) }));
+  };
+
+  /* Prototype stores the image inline; production uploads to Supabase Storage. */
+  const pickLogo = (id, field, file) => {
+    if (!file) return;
+    if (file.size > 400 * 1024) {
+      ask({ title: "Image too large", message: "Logos must be under 400KB.", blocked: true });
+      return;
+    }
+    const isSvg = file.type === "image/svg+xml" || /\.svg$/i.test(file.name || "");
+    const fr = new FileReader();
+    fr.onload = () => {
+      /* A raster is already a data URL by the time it gets here. An SVG was
+         read as text so its paints can be rewritten, so it has to be encoded
+         before it can be an <img src> - on either slot. Storing the raw
+         markup would leave a broken image behind. */
+      if (!isSvg) { setOpp(id, { [field]: fr.result }); return; }
+
+      if (field !== "logoLight") { setOpp(id, { [field]: svgDataUrl(fr.result) }); return; }
+
+      /* An SVG dropped on the light slot also settles the dark one: the white
+         version is the same file with every paint turned white, so asking for
+         a second upload would only be asking for the same drawing twice.
+         Anything already in the dark slot is left alone - a mark uploaded on
+         purpose outranks one derived here. */
+      const current = (site.opponents || []).find((x) => x.id === id) || {};
+      setOpp(id, {
+        logoLight: svgDataUrl(fr.result),
+        ...(current.logoDark ? {} : { logoDark: svgDataUrl(whiteSvgMark(fr.result)) }),
+      });
+    };
+    if (isSvg) fr.readAsText(file); else fr.readAsDataURL(file);
+  };
+
+  /* Filtering the view only. Reordering is by the arrows, and the arrows move
+   * an item within the whole list, so they are hidden while a filter is on
+   * rather than quietly moving the wrong row. */
+  const query = q.trim().toLowerCase();
+  const shown = query
+    ? list.filter((o) =>
+        (o.name || "").toLowerCase().includes(query) ||
+        (o.short || "").toLowerCase().includes(query))
+    : list;
+
+  const cols = "1.3fr 70px 0.95fr 36px 1fr 96px 0.9fr 0.9fr 74px auto 28px";
+  return (
+    <>
+      <p className="auhint" style={{ marginBottom: 18, maxWidth: 720 }}>
+        Two logos per team. The light one is used on white backgrounds, the dark one
+        wherever the site paints a block of team colour — goal bands in the play-by-play,
+        mostly. A crest drawn in one dark ink disappears on its own colour, which is what
+        the second file is for. Upload whichever you have and the other stands in; if you
+        upload an SVG, the white version is made for you. The swatches show exactly what
+        the site will draw, so a stand-in that looks wrong is telling you to upload the
+        other file. This order is the order they appear in every opponent picker, so the
+        teams you play most belong at the top. A home rink and city here fill in the
+        venue and location automatically whenever you schedule a game at their place.
+        Open Roster on a team for their players and their season totals.
+      </p>
+
+      <div className="auoppbar">
+        <OpponentLibrary list={list} setDraft={setDraft} />
+        <input className="auoppsearch" value={q} placeholder="Search opponents"
+          onChange={(e) => setQ(e.target.value)} />
+        {query && (
+          <span className="bsm" style={{ color: "var(--au-dim)" }}>
+            {shown.length} of {list.length}
+            <button className="btn bGhost bSm" style={{ marginLeft: 10 }}
+              onClick={() => setQ("")}>Clear</button>
+          </span>
+        )}
+      </div>
+
+      {!list.length && (
+        <div className="auempty">
+          <p style={{ margin: 0, fontWeight: 600, color: "var(--au-text)" }}>No opponents yet</p>
+          <p className="bsm" style={{ margin: "6px 0 0" }}>
+            Add a team here before building a schedule.
+          </p>
+        </div>
+      )}
+
+      {list.length > 0 && (
+        <div className="arow ahead" style={{ gridTemplateColumns: cols }}>
+          <span>Team</span><span>Short</span><span>Mascot</span><span>Color</span>
+          <span>Home rink</span><span>City</span>
+          <span>Logo — light background</span><span>Logo — dark background</span>
+          <span>Roster</span><span>Order</span><span />
+        </div>
+      )}
+
+      {shown.map((o) => {
+        const i = list.indexOf(o);
+        return (
+        <div key={o.id}>
+        <div className="arow" style={{ gridTemplateColumns: cols }}>
+          <input value={o.name} placeholder="San Jose State"
+            onChange={(e) => setOpp(o.id, { name: e.target.value })} />
+          <input value={o.short || ""} placeholder="SJSU"
+            onChange={(e) => setOpp(o.id, { short: e.target.value })} />
+          <input value={o.mascot || ""} placeholder={MASCOTS[o.name] || "Nickname"}
+            title="Shown above their name on the game center banner"
+            onChange={(e) => setOpp(o.id, { mascot: e.target.value })} />
+          <input type="color" className="oppcolor" title="Team color, used on box score banners"
+            value={o.color || "#5A6473"} onChange={(e) => setOpp(o.id, { color: e.target.value })} />
+
+          <input value={o.homeVenue || ""} placeholder="Their rink"
+            title="Fills in the venue when you schedule a game at their place"
+            onChange={(e) => setOpp(o.id, { homeVenue: e.target.value })} />
+
+          <input value={o.homeCity || ""} placeholder="City, ST"
+            title="Fills in the location when you schedule a game at their place"
+            onChange={(e) => setOpp(o.id, { homeCity: e.target.value })} />
+
+          <LogoSlot opponent={o} field="logoLight" surface="light"
+            onPick={(f) => pickLogo(o.id, "logoLight", f)}
+            onClear={() => setOpp(o.id, { logoLight: null })} />
+
+          <LogoSlot opponent={o} field="logoDark" surface="dark"
+            onPick={(f) => pickLogo(o.id, "logoDark", f)}
+            onClear={() => setOpp(o.id, { logoDark: null })} />
+
+          <button className={"btn aucount " + (openRoster === o.id ? "bNavy" : "bGhost")}
+            style={{ fontSize: 12, padding: "5px 8px" }}
+            title="Their players, so live scoring can pick from a list"
+            onClick={() => setOpenRoster(openRoster === o.id ? null : o.id)}>
+            Roster {(o.roster || []).length ? <span className="aunum">{(o.roster || []).length}</span> : null}
+          </button>
+
+          {query
+            ? <span className="bsm" style={{ color: "var(--au-faint)", alignSelf: "center" }}>—</span>
+            : <MoveBtns i={i} count={list.length} label="opponent"
+                onMove={(from, to) => setDraft((s) => ({ ...s, opponents: moved(s.opponents || [], from, to) }))} />}
+
+          <button className="btn bDanger" aria-label="Delete opponent" onClick={() => remove(o)}>✕</button>
+        </div>
+        {openRoster === o.id && (
+          <>
+            <OpponentRoster opponent={o} setOpp={setOpp} onClose={() => setOpenRoster(null)} />
+            <OpponentSeasonStats opponent={o} seasons={site.seasons} setOpp={setOpp} />
+          </>
+        )}
+        </div>
+        );
+      })}
+
+      {query && !shown.length && (
+        <p className="auhint" style={{ marginTop: 14 }}>No opponent matches "{q}".</p>
+      )}
+
+      <button className="btn bNavy bSm" style={{ marginTop: 18 }}
+        onClick={() => setDraft((s) => ({
+          ...s,
+          opponents: [...(s.opponents || []),
+            { id: uid(), name: "", short: "", color: "#5A6473", logoLight: null, logoDark: null }],
+        }))}>
+        + Add Opponent
+      </button>
+    </>
+  );
+}
+
+/* One logo slot, previewed on the background it is actually for — the only way
+ * to tell whether a mark will survive on that surface. */
+function LogoSlot({ opponent, field, surface, onPick, onClear }) {
+  const src = opponent[field];
+  const fallback = field === "logoLight" ? opponent.logoDark : opponent.logoLight;
+
+  return (
+    <div className="auslot">
+      {/* The swatch is a preview of the real thing, so the stand-in gets no
+          help: a dark mark on the dark swatch looks as bad here as it will on
+          the site, which is the point. There used to be a pale chip behind it
+          that made every logo look fine and told you nothing. */}
+      <div className={"auswatch " + surface}>
+        {src || fallback
+          ? <img src={src || fallback} alt=""
+              title={src ? undefined : "No logo for this surface - showing the other one"} />
+          : <OppBadge name={opponent.name} size={34} />}
+      </div>
+      <div className="auslotctl">
+        {src
+          ? <button className="btn bDanger" title="Remove this logo" onClick={onClear}>✕</button>
+          : <label className="auupload"
+              title={fallback
+                ? "No logo for this surface — the other one is standing in"
+                : "No logo for this team — initials are standing in"}>
+              Upload
+              {/* The native control is unstyleable and, in a column this
+                  narrow, collapses to a sliver of its own white chrome. The
+                  label is the button; the input behind it only has to stay
+                  focusable. */}
+              <input type="file" accept="image/*"
+                onChange={(e) => onPick(e.target.files && e.target.files[0])} />
+            </label>}
+      </div>
+    </div>
+  );
+}
+
+
+/* ---------------- Home ----------------
+ * Hero story with a Top Stories rail, a card row, upcoming home games as
+ * matchup art, then team leaders. The recent-results band that used to sit at
+ * the top is gone: the scoreboard strip above the nav already answers it, and
+ * saying it twice pushed everything else down the page.
+ */
+function Home({ site, goto, openPost, openGame }) {
+  const org = (site.settings || {}).org || {};
+  const season = site.seasons[site.currentSeason] || { schedule: [], roster: [] };
+  const sched = [...(season.schedule || [])].sort(cmpDate);
+
+  const s = schedStats(season.schedule, season.record);
+  const news = (site.news || [])
+    .filter(isLive)
+    .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+
+  const hero = news[0];
+  /* Five, because the rail is pinned to the hero's height and eight
+     headlines did not fit inside it - which is what put a scrollbar there.
+     Everything else is a click away under All news. */
+  const rail = news.slice(1, 6);
+  const cards = news.slice(1, 4);
+
+  /* One widget, three states, in priority order:
+   *
+   *   live    a game in progress — home or away, because when the team is
+   *           playing right now that beats anything else on the page
+   *   final   today's result, for the evening after a game
+   *   next    the next home game, which is the question most visitors arrive
+   *           with. Home only: an away game is not something you can turn up
+   *           to, and promising one at the top of the page would mislead.
+   */
+  const liveGame = sched.find((g) => gameState(g) === "live");
+  const tick = useClockTick(!!(liveGame && liveGame.live && liveGame.live.running));
+  const justFinished = [...sched].reverse().find(
+    (g) => gameState(g) === "final" && daysSince(g.date) !== null && daysSince(g.date) <= 1
+  );
+  const nextHome = sched.find((g) => gameState(g) === "scheduled" && g.homeAway === "H");
+  const feature = liveGame || justFinished || nextHome;
+  const featureState = gameState(feature);
+  const ticketsUrl = (site.settings || {}).ticketsUrl;
+
+  return (
+    <main style={{ background: "var(--page)" }}>
+      {/* ---- Next game / live / final ---- */}
+      {feature && (
+        <section className="section" style={{ paddingTop: 24, paddingBottom: 0 }}>
+          <div className="wrap">
+            <div className={"hnext " + featureState}>
+              <span className="hnextteams">
+                {org.logo
+                  ? <img className="hnextlogo" src={org.logo} alt="" />
+                  : <span className="hnextlogo fallback">{(gameName(site) || "C").slice(0, 1)}</span>}
+                {featureState === "scheduled"
+                  ? <span className="hnextvs">{vsAt(feature)}</span>
+                  : <span className="hnextscore">
+                      {featureState === "live" ? feature.live.us : feature.result.us}
+                      <span className="hnextdash">–</span>
+                      {featureState === "live" ? feature.live.them : feature.result.them}
+                    </span>}
+                {feature.opponentLogo || feature.opponentLogoDark
+                  ? <img className="hnextlogo" src={feature.opponentLogo || feature.opponentLogoDark} alt="" />
+                  : <OppBadge name={feature.opponent} size={38} />}
+              </span>
+
+              <span className="hnextinfo">
+                {!!(feature.specials || []).length && (
+                  <div className="spectags">
+                    {feature.specials.map((n) => <span className="spectag" key={n}>{n}</span>)}
+                  </div>
+                )}
+                <span className="hnextlabel">
+                  {featureState === "live"
+                    ? <>
+                        <span className="livedot" aria-hidden="true" />Live · {liveLabel(feature.live, tick)}
+                        <StrengthTag live={feature.live} now={tick}
+                          usAbbr={(site.settings && site.settings.org || {}).abbr || gameName(site)} />
+                      </>
+                    : featureState === "final"
+                      ? "Final" + (feature.result.ot ? " / OT" : "")
+                      : "Next home game"}
+                </span>
+                <span className="hnextopp">
+                  {featureState === "scheduled" ? "" : vsAtSp(feature)}
+                  {feature.opponent}
+                </span>
+                <span className="hnextwhen">
+                  {fmtDate(feature.date)}
+                  {featureState === "scheduled" && feature.time ? " · " + localTime(feature.date, feature.time) : ""}
+                  {feature.venue ? " · " + feature.venue : ""}
+                </span>
+              </span>
+
+              <span className="hnextactions">
+                {featureState === "live" && feature.streamUrl && (
+                  <a className="btn bGhostNavy bSm" href={feature.streamUrl}
+                    target="_blank" rel="noreferrer">
+                    <span className="livedot" aria-hidden="true" />Watch live
+                  </a>
+                )}
+                {/* Always offered on a home game, the way the nav pill is:
+                    straight to the seller when one is set, otherwise to the
+                    tickets page, which carries the door prices. */}
+                {featureState === "scheduled" && feature.homeAway === "H" && (
+                  ticketsFor(feature, site)
+                    ? <a className="btn bGold bSm" href={ticketsFor(feature, site)}
+                        target="_blank" rel="noreferrer">
+                        <IcTicket size={15} /> Get tickets
+                      </a>
+                    : <button className="btn bGold bSm" onClick={() => goto("tickets")}>
+                        <IcTicket size={15} /> Get tickets
+                      </button>
+                )}
+                {/* Adding a single fixture belongs on the schedule, which
+                    offers the whole season at once; the banner is for the one
+                    game and the one way in. */}
+                {/* The scoreboard mark, so the button matches the one the
+                    schedule and calendar already use for the same thing. */}
+                <button className="btn bGhostNavy bSm" onClick={() => openGame(feature.id)}>
+                  <IcGameCenter size={16} /> Game center
+                </button>
+              </span>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ---- Hero + top stories ---- */}
+      {/* ---- Nothing else to lead with ----
+           Every other section here is conditional: the widget above needs a
+           game that is live, just played or still to come, and the two below
+           need a published story. Between seasons both are empty at once, and
+           the page had nothing in it at all. The season just finished is the
+           truest thing the site knows in that window, so it leads. */}
+      {!feature && !hero && (
+        <section className="section" style={{ paddingTop: 30, paddingBottom: 56 }}>
+          <div className="wrap">
+            <h1 className="stitle">{site.currentSeason} Season</h1>
+            <div className="recgrid">
+              <div className="reccell"><p className="reclab">Overall</p><p className="recnum">{s.w}-{s.l}{s.t ? `-${s.t}` : ""}</p></div>
+              <div className="reccell"><PctRing pct={s.pct} /></div>
+              <div className="reccell"><p className="reclab">Home</p><p className="recnum">{s.home}</p></div>
+              <div className="reccell"><p className="reclab">Away</p><p className="recnum">{s.away}</p></div>
+              <div className="reccell"><p className="reclab">Goals For</p><p className="recnum">{s.gf}</p></div>
+              <div className="reccell"><p className="reclab">Goals Against</p><p className="recnum">{s.ga}</p></div>
+              <div className="reccell"><p className="reclab">Games</p><p className="recnum">{s.gp}</p></div>
+              <div className="reccell"><p className="reclab">Streak</p><p className="recnum">{s.streak}</p></div>
+            </div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 24 }}>
+              <button className="btn bNavy" onClick={() => goto("schedule")}>Full schedule</button>
+              <button className="btn bGhostNavy" onClick={() => goto("roster")}>Roster</button>
+              <button className="btn bGhostNavy" onClick={() => goto("recruit")}>Play for Cal</button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {hero && (
+        <section className="section" style={{ paddingTop: 30, paddingBottom: 0 }}>
+          <div className="wrap hherorow">
+            <article className="hhero" role="link" tabIndex={0}
+              onClick={() => openPost(hero.id)}
+              onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), openPost(hero.id))}>
+              <img src={hero.image || STOCK_IMAGES[0]} alt="" loading="lazy"
+                onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} />
+              <div className="hheroscrim" />
+              <div className="hherotext">
+                <span className="newstag">{hero.tag}</span>
+                <h1 className="hherotitle">{hero.title}</h1>
+                {hero.blurb && <p className="hheroblurb">{hero.blurb}</p>}
+              </div>
+            </article>
+
+            <div className="htopwrap">
+            <aside className="htop">
+              <div className="htophead">
+                <h2 className="hsectitle">Top Stories</h2>
+              </div>
+              {rail.length ? (
+                <ul className="htoplist">
+                  {rail.map((n) => (
+                    <li key={n.id}>
+                      <button className="htoplink" onClick={() => openPost(n.id)}>{n.title}</button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="bsm" style={{ color: "var(--muted)" }}>No other stories yet.</p>
+              )}
+              <button className="htopall" onClick={() => goto("newsindex")}>
+                All news <IcArrowR size={14} />
+              </button>
+            </aside>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ---- Story cards ---- */}
+      {cards.length > 0 && (
+        <section className="section" style={{ paddingTop: 22, paddingBottom: 56 }}>
+          <div className="wrap hcards">
+            {cards.map((n, i) => (
+              <button className="hcard" key={n.id} onClick={() => openPost(n.id)}>
+                <span className="hcardart">
+                  <img src={n.image || STOCK_IMAGES[(i + 1) % STOCK_IMAGES.length]} alt="" loading="lazy"
+                    onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} />
+                </span>
+                <span className="hcardtitle">{n.title}</span>
+                <span className="hcardmeta">{n.tag} · {fmtDate(n.date)}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+    </main>
+  );
+}
+
+/* ---------------- Article rendering ----------------
+ * Shared by the public article page and the console preview, so what an editor
+ * sees while writing is what a reader gets.
+ *
+ * "# " becomes a subheading, "- " a bullet, [[Name]] a link to that player.
+ */
+function renderArticle(text, onPlayer) {
+  const lines = String(text || "").split("\n");
+  const out = [];
+  let bullets = [];
+
+  const flush = () => {
+    if (!bullets.length) return;
+    out.push(
+      <ul key={"ul" + out.length} className="artlist">
+        {bullets.map((b, i) => <li key={i}>{renderInline(b, onPlayer, out.length + "-" + i)}</li>)}
+      </ul>
+    );
+    bullets = [];
+  };
+
+  lines.forEach((raw, i) => {
+    const line = raw.trimEnd();
+    if (line.startsWith("# ")) {
+      flush();
+      out.push(<h3 key={i} className="arth3">{line.slice(2)}</h3>);
+    } else if (line.startsWith("- ")) {
+      bullets.push(line.slice(2));
+    } else if (!line.trim()) {
+      flush();
+    } else {
+      flush();
+      out.push(<p key={i} className="artp">{renderInline(line, onPlayer, i)}</p>);
+    }
+  });
+  flush();
+  return out;
+}
+
+/* Inline marks. Deliberately the shapes people already type: ** for bold and
+   * for italic are markdown, == for highlight is the common extension, and __
+   * is underline because markdown has no underline at all and reusing it for a
+   * second flavour of bold would be the only other option.
+   *
+   * Order matters. Two rules can match the same text, so the earliest match in
+   * the line wins and ties go to whichever rule is listed first - which is why
+   * bold sits above italic, and ** is not read as an empty emphasis. */
+const INLINE_RULES = [
+  { re: /\[\[([^\]]+)\]\]/, tag: "mention" },
+  { re: /\*\*\*(.+?)\*\*\*/, tag: "strongem" },
+  { re: /\*\*(.+?)\*\*/, tag: "strong" },
+  { re: /__(.+?)__/, tag: "u" },
+  { re: /==(.+?)==/, tag: "mark" },
+  /* A single star only opens emphasis when it is against a word on both
+     sides. Without that, "the puck went in * somehow" italicises the rest of
+     the sentence, and a stray asterisk is far more common in typed copy than
+     deliberate emphasis. */
+  { re: /\*(?!\*)(?!\s)(.+?)(?<!\s)\*(?!\*)/, tag: "em" },
+];
+
+/* Marks nest, so the content of a match is parsed again. A name is not: a
+   mention is a leaf, and [[**Name**]] is a typo rather than a bold link. */
+function inlineNodes(text, onPlayer, key) {
+  let best = null;
+  for (const rule of INLINE_RULES) {
+    const m = rule.re.exec(text);
+    if (m && (best === null || m.index < best.m.index)) best = { m, rule };
+  }
+  if (!best) return text ? [text] : [];
+
+  const { m, rule } = best;
+  const out = [];
+  if (m.index) out.push(text.slice(0, m.index));
+
+  const k = key + "-" + m.index;
+  if (rule.tag === "mention") {
+    const name = m[1].trim();
+    out.push(
+      <button key={k} className="artmention" onClick={() => onPlayer(name)}>{name}</button>
+    );
+  } else {
+    const inner = inlineNodes(m[1], onPlayer, k + "i");
+    if (rule.tag === "strongem") out.push(<strong key={k}><em>{inner}</em></strong>);
+    else if (rule.tag === "strong") out.push(<strong key={k}>{inner}</strong>);
+    else if (rule.tag === "u") out.push(<u key={k}>{inner}</u>);
+    else if (rule.tag === "mark") out.push(<mark key={k} className="artmark">{inner}</mark>);
+    else out.push(<em key={k}>{inner}</em>);
+  }
+
+  return out.concat(inlineNodes(text.slice(m.index + m[0].length), onPlayer, k + "r"));
+}
+
+/** Split a line into mentions, marks and plain text. */
+function renderInline(line, onPlayer, keyBase) {
+  return inlineNodes(String(line == null ? "" : line), onPlayer, String(keyBase));
+}
+
+/* The canonical address of a story. Settings holds the public origin because
+   this prototype runs on localhost and the console may run on a different
+   host again - neither is what anyone should be handed. Falling back to the
+   current origin keeps local testing usable, and is wrong in exactly the way
+   that is obvious the moment you look at the copied link. */
+function articleUrl(site, id) {
+  const base = String(((site || {}).settings || {}).siteUrl || "").trim().replace(/\/+$/, "");
+  const origin = base || (typeof location !== "undefined" ? location.origin : "");
+  return origin + "/news/" + id;
+}
+
+/* Instagram is deliberately absent: it has no share URL. Every "share to
+   Instagram" button on the web either opens the app with nothing attached or
+   quietly does nothing, and Copy link is the honest version of it. */
+const SHARE_TARGETS = [
+  ["x", "X", IcX, (u, t) => "https://x.com/intent/post?url=" + encodeURIComponent(u) + "&text=" + encodeURIComponent(t)],
+  ["facebook", "Facebook", IcFacebook, (u) => "https://www.facebook.com/sharer/sharer.php?u=" + encodeURIComponent(u)],
+];
+
+function ShareRow({ site, post }) {
+  const [copied, setCopied] = useState(false);
+  const url = articleUrl(site, post.id);
+  const title = post.title || "Cal Ice Hockey";
+
+  /* The phone share sheet is better than any row of buttons we can draw, so
+     where it exists it goes first. It does not exist on the desktop this is
+     mostly reviewed on, hence both. */
+  const native = typeof navigator !== "undefined" && !!navigator.share;
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      /* Clipboard is blocked outside a secure context and in some embeds.
+         Selecting it for the user is the next best thing to doing it. */
+      const el = document.createElement("input");
+      el.value = url;
+      document.body.appendChild(el);
+      el.select();
+      try { document.execCommand("copy"); } catch { /* nothing left to try */ }
+      el.remove();
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  };
+
+  return (
+    <div className="artshare">
+      <p className="artsharelabel">Share</p>
+      <div className="artsharebtns">
+        {native && (
+          <button className="sharebtn" onClick={() => navigator.share({ title, url }).catch(() => {})}>
+            <IcShare size={15} /> Share
+          </button>
+        )}
+        {SHARE_TARGETS.map(([key, label, Icon, href]) => (
+          <a key={key} className="sharebtn" href={href(url, title)}
+            target="_blank" rel="noreferrer noopener" aria-label={"Share on " + label}>
+            <Icon size={15} /> {label}
+          </a>
+        ))}
+        <a className="sharebtn"
+          href={"mailto:?subject=" + encodeURIComponent(title) + "&body=" + encodeURIComponent(url)}
+          aria-label="Share by email">
+          <IcMail size={15} /> Email
+        </a>
+        <button className={"sharebtn" + (copied ? " ok" : "")} onClick={copy}
+          aria-label="Copy link to this story">
+          {copied ? <IcCheck size={15} /> : <IcLink size={15} />}
+          {copied ? "Copied" : "Copy link"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Public article page ---------------- */
+function NewsPage({ site, postId, onBack, onPlayerName }) {
+  const post = (site.news || []).filter(isLive).find((n) => n.id === postId);
+
+  if (!post) {
+    return (
+      <main className="section" style={{ flex: 1 }}>
+        <div className="wrap">
+          <h1 className="h2" style={{ color: "var(--blue)" }}>Story not found</h1>
+          <button className="btn bNavy bSm" style={{ marginTop: 16 }} onClick={onBack}>Back</button>
+        </div>
+      </main>
+    );
+  }
+
+  const others = (site.news || [])
+    .filter((n) => n.id !== post.id && isLive(n))
+    .sort((a, b) => (b.date || "").localeCompare(a.date || ""))
+    .slice(0, 3);
+
+  return (
+    <main className="section" style={{ flex: 1 }}>
+      <div className="wrap" style={{ maxWidth: 760 }}>
+        <button className="gb-link" onClick={onBack} style={{ marginBottom: 18 }}>← All news</button>
+
+        <p className="eyebrow" style={{ color: "var(--blue)" }}>{post.tag || "NEWS"}</p>
+        <h1 className="h1" style={{ color: "var(--blue)", margin: "8px 0 12px", fontSize: "clamp(2rem,4.5vw,3rem)" }}>
+          {post.title}
+        </h1>
+        {post.blurb && <p className="artdeck">{post.blurb}</p>}
+        <p className="bsm" style={{ color: "var(--muted)", fontWeight: 600 }}>
+          {post.author ? post.author + " · " : ""}{fmtDate(post.date)}
+        </p>
+
+        {post.image && (
+          <img className="artcover" src={post.image} alt="" />
+        )}
+
+        <div className="article">
+          {/* The subheader is above now, so an empty body has nothing left to
+              fall back on - repeating it under itself just read as a mistake. */}
+          {renderArticle(post.body || "", onPlayerName)}
+        </div>
+
+        <ShareRow site={site} post={post} />
+
+        {others.length > 0 && (
+          <div style={{ marginTop: 34, borderTop: "1px solid var(--border)", paddingTop: 24 }}>
+            <p className="h6" style={{ color: "var(--muted)", marginBottom: 14 }}>More headlines</p>
+            <div style={{ display: "grid", gap: 10 }}>
+              {others.map((n, i) => (
+                <button key={n.id} className="artmore" onClick={() => onPlayerName(null, n.id)}>
+                  {/* Same stock fallback the news index uses, so a story with no
+                      picture of its own still reads as a story and the row keeps
+                      its shape. */}
+                  <span className="artmorethumb">
+                    <img src={n.image || STOCK_IMAGES[(i + 2) % STOCK_IMAGES.length]} alt="" loading="lazy"
+                      onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} />
+                  </span>
+                  <span className="artmoretext">
+                    <span className="artmoretag">{n.tag}</span>
+                    <span className="artmoretitle">{n.title}</span>
+                  </span>
+                  <span className="artmoredate">{fmtDate(n.date)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}
+
+/* ---------------- Archived-season guard ----------------
+ * Only the current season is edited day to day. Everything else is history
+ * someone is browsing, and a stray keystroke in a 30-row grid is invisible
+ * until it reaches the public site. Archived seasons open read-only and have
+ * to be unlocked deliberately.
+ */
+function useSeasonLock(site, sel) {
+  const [unlocked, setUnlocked] = useState(false);
+  // Re-lock whenever the season changes — unlocking 2018-19 should not leave
+  // 2017-18 open when you click across to it.
+  useEffect(() => { setUnlocked(false); }, [sel]);
+  const archived = sel !== site.currentSeason;
+  return {
+    archived,
+    locked: archived && !unlocked,
+    unlock: () => setUnlocked(true),
+    relock: () => setUnlocked(false),
+  };
+}
+
+function ArchivedSeason({ sel, lock }) {
+  if (!lock.archived) return null;
+  return (
+    <div className={"auarchive " + (lock.locked ? "" : "open")}>
+      <span className="auarchiveicon" aria-hidden="true">{lock.locked ? "●" : "○"}</span>
+      <span className="bsm">
+        {lock.locked ? (
+          <>
+            <strong>{sel} is archived.</strong> Read-only so it cannot be changed by accident.
+          </>
+        ) : (
+          <>
+            <strong>Editing {sel}</strong> — an archived season. Changes here affect the
+            public archive.
+          </>
+        )}
+      </span>
+      <button className={"btn bSm " + (lock.locked ? "bGhost" : "bNavy")}
+        style={{ marginLeft: "auto" }}
+        onClick={lock.locked ? lock.unlock : lock.relock}>
+        {lock.locked ? "Unlock editing" : "Done editing"}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * The Pac-8 mark.
+ *
+ * The conference has no asset in the club's library, so this is drawn in the
+ * house style - a pill and the house display face - rather than an
+ * approximation of somebody else's logo. Inline rather than a file so it
+ * takes the page's font and the row's colour, and swaps out cleanly the day a
+ * real mark arrives.
+ */
+function Pac8Mark() {
+  /* Both marks beside it are a name over a rule over the full title in small
+     caps, so this is built the same way - it has to sit in the row, not next
+     to it. */
+  return (
+    <svg className="faffilmark tall" viewBox="0 0 150 46" role="img" aria-label="Pac-8 Conference">
+      <text x="75" y="27" textAnchor="middle" fill="currentColor"
+        fontFamily="var(--disp)" fontSize="30" fontWeight="800" letterSpacing="0.4">
+        PAC-8
+      </text>
+      <rect x="7" y="33.2" width="136" height="1.5" fill="currentColor" />
+      <text x="75" y="44" textAnchor="middle" fill="currentColor"
+        fontFamily="var(--body)" fontSize="7.2" fontWeight="700" letterSpacing="2.1">
+        COLLEGIATE HOCKEY
+      </text>
+    </svg>
+  );
+}
+
+/* ---------------- Season selector shared by editors ---------------- */
+function SeasonPicker({ site, sel, setSel }) {
+  return (
+    <div className="tabs" style={{ marginBottom: 20 }}>
+      {Object.keys(site.seasons).sort().reverse().map((s) => (
+        <button key={s} className={`tab ${sel === s ? "on" : ""}`} onClick={() => setSel(s)}>
+          {s}{s === site.currentSeason ? " ★" : ""}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Paste an opponent's season in, per season. Nothing is fetched here - see
+ * parseOpponentStats for why - so what lands is exactly what was copied.
+ */
+function OpponentSeasonStats({ opponent, seasons, setOpp }) {
+  const stored = opponent.seasonStats || {};
+  const names = Object.keys(seasons).sort().reverse();
+  const [season, setSeason] = useState(names[0] || "");
+  const [text, setText] = useState("");
+  const [msg, setMsg] = useState("");
+
+  const save = () => {
+    const parsed = parseOpponentStats(text);
+    if (!parsed.skaters.length && !parsed.goalies.length) {
+      setMsg("Nothing recognised — paste the table including the position in brackets.");
+      return;
+    }
+    setOpp(opponent.id, {
+      seasonStats: { ...stored, [season]: { ...parsed, source: "EliteProspects" } },
+    });
+    setText("");
+    setMsg(parsed.skaters.length + " skaters and " + parsed.goalies.length + " goaltenders saved for " + season + ".");
+  };
+
+  const drop = (key) => {
+    const next = { ...stored };
+    delete next[key];
+    setOpp(opponent.id, { seasonStats: next });
+  };
+
+  return (
+    <div className="auopprosterwrap">
+      <p className="h6" style={{ marginBottom: 4 }}>Season totals</p>
+      <p className="bsm" style={{ marginBottom: 12 }}>
+        The league's feed carries their schedule and roster but not their players' totals.
+        Paste the skater and goaltender tables from their EliteProspects season page —
+        both can go in together — and the game preview will show their leaders.
+      </p>
+
+      {!!Object.keys(stored).length && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+          {Object.entries(stored).map(([k, v]) => (
+            <span className="pill pNext" key={k} style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+              {k} · {(v.skaters || []).length}S {(v.goalies || []).length}G
+              <button className="btn bGhost bSm" style={{ padding: "0 6px" }} onClick={() => drop(k)}>✕</button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 10 }}>
+        <div className="field" style={{ maxWidth: 140 }}>
+          <label className="h6">Season</label>
+          <select value={season} onChange={(e) => setSeason(e.target.value)}>
+            {names.map((n) => <option key={n}>{n}</option>)}
+          </select>
+        </div>
+        <button className="btn bNavy bSm" onClick={save} disabled={!text.trim()}>Save season</button>
+      </div>
+      <textarea rows={6} value={text} placeholder={"1.\tCharlie Drage (F)\t20\t17\t19\t36\t20"}
+        onChange={(e) => { setText(e.target.value); setMsg(""); }} />
+      {msg && <p className="bsm" style={{ marginTop: 8, color: "var(--au-dim)" }}>{msg}</p>}
+    </div>
+  );
+}
+
+/* ---------------- Schedule editor ---------------- */
+function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave, dirty, openLive }) {
+  const ask = useAsk();
+  const [sel, setSel] = useState(site.currentSeason);
+  const lock = useSeasonLock(site, sel);
+  /* `inert` stops a real user touching a locked season, but a presentational
+   * attribute is the wrong place for the only guard — the write path refuses
+   * too. */
+  const updateSeason = (name, patch) => {
+    if (lock.locked) return;
+    updateSeasonProp(name, patch);
+  };
+  const [openBox, setOpenBox] = useState(null);
+  const [openMore, setOpenMore] = useState(null);
+  const season = site.seasons[sel] || { schedule: [], roster: [] };
+  const games = season.schedule;
+  const opponents = [...(site.opponents || [])].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+  const setGame = (id, patch) =>
+    updateSeason(sel, { schedule: games.map((g) => (g.id === id ? { ...g, ...patch } : g)) });
+
+  /* Where a game with this opponent and this side would be played, and in
+   * what town. Both follow the same rule so they stay in step. */
+  /* A neutral site is by definition nobody's rink, so there is nothing to
+     prefill - it gets typed in. */
+  const venueFor = (opponentId, homeAway) => {
+    if (homeAway === "N") return "";
+    if (homeAway === "H") return (site.settings || {}).homeVenue || "";
+    const o = (site.opponents || []).find((x) => x.id === opponentId);
+    return (o && o.homeVenue) || "";
+  };
+  const locationFor = (opponentId, homeAway) => {
+    if (homeAway === "N") return "";
+    if (homeAway === "H") return (site.settings || {}).homeCity || "";
+    const o = (site.opponents || []).find((x) => x.id === opponentId);
+    return (o && o.homeCity) || "";
+  };
+
+  /* Changing the opponent or the side re-fills the venue, but only when the
+   * field still holds whatever was filled in last time. Anything typed by hand
+   * survives — a neutral-site game or a one-off rink is exactly the case this
+   * must not stomp on. */
+  const setGameVenueAware = (g, patch) => {
+    const nextOpp = "opponentId" in patch ? patch.opponentId : g.opponentId;
+    const nextSide = "homeAway" in patch ? patch.homeAway : g.homeAway;
+    const out = { ...patch };
+
+    const venueWasAuto = !g.venue || g.venue === venueFor(g.opponentId, g.homeAway);
+    const nextVenue = venueFor(nextOpp, nextSide);
+    if (venueWasAuto && nextVenue) out.venue = nextVenue;
+
+    const locWasAuto = !g.location || g.location === locationFor(g.opponentId, g.homeAway);
+    const nextLoc = locationFor(nextOpp, nextSide);
+    if (locWasAuto && nextLoc) out.location = nextLoc;
+
+    setGame(g.id, out);
+  };
+
+  /* One live game at a time. Two live scoreboards would fight over the home
+   * page widget and the top of the score strip, and there is only ever one
+   * scorekeeper. */
+  const liveElsewhere = games.find((g) => gameState(g) === "live");
+
+  /* Hands the game to Live scoring rather than starting one here. Nothing
+     is written on the way: the lineup sheet is where a game goes live, and
+     it is also where the box score gets its dressed players. */
+  const goLive = (g) => { openLive && openLive(g.id); };
+
+  const setResult = (id, field, val) => {
+    const g = games.find((x) => x.id === id);
+    const cur = g.result || { us: 0, them: 0, ot: false };
+    setGame(id, { result: { ...cur, [field]: field === "ot" ? val : val === "" ? 0 : Number(val) } });
+  };
+
+  const oppName = (g) => {
+    const o = opponents.find((x) => x.id === g.opponentId);
+    return o ? o.name : "";
+  };
+
+  const removeGame = async (g) => {
+    const label = [fmtDate(g.date), oppName(g)].filter(Boolean).join(" · ") || "this game";
+    const lines = Object.keys((site.gameStats || {})[g.id] || {}).length;
+    const ok = await ask({
+      title: "Delete game?",
+      message: label + " will be removed from " + sel + ".",
+      detail: lines ? "The box score for this game (" + lines + " player lines) is deleted too." : undefined,
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
+    updateSeason(sel, { schedule: games.filter((x) => x.id !== g.id) });
+    setDraft((s) => {
+      const next = { ...(s.gameStats || {}) };
+      const nextOpp = { ...(s.opponentStats || {}) };
+      delete next[g.id];
+      delete nextOpp[g.id];
+      return { ...s, gameStats: next, opponentStats: nextOpp };
+    });
+  };
+
+  /* Fixed rather than content-sized: every row is its own grid, so a
+     max-content column here is measured per row and the 1fr columns beside it
+     absorb the difference, leaving Venue and Opponent a different width on
+     every line. One badge at a time, so the original width is enough. */
+  const cols = "104px 1fr 88px 50px 1fr 108px 118px 46px 46px 64px 56px 54px 62px 66px 28px";
+
+  return (
+    <>
+      <SeasonPicker site={site} sel={sel} setSel={setSel} />
+      <ArchivedSeason sel={sel} lock={lock} />
+      <div className={lock.locked ? "aulocked" : undefined} inert={lock.locked || undefined}>
+
+      {!opponents.length && (
+        <p className="bsm" style={{ color: "var(--au-danger)", marginBottom: 14 }}>
+          No opponents defined yet — add them on the Opponents tab before building a schedule.
+        </p>
+      )}
+
+      <div className="arow ahead" style={{ gridTemplateColumns: cols }}>
+        <span>Date</span><span>Opponent</span><span>Type</span><span>H/A</span><span>Venue</span><span>City</span><span>Time</span>
+        <span>Us</span><span>Them</span><span>Ended</span><span>Final?</span><span>Live</span><span>Box</span><span>More</span><span />
+      </div>
+
+      {[...games].sort(cmpDate).map((g) => {
+        /* This used to count lines in the box score, which the importer
+           writes for every player on the roster including the scratches - so
+           it read "31" on every game and meant nothing. What is worth knowing
+           from a schedule row is whether that game's box score is done and
+           agrees with itself, which is what the reconciler answers. */
+        const boxLines = (site.gameStats || {})[g.id] || {};
+        const dressed = Object.values(boxLines)
+          .filter((l) => l && l.dressed !== false).length;
+        const gameChecks = g.result
+          ? reconcileGame({
+              game: g, roster: season.roster || [], lines: boxLines,
+              oppRows: (site.opponentStats || {})[g.id] || [],
+              usLabel: (((site.settings || {}).org || {}).abbr) || "Us",
+              oppName: oppName(g),
+            })
+          : [];
+        const issues = failedChecks(gameChecks);
+        const todos = pendingChecks(gameChecks);
+        return (
+          <div key={g.id}>
+            <div className="arow" style={{ gridTemplateColumns: cols }}>
+              <input type="date" value={g.date || ""} onChange={(e) => setGame(g.id, { date: e.target.value })} />
+              <select value={g.opponentId || ""} onChange={(e) => setGameVenueAware(g, { opponentId: e.target.value })}>
+                <option value="">— select —</option>
+                {opponents.map((o) => <option key={o.id} value={o.id}>{o.name || "(unnamed)"}</option>)}
+              </select>
+              <select value={gameType(g)} onChange={(e) => setGame(g.id, { gameType: e.target.value })}>
+                {GAME_TYPES.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+              </select>
+              <select value={g.homeAway} onChange={(e) => setGameVenueAware(g, { homeAway: e.target.value })}>
+                <option value="H">H</option><option value="A">A</option>
+                {/* A showcase or a regional: neither team's rink. */}
+                <option value="N">N</option>
+              </select>
+              <input value={g.venue} placeholder="Rink"
+                onChange={(e) => setGame(g.id, { venue: e.target.value })} />
+              <input value={g.location || ""} placeholder="City, ST"
+                onChange={(e) => setGame(g.id, { location: e.target.value })} />
+              <input value={g.time} onChange={(e) => setGame(g.id, { time: e.target.value })} />
+              <input type="number" disabled={!g.result} value={g.result ? g.result.us : ""}
+                onChange={(e) => setResult(g.id, "us", e.target.value)} />
+              <input type="number" disabled={!g.result} value={g.result ? g.result.them : ""}
+                onChange={(e) => setResult(g.id, "them", e.target.value)} />
+              <select disabled={!g.result}
+                value={g.result ? (g.result.so ? "SO" : g.result.ot ? "OT" : "") : ""}
+                onChange={(e) => setGame(g.id, { result: {
+                  ...(g.result || { us: 0, them: 0 }),
+                  ot: e.target.value !== "",
+                  so: e.target.value === "SO",
+                } })}>
+                <option value="">—</option>
+                <option value="OT">OT</option>
+                <option value="SO">SO</option>
+              </select>
+              <input type="checkbox" checked={!!g.result} title="Toggle: game has a final score"
+                onChange={(e) => setGame(g.id, { result: e.target.checked ? { us: 0, them: 0, ot: false, so: false } : null })}
+                style={{ width: "auto", justifySelf: "center" }} />
+              <button className={"btn " + (gameState(g) === "live" ? "bLive" : "bGhost")}
+                style={{ fontSize: 12, padding: "5px 8px" }}
+                disabled={!!g.result || (!!liveElsewhere && liveElsewhere.id !== g.id)}
+                title={
+                  g.result ? "Game is already final"
+                    : liveElsewhere && liveElsewhere.id !== g.id
+                      ? "Another game is live — end it first"
+                      : "Set the lineups and score this game in Live scoring"
+                }
+                onClick={() => goLive(g)}>
+                {gameState(g) === "live" ? "LIVE" : "Live"}
+              </button>
+              <button className="btn bGhost aucount" style={{ fontSize: 12, padding: "5px 8px" }}
+                disabled={!g.result}
+                title={g.result ? "Enter per-player stats" : "Mark the game final first"}
+                onClick={() => setOpenBox(openBox === g.id ? null : g.id)}>
+                Box{" "}
+                {/* One badge, not two. Something contradicting itself is the
+                    more urgent of the two, so it wins the slot; work still to
+                    do shows only when nothing is actually wrong. The tooltip
+                    carries the rest either way. */}
+                {issues.length > 0
+                  ? <span className="aunum bad"
+                      title={issues.map((c) => c.label + ": " + c.detail).join(" · ")
+                        + (todos.length ? " · also still to do: "
+                          + todos.map((c) => c.label).join(", ") : "")}>
+                      {issues.length}
+                    </span>
+                  : todos.length > 0
+                    ? <span className="aunum todo"
+                        title={"Still to do — "
+                          + todos.map((c) => c.label + ": " + c.detail).join(" · ")}>
+                        {todos.length}
+                      </span>
+                    : dressed
+                      ? <span className="aunum ok"
+                          title={dressed + " dressed, and everything adds up"}>✓</span>
+                      : null}
+              </button>
+              <button className={"btn aucount " + (openMore === g.id ? "bNavy" : "bGhost")}
+                style={{ fontSize: 12, padding: "5px 8px" }}
+                title="Watch links and playoff round"
+                onClick={() => setOpenMore(openMore === g.id ? null : g.id)}>
+                More {linkCount(g) ? <span className="aunum">{linkCount(g)}</span> : null}
+              </button>
+              <button className="btn bDanger" aria-label="Delete game" onClick={() => removeGame(g)}>✕</button>
+            </div>
+            {openMore === g.id && (
+              <div className="aumore">
+                {[["previewId", "Preview story", "Shown on the game page until the game is final."],
+                  ["recapId", "Recap story", "Replaces the preview once the game is final."]
+                ].map(([key, label, hint]) => (
+                  <div className="field" key={key}>
+                    <label className="h6">{label}</label>
+                    <select value={g[key] || ""}
+                      onChange={(e) => setGame(g.id, { [key]: e.target.value || null })}>
+                      <option value="">— none —</option>
+                      {[...(site.news || [])]
+                        .sort((a, b) => (b.date || "").localeCompare(a.date || ""))
+                        .map((n) => (
+                          <option key={n.id} value={n.id}>
+                            {fmtDate(n.date)} · {n.title || "Untitled"}
+                          </option>
+                        ))}
+                    </select>
+                    <p className="bsm" style={{ color: "var(--au-faint)", marginTop: 5 }}>{hint}</p>
+                  </div>
+                ))}
+                {/* Hidden while a game is live: the three stars are picked at the
+                    final horn, in the dialog that ends the game. Two places to set
+                    the same thing during a game is two places to get it wrong. */}
+                {gameState(g) !== "live" && (
+                  <div className="field auwide">
+                    <label className="h6">Three stars</label>
+                    <div className="austarpicks across">
+                      {[0, 1, 2].map((i) => (
+                        <label className="austarpick" key={i}>
+                          <span className="austarnum">{i + 1}</span>
+                          <select value={(g.stars || [])[i] || ""}
+                            onChange={(e) => {
+                              const next = [...(g.stars || ["", "", ""])];
+                              while (next.length < 3) next.push("");
+                              next[i] = e.target.value;
+                              setGame(g.id, { stars: next.filter(Boolean) });
+                            }}>
+                            <option value="">— none —</option>
+                            {[...(season.roster || [])]
+                              .sort((a, b) => (Number(a.number) || 0) - (Number(b.number) || 0))
+                              .map((p) => (
+                                <option key={p.id} value={p.name}>#{p.number} {p.name}</option>
+                              ))}
+                          </select>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="bsm" style={{ color: "var(--au-faint)", marginTop: 6 }}>
+                      Shown at the top of the game page. Also offered when you end a live game.
+                    </p>
+                  </div>
+                )}
+                <div className="field">
+                  <label className="h6">Special game</label>
+                  <input value={g.special || ""} placeholder="Senior Night · Alumni Game"
+                    onChange={(e) => setGame(g.id, { special: e.target.value })} />
+                  <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
+                    Shown as a gold tag on the schedule, the game page and the home page.
+                  </p>
+                </div>
+                <div className="field">
+                  <label className="h6">Officials</label>
+                  <input value={g.officials || ""} placeholder="R. Daisy, D. Brisebois"
+                    onChange={(e) => setGame(g.id, { officials: e.target.value })} />
+                </div>
+                {gameType(g) === "playoff" && (
+                  <div className="field">
+                    <label className="h6">Playoff round</label>
+                    <input value={g.roundLabel || ""} placeholder="Quarterfinal · ACHA Regionals"
+                      onChange={(e) => setGame(g.id, { roundLabel: e.target.value })} />
+                  </div>
+                )}
+                <div className="field">
+                  <label className="h6">Tickets</label>
+                  <UrlField value={g.ticketsUrl || ""}
+                    placeholder="https://…"
+                    onChange={(v) => setGame(g.id, { ticketsUrl: v })} />
+                  <p className="bsm" style={{ color: "var(--au-faint)", marginTop: 5 }}>
+                    Only for a game that sells somewhere other than the usual
+                    place. Leave it blank and this game uses the club's tickets
+                    address from Settings.
+                  </p>
+                </div>
+                <div className="field">
+                  <label className="h6">Live stream</label>
+                  <UrlField value={g.streamUrl || ""}
+                    placeholder="https://youtube.com/live/…"
+                    onChange={(v) => setGame(g.id, { streamUrl: v })} />
+                  <p className="bsm" style={{ color: "var(--au-faint)", marginTop: 5 }}>
+                    Shown on the game before it is marked final.
+                  </p>
+                </div>
+                <div className="field">
+                  <label className="h6">Replay</label>
+                  <UrlField value={g.replayUrl || ""}
+                    placeholder="https://youtube.com/watch?v=…"
+                    onChange={(v) => setGame(g.id, { replayUrl: v })} />
+                  <p className="bsm" style={{ color: "var(--au-faint)", marginTop: 5 }}>
+                    Shown once the game has a final score.
+                  </p>
+                </div>
+              </div>
+            )}
+            {openBox === g.id && (
+              <BoxScore game={g} oppName={oppName(g)} roster={season.roster} site={site}
+                opponent={(site.opponents || []).find((o) => o.id === g.opponentId)}
+                setGame={setGame}
+                setDraft={setDraft} onSave={onSave} dirty={dirty}
+                onClose={() => setOpenBox(null)} />
+            )}
+          </div>
+        );
+      })}
+
+      <button className="btn bNavy bSm" style={{ marginTop: 18 }}
+        onClick={() => updateSeason(sel, {
+          schedule: [...games, {
+            id: uid(), date: "", opponentId: "", homeAway: "H",
+            venue: (site.settings && site.settings.homeVenue) || "",
+            location: (site.settings && site.settings.homeCity) || "", time: "7:30 PM",
+            gameType: "regular", roundLabel: "", ticketsUrl: "", streamUrl: "", replayUrl: "",
+            result: null,
+          }],
+        })}>
+        + Add Game
+      </button>
+      <p className="bsm" style={{ color: "var(--au-dim)", marginTop: 12 }}>
+        Tick "Final?" to enter a score, then open Box to record who scored. Season and
+        career totals are calculated from those box scores. Playoff games count toward
+        the record and are also reported separately; exhibitions never count.
+      </p>
+      </div>
+    </>
+  );
+}
+
+/** How many links a game carries of its own, for the row button. */
+function linkCount(g) {
+  return (g.ticketsUrl ? 1 : 0) + (g.streamUrl ? 1 : 0) + (g.replayUrl ? 1 : 0);
+}
+
+/**
+ * A URL input that flags anything that will not work as a link. People paste
+ * "youtube.com/..." without a scheme constantly, and a bare host renders as a
+ * relative path on the public site — a broken link nobody notices.
+ */
+function UrlField({ value, placeholder, onChange }) {
+  const trimmed = (value || "").trim();
+  const bad = trimmed.length > 0 && !/^https?:\/\//i.test(trimmed);
+  return (
+    <>
+      <div style={{ display: "flex", gap: 7, alignItems: "center" }}>
+        <input value={value} placeholder={placeholder}
+          onChange={(e) => onChange(e.target.value)}
+          style={bad ? { borderColor: "var(--au-warn)" } : undefined} />
+        {trimmed && !bad && (
+          <a className="btn bGhost bSm" href={trimmed} target="_blank" rel="noreferrer noopener">
+            Test
+          </a>
+        )}
+      </div>
+      {bad && (
+        <p className="bsm" style={{ color: "var(--au-warn)", marginTop: 5 }}>
+          Needs to start with https:// — otherwise the link breaks on the site.
+          <button className="btn bGhost bSm" style={{ marginLeft: 8 }}
+            onClick={() => onChange("https://" + trimmed.replace(/^\/+/, ""))}>
+            Fix it
+          </button>
+        </p>
+      )}
+    </>
+  );
+}
+
+/* ---------------- Opponent scoring ----------------
+ * Names are typed straight off the scoresheet rather than picked from a roster:
+ * maintaining a current roster for every team in the league, all season, to
+ * record three names per game is not a trade worth making.
+ *
+ * The cost is that opponent players get no career totals and no player pages.
+ * They are game records, not people the program tracks.
+ */
+function OpponentBoxScore({ game, oppName, site, setDraft }) {
+  const rows = (site.opponentStats || {})[game.id] || [];
+
+  const setRows = (next) =>
+    setDraft((s) => ({ ...s, opponentStats: { ...(s.opponentStats || {}), [game.id]: next } }));
+
+  const setRow = (id, patch) =>
+    setRows(rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+
+  const num = (id, key) => (e) =>
+    setRow(id, { [key]: e.target.value === "" ? 0 : Number(e.target.value) });
+
+  /* Both markers are written, because both are read elsewhere - the public
+     box score keys off position, live scoring off isGoalie. A row that only
+     carried one of them showed up in the wrong table somewhere. */
+  const addRow = (goalie) =>
+    setRows([...rows, {
+      id: uid(), name: "", number: "", isGoalie: goalie, position: goalie ? "G" : "F",
+      g: 0, a: 0, pim: 0, shots: 0,
+      saves: goalie ? 0 : undefined, ga: goalie ? 0 : undefined,
+    }]);
+
+  const skaters = rows.filter((r) => !isOppGoalie(r));
+  const goalies = rows.filter(isOppGoalie);
+
+  return (
+    <div className="oppbox">
+      <div className="boxhead">
+        <p className="h6" style={{ color: "var(--au-text)", margin: 0 }}>
+          {oppName || "Opponent"} scoring
+        </p>
+        <span className="bsm" style={{ color: "var(--au-faint)", marginLeft: "auto" }}>
+          Names as written on the scoresheet
+        </span>
+      </div>
+
+      {rows.length === 0 && (
+        <p className="bsm" style={{ color: "var(--au-faint)", margin: "0 0 12px" }}>
+          Nothing recorded for {oppName || "the opponent"} yet.
+        </p>
+      )}
+
+      {skaters.length > 0 && (
+        <>
+          <div className="opprow head">
+            <span>#</span><span>Player</span><span>G</span><span>A</span><span>PIM</span><span />
+          </div>
+          {skaters.map((r) => (
+            <div className="opprow" key={r.id}>
+              <input value={r.number} placeholder="—"
+                onChange={(e) => setRow(r.id, { number: e.target.value })} />
+              <input value={r.name} placeholder="Player name"
+                onChange={(e) => setRow(r.id, { name: e.target.value })} />
+              <input type="number" min="0" value={r.g || ""} onChange={num(r.id, "g")} />
+              <input type="number" min="0" value={r.a || ""} onChange={num(r.id, "a")} />
+              <input type="number" min="0" value={r.pim || ""} onChange={num(r.id, "pim")} />
+              <button className="btn bDanger" aria-label="Remove line"
+                onClick={() => setRows(rows.filter((x) => x.id !== r.id))}>✕</button>
+            </div>
+          ))}
+        </>
+      )}
+
+      {goalies.length > 0 ? (
+        <>
+          <div className="opprow head" style={{ marginTop: 10 }}>
+            <span>#</span><span>Goaltender</span><span>SV</span><span>GA</span><span>PIM</span><span />
+          </div>
+          {goalies.map((r) => (
+            <div className="opprow" key={r.id}>
+              <input value={r.number} placeholder="—"
+                onChange={(e) => setRow(r.id, { number: e.target.value })} />
+              <input value={r.name} placeholder="Goaltender name"
+                onChange={(e) => setRow(r.id, { name: e.target.value })} />
+              <input type="number" min="0" value={r.saves === undefined ? "" : r.saves}
+                onChange={num(r.id, "saves")} />
+              <input type="number" min="0" value={r.ga === undefined ? "" : r.ga}
+                onChange={num(r.id, "ga")} />
+              <input type="number" min="0" value={r.pim || ""} onChange={num(r.id, "pim")} />
+              <button className="btn bDanger" aria-label="Remove line"
+                onClick={() => setRows(rows.filter((x) => x.id !== r.id))}>✕</button>
+            </div>
+          ))}
+        </>
+      ) : rows.length > 0 && (
+        <p className="bsm" style={{ color: "var(--au-faint)", margin: "10px 0 0" }}>
+          No goaltender on their sheet yet.
+        </p>
+      )}
+
+      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+        <button className="btn bGhost bSm" onClick={() => addRow(false)}>+ Scorer</button>
+        <button className="btn bGhost bSm" onClick={() => addRow(true)}>+ Goaltender</button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Box score for one game ----------------
+ * Per-player G/A/PIM. This is what makes season and career totals real rather
+ * than hand-maintained numbers that quietly drift out of sync.
+ *
+ * Both sides of the scoreline are reconciled: skater goals should equal the
+ * goals we scored, and goaltender goals-against should equal the goals they
+ * scored. A box score that disagrees with its own final score is the single
+ * most common data-entry error, and it is silent unless something checks.
+ */
+/* Re-render on a timer so the clock counts down, and hand back the timestamp
+ * everything on the page should compute against — one clock reading per
+ * frame rather than each component calling Date.now() a moment apart.
+ *
+ * Only runs while a clock is actually running, so a page with no live game
+ * costs nothing. */
+function useClockTick(active, everyMs = 250) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return;
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), everyMs);
+    return () => clearInterval(id);
+  }, [active, everyMs]);
+  return now;
+}
+
+/* Shots on goal. A team counter rather than a per-player one: nobody at a
+ * club game is tracking who took which shot, but the shot count is on every
+ * scoreboard in the building. */
+function Shots({ value, label, onChange }) {
+  return (
+    <div className="aushots">
+      <button className="btn bGhost" aria-label={"One fewer shot for " + label}
+        onClick={() => onChange(Math.max(0, value - 1))}>−</button>
+      <span><strong>{value}</strong> SOG</span>
+      <button className="btn bGhost" aria-label={"One more shot for " + label}
+        onClick={() => onChange(value + 1)}>+</button>
+    </div>
+  );
+}
+
+/* Assists, minus the blanks, minus the scorer, minus a repeat of each other.
+ * The dropdowns already exclude the scorer, but only for a choice made after
+ * the scorer was picked — fill the assists first and a player can end up
+ * credited with assisting their own goal. */
+function cleanAssists(list, scorer) {
+  const out = [];
+  for (const x of list) {
+    if (!x || x === scorer || out.includes(x)) continue;
+    out.push(x);
+  }
+  return out;
+}
+
+const INFRACTIONS = [
+  "Tripping", "Hooking", "Slashing", "Holding", "Interference", "Roughing",
+  "Cross-checking", "High-sticking", "Boarding", "Delay of game",
+  "Too many men", "Unsportsmanlike conduct", "Fighting", "Other",
+];
+
+/* ---------------- Pre-game lineup ----------------
+ * Nobody starts a game and then remembers to say who dressed. Doing it here,
+ * before the puck drops, means the box score exists from the opening faceoff
+ * and the scratches are right on the game page without a second pass.
+ *
+ * Five skaters and a goaltender is what "starting lineup" means; the count is
+ * shown rather than enforced, because a club roster is not always 18 and 2 and
+ * being told your own lineup is wrong is not this screen's job.
+ */
+/* A team dresses eighteen skaters and two goaltenders. Both halves are
+   enforced rather than warned about: a nineteenth skater or a third
+   goaltender is not something a scoresheet can express, so the checkbox
+   simply stops accepting them. */
+const MAX_SKATERS = 18;
+const MAX_GOALIES = 2;
+
+/* One bench's sheet: who dresses, who starts, who is in net. The same
+ * component draws both teams, which is the point - the away page should read
+ * exactly like the home one rather than being a thinner afterthought.
+ */
+function LineupSheet({ roster, lu, onWrite, bar }) {
+  const byNumber = (a, b) => (Number(a.number) || 0) - (Number(b.number) || 0);
+  const forwards = roster.filter((p) => p.position === "F").sort(byNumber);
+  const defense = roster.filter((p) => p.position === "D").sort(byNumber);
+  const goalies = roster.filter((p) => p.position === "G").sort(byNumber);
+  const other = roster
+    .filter((p) => !["F", "D", "G"].includes(p.position)).sort(byNumber);
+
+  const countSkaters = (set) =>
+    roster.filter((p) => p.position !== "G" && set.has(p.id)).length;
+  const countGoalies = (set) =>
+    roster.filter((p) => p.position === "G" && set.has(p.id)).length;
+  const inCount = (list) => list.filter((p) => lu.dressed.has(p.id)).length;
+  const full = countSkaters(lu.dressed) >= MAX_SKATERS;
+  const fullG = countGoalies(lu.dressed) >= MAX_GOALIES;
+
+  /* Dropping a player has to drop them from the starting five and out of net
+     too, or the sheet keeps a starter who is not dressed. */
+  const toggle = (id) => {
+    const next = new Set(lu.dressed);
+    if (next.has(id)) next.delete(id);
+    else {
+      const p = roster.find((x) => x.id === id);
+      if (p && p.position !== "G" && countSkaters(next) >= MAX_SKATERS) return;
+      if (p && p.position === "G" && countGoalies(next) >= MAX_GOALIES) return;
+      next.add(id);
+    }
+    onWrite({
+      dressed: [...next],
+      starters: lu.starters.filter((x) => next.has(x)),
+      goalie: next.has(lu.goalie) ? lu.goalie : "",
+    });
+  };
+
+  const toggleStarter = (id) => {
+    const on = lu.starters.includes(id);
+    if (!on && lu.starters.length >= 5) return;
+    onWrite({ starters: on ? lu.starters.filter((x) => x !== id) : [...lu.starters, id] });
+  };
+
+  const Line = (props) => (
+    <LineupRow {...props} lu={lu} full={full} fullG={fullG}
+      max={MAX_SKATERS} maxG={MAX_GOALIES}
+      onToggle={toggle} onStarter={toggleStarter} onNet={(id) => onWrite({ goalie: id })} />
+  );
+
+  const Group = ({ title, list, starter }) => list.length ? (
+    <div className="alugroup">
+      <div className="alugrouphead">
+        <span>{title}</span><span>{inCount(list)} of {list.length}</span>
+      </div>
+      {list.map((p) => <Line key={p.id} p={p} starter={starter} />)}
+    </div>
+  ) : null;
+
+  return (
+    <>
+      {bar}
+      <div className="alucols">
+        <Group title="Forwards" list={forwards} starter />
+        <Group title="Defense" list={defense} starter />
+        <Group title="Goaltenders" list={goalies} />
+        <Group title="Unlisted position" list={other} starter />
+      </div>
+    </>
+  );
+}
+
+/* Counts for one bench, used for the chips and for deciding whether a page is
+   finished. */
+function sheetState(roster, lu) {
+  const skaters = roster.filter((p) => p.position !== "G" && lu.dressed.has(p.id)).length;
+  const goalies = roster.filter((p) => p.position === "G" && lu.dressed.has(p.id)).length;
+  let missing = null;
+  if (!roster.length) missing = "No players on this roster yet.";
+  else if (!skaters) missing = "Dress at least one skater.";
+  /* A sheet nobody has touched dresses the whole roster, which on a squad of
+     thirty is over the limit before anyone has done anything. The cap stops a
+     nineteenth being added; this stops an untouched sheet sliding past it. */
+  else if (skaters > MAX_SKATERS) {
+    missing = "Only " + MAX_SKATERS + " skaters can dress — scratch "
+      + (skaters - MAX_SKATERS) + " more, or use Fill to " + MAX_SKATERS + ".";
+  } else if (goalies > MAX_GOALIES) {
+    missing = "Only " + MAX_GOALIES + " goaltenders can dress — scratch "
+      + (goalies - MAX_GOALIES) + " more.";
+  } else if (goalies > 0 && !lu.goalie) missing = "Pick who starts in net.";
+  return {
+    skaters, goalies, missing,
+    full: skaters >= MAX_SKATERS, fullG: goalies >= MAX_GOALIES,
+  };
+}
+
+/* Two pages: ours, then theirs. Both have to be dealt with before the puck
+ * drops - the away sheet used to be a button on the side of the home one,
+ * which made it easy to walk past and then spend the game typing names by
+ * hand. It is still possible to start without their sheet, but now it is a
+ * decision taken on its own page rather than an omission.
+ */
+function LiveLineup({ game, roster, oppName, previous, opponent, setOpp, setGame, onStart, onWarmup, onCancel }) {
+  const ask = useAsk();
+  const [step, setStep] = useState(1);
+  const [theirOpen, setTheirOpen] = useState(false);
+
+  const theirs = (opponent && opponent.roster) || [];
+  const home = lineupOf(game, roster);
+  const away = awayLineupOf(game, theirs);
+  const homeState = sheetState(roster, home);
+  const awayState = sheetState(theirs, away);
+
+  const writeHome = (patch) => setGame(game.id, {
+    lineup: { dressed: [...home.dressed], starters: home.starters, goalie: home.goalie, ...patch },
+  });
+  const writeAway = (patch) => setGame(game.id, {
+    awayLineup: { dressed: [...away.dressed], starters: away.starters, goalie: away.goalie, ...patch },
+  });
+
+  const fillTo = (list, write, lu) => {
+    const byNum = (a, b) => (Number(a.number) || 0) - (Number(b.number) || 0);
+    const skatersFirst = list.filter((p) => p.position !== "G").sort(byNum).slice(0, MAX_SKATERS);
+    const keepers = list.filter((p) => p.position === "G").sort(byNum).slice(0, MAX_GOALIES);
+    const ids = [...skatersFirst, ...keepers].map((p) => p.id);
+    write({
+      dressed: ids,
+      starters: lu.starters.filter((x) => ids.includes(x)),
+      goalie: ids.includes(lu.goalie) ? lu.goalie : "",
+    });
+  };
+
+  const start = async (warm) => {
+    if (!theirs.length) {
+      const ok = await ask({
+        title: "No lineup for " + (oppName || "the other team"),
+        message: "Their players will not appear in any picker, so every goal, assist and penalty against them has to be typed by hand.",
+        detail: "Adding their sheet now also saves it for the next time you play them.",
+        confirmLabel: "Start without it",
+      });
+      if (!ok) return;
+    }
+    if (warm) onWarmup(); else onStart();
+  };
+
+  const Chips = ({ st, lu, label }) => (
+    <>
+      <span className={"aluchip" + (st.full ? " warn" : "")}>
+        {st.skaters} of {MAX_SKATERS} skaters
+      </span>
+      <span className={"aluchip" + (st.fullG ? " warn" : "")}>
+        {st.goalies} of {MAX_GOALIES} goaltenders
+      </span>
+      <span className="aluchip">{lu.starters.length} of 5 starting</span>
+    </>
+  );
+
+  const steps = (
+    <div className="alusteps">
+      {[[1, "Our lineup"], [2, (oppName || "Away") + " lineup"]].map(([n, label]) => (
+        <button key={n} className={"alustep" + (step === n ? " on" : "") + (n === 2 && homeState.missing ? " locked" : "")}
+          disabled={n === 2 && !!homeState.missing}
+          title={n === 2 && homeState.missing ? homeState.missing : undefined}
+          onClick={() => setStep(n)}>
+          <span className="alustepnum">{n}</span>{label}
+        </button>
+      ))}
+    </div>
+  );
+
+  return (
+    <div className="alu">
+      <div className="aluhead">
+        <button className="btn bGhost bSm" onClick={onCancel}>← Back</button>
+        <div>
+          <p className="h4" style={{ margin: 0 }}>
+            {step === 1 ? "Our lineup" : (oppName || "Away") + " lineup"}
+            <span className="alustepof"> · step {step} of 2</span>
+          </p>
+          <p className="bsm" style={{ margin: "3px 0 0", color: "var(--au-faint)" }}>
+            {step === 1
+              ? "Everyone checked dresses. Everyone else is a scratch. This writes the box score the moment the game starts."
+              : "The same sheet for them. Their dressed players fill the pickers all game, so goals and penalties against them are two taps rather than typing."}
+          </p>
+        </div>
+      </div>
+
+      {steps}
+
+      {step === 1 ? (
+        <LineupSheet roster={roster} lu={home} onWrite={writeHome} bar={
+          <div className="alubar">
+            <Chips st={homeState} lu={home} />
+            <span style={{ flex: 1 }} />
+            <button className="btn bGhost bSm"
+              title={"Dresses the first " + MAX_SKATERS + " skaters by number, and every goaltender"}
+              onClick={() => fillTo(roster, writeHome, home)}>Fill to {MAX_SKATERS}</button>
+            {previous && (
+              <button className="btn bGhost bSm"
+                title={"Same players who dressed against " + previous.label}
+                onClick={() => {
+                  const byNum = (a, b) => (Number(a.number) || 0) - (Number(b.number) || 0);
+                  const was = roster.filter((p) => previous.ids.includes(p.id));
+                  const skatersFirst = was.filter((p) => p.position !== "G").sort(byNum).slice(0, MAX_SKATERS);
+                  const keepers = was.filter((p) => p.position === "G").sort(byNum).slice(0, MAX_GOALIES);
+                  const ids = [...skatersFirst, ...keepers].map((p) => p.id);
+                  writeHome({
+                    dressed: ids,
+                    starters: home.starters.filter((x) => ids.includes(x)),
+                    goalie: ids.includes(home.goalie) ? home.goalie : "",
+                  });
+                }}>Same as last game</button>
+            )}
+          </div>
+        } />
+      ) : (
+        <>
+          <div className="alubar">
+            <Chips st={awayState} lu={away} />
+            <span style={{ flex: 1 }} />
+            {theirs.length > 0 && (
+              <button className="btn bGhost bSm"
+                onClick={() => fillTo(theirs, writeAway, away)}>Fill to {MAX_SKATERS}</button>
+            )}
+            {opponent && opponent.id && (
+              <button className="btn bGhost bSm" onClick={() => setTheirOpen((v) => !v)}>
+                {theirs.length ? "Edit their roster" : "Add their roster"}
+              </button>
+            )}
+          </div>
+
+          {(theirOpen || !theirs.length) && opponent && opponent.id && (
+            <OpponentRoster opponent={opponent} setOpp={setOpp}
+              onClose={() => setTheirOpen(false)} />
+          )}
+
+          {theirs.length > 0 && (
+            <LineupSheet roster={theirs} lu={away} onWrite={writeAway} bar={null} />
+          )}
+        </>
+      )}
+
+      {!roster.length && step === 1 && (
+        <div className="auempty">
+          <p style={{ margin: 0, fontWeight: 600, color: "var(--au-text)" }}>No roster for this season</p>
+          <p className="bsm" style={{ margin: "6px 0 0" }}>Add players on the Roster tab first.</p>
+        </div>
+      )}
+
+      <div className="alufoot">
+        {step === 1 ? (
+          <>
+            {homeState.missing && <span className="aluwarn">{homeState.missing}</span>}
+            <button className="btn bLive" disabled={!!homeState.missing}
+              onClick={() => setStep(2)}>
+              Next: {oppName || "away"} lineup →
+            </button>
+          </>
+        ) : (
+          <>
+            {theirs.length > 0 && awayState.missing && (
+              <span className="aluwarn">{awayState.missing}</span>
+            )}
+            <button className="btn bGhost" onClick={() => setStep(1)}>← Our lineup</button>
+            {/* The stream goes up before the puck does. Warm-up lists the game
+                on the front page with the clock parked; it ends by itself the
+                first time the clock is started. */}
+            <button className="btn bGhost"
+              title="List the game as live with the clock parked at 20:00"
+              disabled={theirs.length > 0 && !!awayState.missing}
+              onClick={() => start(true)}>
+              Open warm-up
+            </button>
+            <button className="btn bLive"
+              disabled={theirs.length > 0 && !!awayState.missing}
+              onClick={() => start(false)}>
+              Start game
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Live scoring tab ----------------
+ * Its own place in the console rather than a button buried in a 25-row
+ * schedule grid. On a game night this is the only screen anyone opens, and
+ * hunting for the right row while the teams are warming up is the wrong first
+ * thirty seconds.
+ */
+function LiveTab({ site, setDraft, updateSeason, onSave, dirty, setupSeed, onSeedUsed }) {
+  const ask = useAsk();
+  const sel = site.currentSeason;
+  const season = site.seasons[sel] || { schedule: [], roster: [] };
+  const games = season.schedule || [];
+  const opponents = site.opponents || [];
+
+  const oppOf = (g) => opponents.find((o) => o.id === g.opponentId) || {};
+  const oppName = (g) => oppOf(g).name || "";
+
+  const setGame = (id, patch) =>
+    updateSeason(sel, { schedule: games.map((g) => (g.id === id ? { ...g, ...patch } : g)) });
+
+  const liveGame = games.find((g) => gameState(g) === "live");
+  const setOppRecord = (id, patch) =>
+    setDraft((st) => ({
+      ...st,
+      opponents: (st.opponents || []).map((o) => (o.id === id ? { ...o, ...patch } : o)),
+    }));
+  /* Seeded when the schedule sends a game here, so arriving on this tab
+     opens that game's sheet rather than the list. Cleared on arrival - come
+     back later and you get the list, the way you left it. */
+  const [setupId, setSetupId] = useState(setupSeed || null);
+  useEffect(() => { if (setupSeed) onSeedUsed && onSeedUsed(); }, []);
+  const setupGame = games.find((g) => g.id === setupId) || null;
+
+  /* Rebuilding a game that has already been played. Same console, same box
+     score, same play-by-play - the only difference is that the result stays
+     put and nothing goes on the front page, because the game is not on.
+     gameState() reads a game with a result as "final" no matter what is in
+     `live`, which is exactly what keeps the public site out of it, so the
+     session is found by the flag instead. Reading it off the game rather
+     than holding an id in state means walking to another tab and back
+     returns to the session rather than orphaning it. */
+  const retroGame = games.find((g) => g.live && g.live.retro) || null;
+
+  /* Who dressed last time out, as a starting point. Most weeks it is the same
+     eighteen with one change. */
+  const lastLineup = (g) => {
+    const prior = [...games]
+      .filter((x) => x.id !== g.id && x.date && (site.gameStats || {})[x.id])
+      .filter((x) => !g.date || x.date <= g.date)
+      .sort(cmpDate);
+    const prev = prior[prior.length - 1];
+    if (!prev) return null;
+    const lines = (site.gameStats || {})[prev.id] || {};
+    const ids = Object.entries(lines)
+      .filter(([, l]) => l && l.dressed !== false)
+      .map(([id]) => id)
+      .filter((id) => (season.roster || []).some((p) => p.id === id));
+    return ids.length ? { ids, label: oppName(prev) || "last game" } : null;
+  };
+
+  /* Today first, then the rest of the unplayed schedule. Nobody scores a game
+     that has already been played, so finals are not offered here at all. */
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming = [...games]
+    .filter((g) => gameState(g) === "scheduled")
+    .sort(cmpDate);
+  const todays = upcoming.filter((g) => g.date === today);
+  /* All of it. A scorekeeper looking for a game in February should not have
+     to go to another tab because the list stopped at eight. */
+  const later = upcoming.filter((g) => g.date !== today);
+
+  /* Everything with a result, newest first - the game somebody wants to write
+     up is almost always the one just played. */
+  const played = [...games].filter((g) => gameState(g) === "final").sort(cmpDate).reverse();
+
+  const goLive = async (g, retro = false, warmup = false) => {
+    if (!retro && g.date && g.date !== today) {
+      const when = new Date(g.date + "T12:00:00") < new Date(today + "T12:00:00") ? "was" : "is";
+      const ok = await ask({
+        title: "That game " + when + " not today",
+        message: (oppName(g) || "This game") + " is scheduled for " + fmtDate(g.date) + ".",
+        detail: "Going live puts it on the front page as happening right now. Check you picked the right game.",
+        confirmLabel: "Go live anyway",
+      });
+      if (!ok) return;
+    }
+    /* Stopping live scoring keeps the plays that were recorded, so starting
+     * again has to pick the score back up from them. Otherwise the scoreboard
+     * reads 0-0 next to a summary listing three goals. */
+    const scored = (g.plays || []).filter((p) => p.kind === "goal");
+
+    /* Whatever shot record the game already carries - from an import, or
+       from an earlier session that was stopped. */
+    const prev = g.live || {};
+    const priorShots = {
+      shotsUs: Number(prev.shotsUs) || 0,
+      shotsThem: Number(prev.shotsThem) || 0,
+      periodShots: prev.periodShots || {},
+    };
+
+    /* The box score exists from the opening faceoff, not from the first goal.
+       Everyone dressed gets a line of zeroes and everyone else is marked a
+       scratch, so the sheet is complete before anything happens and the
+       scratches are right on the game page. Anything already recorded is kept:
+       this also runs when live scoring is restarted mid-game. */
+    const lu = lineupOf(g, season.roster || []);
+    setDraft((st) => {
+      const all = st.gameStats || {};
+      const forGame = { ...(all[g.id] || {}) };
+      for (const p of season.roster || []) {
+        const cur = forGame[p.id] || { g: 0, a: 0, pim: 0 };
+        const line = { ...cur, dressed: lu.dressed.has(p.id) };
+        if (p.position === "G" && lu.dressed.has(p.id)) {
+          line.saves = Number(cur.saves) || 0;
+          line.ga = Number(cur.ga) || 0;
+        }
+        forGame[p.id] = line;
+      }
+      return { ...st, gameStats: { ...all, [g.id]: forGame } };
+    });
+
+    /* Their dressed players get a box score line too, so the away sheet is
+       there from the opening faceoff rather than appearing with the first
+       goal. Anything already recorded is kept. */
+    const opp = oppOf(g);
+    const theirs = (opp && opp.roster) || [];
+    const awayLu = awayLineupOf(g, theirs);
+    if (theirs.length) {
+      setDraft((st) => {
+        const all = st.opponentStats || {};
+        const had = new Map((all[g.id] || []).map((x) => [x.id, x]));
+        const rows = theirs.filter((p) => awayLu.dressed.has(p.id)).map((p) => ({
+          ...(had.get(p.id) || { g: 0, a: 0, pim: 0 }),
+          id: p.id, name: p.name, number: p.number,
+          isGoalie: p.position === "G",
+          ...(p.position === "G"
+            ? { saves: (had.get(p.id) || {}).saves || 0, ga: (had.get(p.id) || {}).ga || 0 }
+            : {}),
+        }));
+        return { ...st, opponentStats: { ...all, [g.id]: rows } };
+      });
+    }
+    const awayStarter = theirs.find((p) => p.id === awayLu.goalie);
+
+    /* Only one game is being scored at a time. Any other session left open -
+       a rebuild somebody walked away from - is closed rather than stranded
+       behind this one, because the console only ever finds the first. */
+    updateSeason(sel, {
+      schedule: games.map((x) => (x.id !== g.id && x.live && x.live.retro
+        ? { ...x, live: null } : x)),
+    });
+
+    setGame(g.id, {
+      live: {
+        period: "1", running: false, warmup: !!warmup,
+        clockMs: periodSecs("1") * 1000, startedAt: null,
+        us: scored.filter((p) => p.team === "us").length,
+        them: scored.filter((p) => p.team === "them").length,
+        retro,
+        intermission: false, penalties: [],
+        /* Shots already recorded for this game are carried in, not zeroed.
+           A game imported with 34 shots on it, or one where scoring was
+           stopped and picked up again, has a real count already - starting
+           the console at 0 both hid it and threw it away on the next write. */
+        ...priorShots,
+        goalieUs: lu.goalie || "",
+        goalieThem: awayStarter ? awayStarter.name : "",
+        netBase: { shots: 0, goals: 0 },
+      },
+    });
+    setSetupId(null);
+    onSave();
+  };
+
+  /* A played game, opened for scoring after the fact. The warning is worth
+     showing once: the console writes the box score as it goes, so starting
+     on a game that already has one imported is how you end up with two. */
+  const goRetro = async (g) => {
+    const lines = ((site.gameStats || {})[g.id]) || {};
+    const scored = (g.plays || []).filter((p) => p.kind === "goal").length;
+    const ok = await ask({
+      title: "Score " + (oppName(g) || "this game") + " now?",
+      message: "It was played on " + fmtDate(g.date) + " and finished "
+        + (g.result ? g.result.us + "-" + g.result.them : "with no score recorded")
+        + ". The result stays as it is and nothing goes on the front page.",
+      detail: (scored || Object.keys(lines).length)
+        ? "This game already has " + (scored ? scored + " goals in its play-by-play" : "a box score")
+          + ". Scoring adds to what is there rather than starting clean."
+        : "Nothing has been recorded for it yet.",
+      confirmLabel: "Start scoring",
+    });
+    if (!ok) return;
+    await goLive(g, true);
+  };
+
+  if (setupGame && !liveGame) {
+    return (
+      <LiveLineup game={setupGame} roster={season.roster || []}
+        oppName={oppName(setupGame)} previous={lastLineup(setupGame)}
+        opponent={oppOf(setupGame)} setOpp={setOppRecord}
+        setGame={setGame} onStart={() => goLive(setupGame)}
+        onWarmup={() => goLive(setupGame, false, true)}
+        onCancel={() => setSetupId(null)} />
+    );
+  }
+
+  const scoring = liveGame || retroGame;
+  if (scoring) {
+    return (
+      <LiveGame game={scoring} oppName={oppName(scoring)} opponent={oppOf(scoring)}
+        roster={season.roster || []} site={site} setGame={setGame} setDraft={setDraft}
+        publish={onSave} dirty={dirty} onClose={() => {}} embedded />
+    );
+  }
+
+  const Row = ({ g, today: isToday, played }) => {
+    const o = oppOf(g);
+    const d = g.date ? new Date(g.date + "T12:00:00") : null;
+    return (
+      <div className={"auliverow " + (isToday ? "istoday" : "")}>
+        <span className="aulivedate">
+          <span className="aulivemon">
+            {d ? d.toLocaleDateString("en-US", { month: "short" }).toUpperCase() : "—"}
+          </span>
+          <span className="auliveday">{d ? d.getDate() : "?"}</span>
+        </span>
+
+        <span className="aulivemark">
+          {/* The light-background mark, because the tile behind it is white. */}
+          {o.logoLight || o.logoDark
+            ? <img src={o.logoLight || o.logoDark} alt="" />
+            : <OppBadge name={o.name || "?"} size={30} />}
+        </span>
+
+        <span className="auliveinfo">
+          <span className="auliveopp">
+            <span className="aulivevs">{vsAt(g)}</span>
+            {o.name || "(no opponent)"}
+          </span>
+          <span className="aulivewhere">
+            {[g.time, g.venue].filter(Boolean).join(" · ") || "Time and venue not set"}
+          </span>
+        </span>
+
+        {isToday && <span className="aulivetoday">Today</span>}
+        {played && (
+          <span className="auliveresult">
+            {g.result ? g.result.us + "–" + g.result.them : "—"}
+            <span className="aulivepbp">
+              {(g.plays || []).filter((p) => p.kind === "goal" || p.kind === "penalty").length
+                ? (g.plays || []).length + " plays"
+                : "no play-by-play"}
+            </span>
+          </span>
+        )}
+
+        {played
+          ? <button className="btn bGhost bSm aulivestart" onClick={() => goRetro(g)}>
+              Score it →
+            </button>
+          : /* Setting a lineup is preparation, not a live action - the
+               broadcast red belongs to going live, a goal, and the clock.
+               This takes the console's own primary, like every other button
+               that just moves you to the next screen. */
+            <button className="btn bNavy bSm aulivestart" onClick={() => setSetupId(g.id)}>
+              Set lineup →
+            </button>}
+      </div>
+    );
+  };
+
+  return (
+    <>
+      <p className="auhint" style={{ marginBottom: 18, maxWidth: 680 }}>
+        Scoring a game here puts it on the front page and at the front of the score strip,
+        and writes the box score as you go. One game at a time. A game that has already
+        been played can be scored too — same console, but off the air and without
+        touching its result.
+      </p>
+
+      {todays.length > 0 && (
+        <section style={{ marginBottom: 24 }}>
+          <p className="h6" style={{ marginBottom: 10 }}>Today</p>
+          <div className="aulivelist">{todays.map((g) => <Row g={g} today key={g.id} />)}</div>
+        </section>
+      )}
+
+      {later.length > 0 && (
+        <section>
+          <p className="h6" style={{ marginBottom: 10 }}>
+            {todays.length ? "Coming up" : "Nothing today — coming up"}
+            <span className="aunum" style={{ marginLeft: 8 }}>{later.length}</span>
+          </p>
+          <div className="aulivelist">{later.map((g) => <Row g={g} key={g.id} />)}</div>
+        </section>
+      )}
+
+      {!upcoming.length && (
+        <div className="auempty">
+          <p style={{ margin: 0, fontWeight: 600, color: "var(--au-text)" }}>No games left to play</p>
+          <p className="bsm" style={{ margin: "6px 0 0" }}>
+            Add one on the Schedule tab, or set a newer season as current.
+          </p>
+        </div>
+      )}
+
+      {played.length > 0 && (
+        <section style={{ marginTop: upcoming.length ? 30 : 12 }}>
+          <p className="h6" style={{ marginBottom: 6 }}>Games already played</p>
+          <p className="auhint" style={{ marginTop: 0, marginBottom: 10, maxWidth: 680 }}>
+            The same console, on a game that is over. Use it to build a play-by-play and a
+            box score for a night nobody scored live — off the air, with the final score
+            left exactly as it is. Newest first.
+          </p>
+          <div className="aulivelist">
+            {played.map((g) => <Row g={g} played key={g.id} />)}
+          </div>
+        </section>
+      )}
+    </>
+  );
+}
+
+/* ---------------- Live game control ----------------
+ * A dedicated screen rather than a row that unfolds: this is used standing up,
+ * on a phone, by someone who also has to watch the game.
+ *
+ * Everything entered here writes the box score at the same time. The scorer of
+ * a live goal gets the goal on their line immediately, so nothing has to be
+ * re-entered after the final horn — which is the step that never actually gets
+ * done.
+ */
+function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, publish, dirty, onClose, embedded }) {
+  const ask = useAsk();
+  const live = game.live || {};
+  /* Set when the console was opened on a game that had already finished. The
+     game keeps its result the whole time, so gameState() still reads "final"
+     and none of this reaches the public site. */
+  const retro = !!live.retro;
+  const now = useClockTick(!!live.running);
+  /* "Us" is what the data calls our side; it is not what a scorekeeper calls
+     the team they are watching. */
+  const usLabel = ((site.settings || {}).org || {}).abbr || gameName(site) || "Us";
+
+  const left = clockLeft(live, now);
+  const strength = strengthState(live, now);
+  /* Overtime has to have been played before a shootout is a thing that has
+     happened. Being in OT counts - the moment it ends without a goal, the
+     operator moves the period on and the tab is already open. */
+  /* A shootout is not a thing that might happen, it is a thing that has
+     started. The tab appears when the game is actually in one - the period
+     moved to SO, or attempts already recorded - and not before. Reaching OT
+     only unlocks SO in the period select, which is how it gets initiated. */
+  const soReached = live.period === "OT" || live.period === "SO";
+  const soStarted = live.period === "SO"
+    || (((game.shootout || {}).attempts) || []).length > 0;
+
+  /* Typing up a game that has already been played is transcription, not
+     timekeeping. There is no clock to run: every event on the sheet arrives
+     with its own time, so the console asks for it instead of asking the
+     operator to wind a countdown to 12:41 before recording the goal that
+     happened there. The period stays sticky between entries because a
+     scoresheet is read a period at a time. */
+  const [entryPeriod, setEntryPeriod] = useState(live.period || "1");
+  const [entryClock, setEntryClock] = useState("");
+
+  /* Where a new play sits in time. Live, that is the clock on the wall;
+     typed up, it is whatever was entered. */
+  const whenNow = () => (retro
+    ? { period: entryPeriod, clock: normaliseClock(entryClock) }
+    : { period: live.period || "1", clock: fmtClock(left) });
+
+  /* Step the entry time without retyping it. The clock counts down, so minus
+     is later in the period and plus is earlier - the same direction the live
+     console's nudges run, so the two do not contradict each other.
+     An empty box starts from a full period, because the first thing anyone
+     presses is "back a bit from the start". */
+  const nudgeEntry = (delta) => {
+    const total = periodSecs(entryPeriod);
+    const now = entryClock.trim() ? clockSecs(normaliseClock(entryClock)) : total;
+    const next = Math.max(0, Math.min(total, now + delta));
+    setEntryClock(String(Math.floor(next / 60)).padStart(2, "0") + ":"
+      + String(next % 60).padStart(2, "0"));
+  };
+
+  /* "1241", "12:41" and "12.41" all mean the same thing to somebody copying
+     a sheet quickly. Anything unreadable is left alone rather than turned
+     into a wrong time. */
+  function normaliseClock(v) {
+    const t = String(v || "").trim();
+    if (!t) return "";
+    const digits = t.replace(/\D/g, "");
+    if (/^\d{1,2}[:.]\d{1,2}$/.test(t)) {
+      const [m, sec] = t.split(/[:.]/);
+      return String(Number(m)).padStart(2, "0") + ":" + String(Number(sec)).padStart(2, "0");
+    }
+    if (digits.length === 3 || digits.length === 4) {
+      const m = digits.slice(0, digits.length - 2), sec = digits.slice(-2);
+      return String(Number(m)).padStart(2, "0") + ":" + sec;
+    }
+    return t;
+  }
+  const plays = Array.isArray(game.plays) ? game.plays : [];
+
+  /* Scratches are not on the bench, so they are not in the pickers either.
+     A game started before lineups existed has no dressed flags, and every
+     player reads as dressed - which is how it behaved before. */
+  const boxLines = (site.gameStats || {})[game.id] || {};
+  /* Anyone thrown out is off the bench for the rest of the night, so they
+     come out of the pickers the same way a scratch does. Matching on name as
+     well as id because their side has no ids to match on. */
+  const ejected = live.ejected || [];
+  const isEjected = (p) => ejected.some((e) =>
+    (e.id && p.id && e.id === p.id) || (e.name && p.name && e.name === p.name));
+  const skaters = [...roster]
+    .filter((p) => (boxLines[p.id] || {}).dressed !== false && !isEjected(p))
+    .sort((a, b) => (Number(a.number) || 0) - (Number(b.number) || 0));
+  const goalies = skaters.filter((p) => p.position === "G");
+  /* If their roster has been entered, pick from it instead of typing a name
+     into a box every time. Free text stays as the fallback, because half the
+     time you are handed a lineup sheet at the door and half the time you are
+     not. */
+  /* Who to offer for the other side.
+   *
+   * The opponent library holds a general roster for a club, and it is empty
+   * for most of them. This game, though, usually has its own sheet already -
+   * every player who dressed, with number and position, imported with the box
+   * score. That sheet is both more specific and more likely to exist, so it
+   * leads; the library roster stands in when a game has no sheet yet, and
+   * free text stands in when there is neither.
+   *
+   * Ours is the game's own record, so it needs no reconciling with the
+   * library: a name typed here goes on this game and nowhere else. */
+  const theirSheet = ((site.opponentStats || {})[game.id] || [])
+    .filter((r) => String(r.name || "").trim())
+    .map((r) => ({
+      id: r.id, name: r.name, number: r.number,
+      position: isOppGoalie(r) ? "G" : (r.position || "F"),
+    }));
+  const theirs = [...(theirSheet.length ? theirSheet : (((opponent || {}).roster) || []))]
+    .filter((p) => !isEjected(p))
+    .sort((a, b) => (Number(a.number) || 0) - (Number(b.number) || 0));
+  const theirsFromSheet = theirSheet.length > 0;
+  const theirSkaters = theirs.filter((p) => p.position !== "G");
+
+  /* The same reconciler the box editor runs, so the two screens can never
+     disagree about whether this game adds up. Only the failures are shown
+     here - a scorer wants to know something has drifted, not to read a list
+     of things that are fine. */
+  const liveChecks = failedChecks(reconcileGame({
+    game, roster, lines: boxLines,
+    oppRows: (site.opponentStats || {})[game.id] || [],
+    usLabel, oppName,
+  }));
+
+  const nameOf = (id) => (roster.find((p) => p.id === id) || {}).name || "";
+  /* An OppPick value is one of their ids, or free text when we have no roster
+     for them. These read it either way. */
+  const theirRow = (v) => theirs.find((p) => p.id === v) || null;
+  const theirName = (v) => (theirRow(v) || {}).name || String(v || "").trim();
+  const theirId = (v) => (theirRow(v) ? v : null);
+
+  /* Write and publish in one turn — a live score behind a Save button is
+   * worse than no live score at all. */
+  const push = (patch) => {
+    /* Typed-up events arrive in whatever order the sheet is read in, so the
+       list is put back into game order on every write. Live scoring is
+       already chronological and is left alone. */
+    if (retro && patch.plays) patch = { ...patch, plays: sortPlays(patch.plays) };
+    setGame(game.id, patch);
+    if (patch.live) writeGoalie(patch.live);
+    publish();
+  };
+  const setLive = (patch) => push({ live: { ...live, ...patch } });
+
+  /* A shot belongs to the period it was taken in. The running total is kept
+   * alongside the per-period buckets rather than summed on read, so nothing
+   * that already reads shotsUs/shotsThem has to change. */
+  /* A goal is a shot on goal, so the counter has to move with it - the plus
+     button is for the shots that were stopped, not for all of them. Kept as
+     a patch on a live object rather than its own write, because it always
+     happens alongside something else: the goal, or taking one back.
+     Shootout attempts are the exception. They are not shots in the game, and
+     the goal a shootout puts on the board is a scoring convention rather
+     than a puck anybody shot in play. */
+  const withShot = (base, side, delta, period) => {
+    if (period === "SO") return base;
+    const p = period || (retro ? entryPeriod : (live.period || "1"));
+    const per = { ...(base.periodShots || {}) };
+    per[p] = { ...(per[p] || { us: 0, them: 0 }) };
+    per[p][side] = Math.max(0, (per[p][side] || 0) + delta);
+    const key = side === "us" ? "shotsUs" : "shotsThem";
+    return { ...base, [key]: Math.max(0, (base[key] || 0) + delta), periodShots: per };
+  };
+
+  const bumpShots = (side, delta) => {
+    if (!delta) return;
+    /* The per-period bucket has to agree with the period the play is filed
+       under, or the shot totals and the play-by-play disagree by a period. */
+    const p = retro ? entryPeriod : (live.period || "1");
+    const per = { ...(live.periodShots || {}) };
+    per[p] = { ...(per[p] || { us: 0, them: 0 }) };
+    per[p][side] = Math.max(0, (per[p][side] || 0) + delta);
+    const key = side === "us" ? "shotsUs" : "shotsThem";
+    const nextLive = {
+      ...live,
+      [key]: Math.max(0, (live[key] || 0) + delta),
+      periodShots: per,
+    };
+
+    /* The counter and the play-by-play are the same fact counted once.
+       Pressing + writes the shot into the log; pressing - takes the most
+       recent one back out, so a mis-tap does not leave a phantom shot in
+       the play-by-play that the totals no longer agree with. */
+    let nextPlays = plays;
+    if (delta > 0) {
+      const keeper = side === "us"
+        ? (live.goalieThem || "")
+        : (live.goalieUs && live.goalieUs !== "empty" ? nameOf(live.goalieUs) : "");
+      /* The id is minted here so the shooter can be attached to this exact
+         shot a moment later, once someone has looked up who took it. */
+      const pid = uid();
+      nextPlays = [...plays, {
+        id: pid, kind: "shot", team: side,
+        ...whenNow(), goalie: keeper,
+      }];
+      setShotAsk({ id: pid, side });
+    } else {
+      for (let i = plays.length - 1; i >= 0; i--) {
+        if (plays[i].kind === "shot" && plays[i].team === side) {
+          nextPlays = [...plays.slice(0, i), ...plays.slice(i + 1)];
+          break;
+        }
+      }
+    }
+    push({ plays: nextPlays, live: nextLive });
+  };
+
+  /* ---- Clock ---- */
+  /* Stopping the clock happens first and is asked about second: the whistle
+     has already gone, and making someone pick a reason before the clock
+     stops would cost real seconds. */
+  const [stopAsk, setStopAsk] = useState(false);
+  const curPeriod = live.period || "1";
+  const hasPeriodMark = (phase, p) =>
+    plays.some((x) => x.kind === "period" && x.phase === phase && x.period === p);
+
+  const startStop = () => {
+    if (live.running) {
+      setLive({ running: false, clockMs: left, startedAt: null });
+      setFaceoffAsk(null);
+      setStopAsk(true);
+      return;
+    }
+    setStopAsk(false);
+    setTimeoutAsk(false);
+    setFaceoffAsk({ clock: fmtClock(left) });
+    /* Starting the clock is the end of the warm-up, whatever else it is. */
+    const running = { running: true, clockMs: left, startedAt: Date.now(), warmup: false };
+    /* The first time a period's clock runs, the period has started. */
+    if (!hasPeriodMark("start", curPeriod)) {
+      push({
+        plays: [...plays, {
+          id: uid(), kind: "period", phase: "start",
+          period: curPeriod, clock: fmtClock(left),
+        }],
+        live: { ...live, ...running },
+      });
+    } else setLive(running);
+  };
+
+  /* The away roster is usually handed over at the door, so it has to be
+     enterable here rather than only on the Opponents tab an hour earlier.
+     Same editor either way - it writes to the same team record, so it is
+     there again next time these two play. */
+  /* Three things happen at a game and they do not happen at once: the run of
+     play, the shootout if it gets that far, and fixing a roster. Tabs rather
+     than one long column, so the panel in use is the whole screen. */
+  const [tab, setTab] = useState("scoring");
+  /* A tab can stop existing underneath you - the shootout one goes when the
+     period moves back, the scoresheet one is only for a game already played.
+     Derived rather than corrected in an effect, so there is never a render
+     where the strip and the panel disagree. */
+  const shownTab = (tab === "shootout" && !soStarted) || (tab === "sheet" && !retro)
+    ? "scoring" : tab;
+
+  const setOpp = (id, patch) => {
+    setDraft((st) => ({
+      ...st,
+      opponents: (st.opponents || []).map((o) => (o.id === id ? { ...o, ...patch } : o)),
+    }));
+    publish();
+  };
+
+  /* Who took the shot and who won the draw are asked after the fact, never
+     before it: the counter and the clock are the time-critical parts, and a
+     picker standing between the scorer and the + button costs real seconds.
+     Both can be skipped, and the play survives without the name. */
+  const [shotAsk, setShotAsk] = useState(null);
+  const [faceoffAsk, setFaceoffAsk] = useState(null);
+
+  const nameShooter = (value) => {
+    if (!shotAsk) return;
+    const us = shotAsk.side === "us";
+    push({
+      plays: plays.map((p) => (p.id === shotAsk.id ? {
+        ...p,
+        shooterId: us ? value || null : null,
+        shooter: us ? nameOf(value) : value,
+      } : p)),
+    });
+    setShotAsk(null);
+  };
+
+  const winFaceoff = (team, value) => {
+    const us = team === "us";
+    push({
+      plays: [...plays, {
+        id: uid(), kind: "faceoff", team,
+        period: curPeriod,
+        /* The draw happened when play resumed, not when the name was picked. */
+        clock: (faceoffAsk && faceoffAsk.clock) || fmtClock(left),
+        winnerId: us ? value || null : null,
+        winner: us ? nameOf(value) : value,
+      }],
+    });
+    setFaceoffAsk(null);
+  };
+
+  /* A timeout is not a reason play stopped, it is a thing a team did - and
+     it belongs to one bench or the other, which a reason list cannot say. */
+  const [timeoutAsk, setTimeoutAsk] = useState(false);
+  const callTimeout = (team) => {
+    push({
+      plays: [...plays, {
+        id: uid(), kind: "timeout", team, period: curPeriod, clock: fmtClock(left),
+      }],
+      live: { ...live, running: false, clockMs: left, startedAt: null },
+    });
+    setTimeoutAsk(false);
+  };
+
+  const logStop = (reason) => {
+    push({
+      plays: [...plays, {
+        id: uid(), kind: "stoppage", reason,
+        period: curPeriod, clock: fmtClock(left),
+      }],
+    });
+    setStopAsk(false);
+  };
+  const nudge = (secs) =>
+    setLive({
+      clockMs: Math.max(0, Math.min(periodSecs(live.period) * 1000, left + secs * 1000)),
+      startedAt: live.running ? Date.now() : null,
+    });
+  /* Leaving a period that was under way ends it, so the play-by-play has a
+     bookend rather than one period running straight into the next. */
+  const setPeriod = (p) => {
+    const closing = p !== curPeriod
+      && hasPeriodMark("start", curPeriod)
+      && !hasPeriodMark("end", curPeriod);
+    const next = { period: p, running: false, clockMs: periodSecs(p) * 1000, startedAt: null };
+    if (closing) {
+      push({
+        plays: [...plays, {
+          id: uid(), kind: "period", phase: "end", period: curPeriod, clock: "00:00",
+        }],
+        live: { ...live, ...next },
+      });
+    } else setLive(next);
+    setStopAsk(false);
+  };
+
+  /* ---- The goaltender's line, derived from shots and goals ----
+   *
+   * Saves and goals-against are not separate facts to be entered: they fall
+   * out of the shots the other team took and the goals they scored. Typing
+   * them alongside the shot counter would be asking for two numbers that have
+   * to agree.
+   *
+   * `netBase` is the shot and goal count at the moment the current goaltender
+   * came in, so a pulled goalie keeps what they faced and their replacement
+   * starts from zero rather than inheriting the whole game.
+   */
+  const writeGoalie = (nextLive) => {
+    const id = nextLive.goalieUs;
+    if (!id || id === "empty") return;
+    const base = nextLive.netBase || { shots: 0, goals: 0 };
+    const faced = Math.max(0, (nextLive.shotsThem || 0) - (base.shots || 0));
+    const ga = Math.max(0, (nextLive.them || 0) - (base.goals || 0));
+    setLineFields(id, { ga, saves: Math.max(0, faced - ga) });
+  };
+
+  const setLineFields = (playerId, fields) =>
+    setDraft((s) => {
+      const all = s.gameStats || {};
+      const forGame = all[game.id] || {};
+      const cur = forGame[playerId] || { dressed: true, g: 0, a: 0, pim: 0 };
+      return { ...s, gameStats: { ...all, [game.id]: { ...forGame, [playerId]: { ...cur, ...fields } } } };
+    });
+
+  /* ---- Stat lines, written as the game happens ---- */
+  const bumpLine = (playerId, deltas) =>
+    setDraft((s) => {
+      const all = s.gameStats || {};
+      const forGame = all[game.id] || {};
+      const cur = forGame[playerId] || { dressed: true, g: 0, a: 0, pim: 0 };
+      const next = { ...cur };
+      for (const [k, d] of Object.entries(deltas)) next[k] = Math.max(0, (Number(next[k]) || 0) + d);
+      return { ...s, gameStats: { ...all, [game.id]: { ...forGame, [playerId]: next } } };
+    });
+
+  /* ---- Goals ---- */
+  const [goalTeam, setGoalTeam] = useState("us");
+  const [scorer, setScorer] = useState("");
+  const [a1, setA1] = useState("");
+  const [a2, setA2] = useState("");
+  const [oppScorer, setOppScorer] = useState("");
+  const [oppA1, setOppA1] = useState("");
+  const [oppA2, setOppA2] = useState("");
+  const [strengthPick, setStrengthPick] = useState("");
+
+  /* Default to whatever the penalty state says, but let it be overridden —
+   * empty-net and penalty-shot goals are not derivable from the clock. */
+  const suggested = goalTeam === "us"
+    ? (strength.kind === "PP" ? "PP" : strength.kind === "PK" ? "SH" : "EV")
+    : (strength.kind === "PK" ? "PP" : strength.kind === "PP" ? "SH" : "EV");
+  const goalStrength = strengthPick || suggested;
+
+  const goalMissing = goalTeam === "us"
+    ? (scorer ? null : "Pick a scorer.")
+    : (oppScorer.trim() ? null : "Enter who scored for " + (oppName || "them") + ".");
+
+  const addGoal = () => {
+    if (goalMissing) return;
+    const us = goalTeam === "us";
+
+    const play = {
+      id: uid(), kind: "goal", team: goalTeam,
+      ...whenNow(),
+      strength: goalStrength,
+      scorerId: us ? scorer : theirId(oppScorer),
+      scorer: us ? nameOf(scorer) : theirName(oppScorer),
+      assistIds: us
+        ? cleanAssists([a1, a2], scorer)
+        : cleanAssists([oppA1, oppA2], oppScorer).map(theirId),
+      assists: us
+        ? cleanAssists([a1, a2], scorer).map(nameOf)
+        : cleanAssists([oppA1, oppA2], oppScorer).map(theirName),
+    };
+
+    if (us) {
+      bumpLine(scorer, { g: 1, ...(goalStrength === "PP" ? { ppg: 1 } : {}), ...(goalStrength === "SH" ? { shg: 1 } : {}) });
+      [a1, a2].filter(Boolean).forEach((id) => bumpLine(id, { a: 1 }));
+    }
+
+    /* What a power-play goal does to the penalty being served, which depends
+       on which penalty it is.
+         minor            over
+         double minor     it is two two-minute minors back to back. A goal in
+                          the first ends that one and the second starts from
+                          2:00 - the player stays in the box. A goal once it
+                          is already inside the last two minutes ends it, the
+                          same as any minor
+         major, match     served in full. A goal does not shorten it, which
+                          is why five-minute power plays can yield several
+       Only a penalty that actually has the team short can be ended by a
+       goal, so a misconduct is never the one picked. */
+    const atGoal = elapsedSecs(live, now);
+    let penalties = live.penalties || [];
+    if (goalStrength === "PP" && !retro) {
+      const against = us ? "them" : "us";
+      const serving = activePenalties(live, now)
+        .filter((p) => p.team === against && p.shorts)
+        .sort((x, y) => x.left - y.left)[0];
+      if (serving) {
+        const k = kindOf(serving);
+        if (k === "double" && serving.left > 120) {
+          penalties = penalties.map((p) => (p.id === serving.id
+            ? { ...p, endsAt: atGoal + 120, halfServed: true } : p));
+        } else if (k === "minor" || k === "double" || k === "minor10") {
+          penalties = penalties.map((p) => (p.id === serving.id ? { ...p, ended: true } : p));
+        }
+      }
+    }
+
+    /* The clock stops on a goal. Leaving it running while someone types in
+       the assists put the next play thirty seconds late. */
+    push({
+      plays: [...plays, play],
+      live: withShot({
+        ...live, penalties,
+        running: false, clockMs: left, startedAt: null,
+        us: (live.us || 0) + (us ? 1 : 0),
+        them: (live.them || 0) + (us ? 0 : 1),
+      }, goalTeam, 1, play.period),
+    });
+    setStopAsk(false);
+    setScorer(""); setA1(""); setA2("");
+    setOppScorer(""); setOppA1(""); setOppA2(""); setStrengthPick("");
+  };
+
+  /* ---- Penalties ---- */
+  const [penTeam, setPenTeam] = useState("us");
+  const [penPlayer, setPenPlayer] = useState("");
+  const [penOpp, setPenOpp] = useState("");
+  const [penKind, setPenKind] = useState("minor");
+  const [psAsk, setPsAsk] = useState(null);
+  const [psWho, setPsWho] = useState("");
+
+  /* A penalty shot is one free attempt, taken by a named player, and if it
+     goes in it is a goal like any other - on the scoreboard and on the
+     scorer's line. It is not a shootout attempt: this one counts. */
+  const recordPenaltyShot = (result) => {
+    const side = psAsk.against === "us" ? "them" : "us";
+    const mine = side === "us";
+    const p = mine ? skaters.find((x) => x.id === psWho) : null;
+    const name = p ? p.name : String(psWho || "").trim();
+    if (!name) return;
+    const scored = result === "goal";
+    const play = {
+      id: uid(), kind: scored ? "goal" : "shot", team: side,
+      ...whenNow(),
+      ...(scored
+        ? { strength: "PS", scorer: name, scorerId: p ? p.id : null, assistIds: [], assists: [] }
+        : { player: name, detail: "Penalty shot " + (result === "save" ? "saved" : "missed") }),
+    };
+    if (scored && mine && p) bumpLine(p.id, { g: 1 });
+    /* A penalty shot that scores or is saved was on goal; one that misses the
+       net was not. The same line the rest of the sheet draws. */
+    const onGoal = scored || result === "save";
+    const base = scored ? { ...live, [side]: (live[side] || 0) + 1 } : live;
+    push({
+      plays: [...plays, play],
+      ...(onGoal || scored
+        ? { live: onGoal ? withShot(base, side, 1, play.period) : base }
+        : {}),
+    });
+    setPsAsk(null); setPsWho("");
+  };
+  const [penWhat, setPenWhat] = useState(INFRACTIONS[0]);
+
+  const penMissing = penTeam === "us"
+    ? (penPlayer ? null : "Pick a player.")
+    : (penOpp.trim() ? null : "Enter who took the penalty.");
+
+  const addPenalty = () => {
+    if (penMissing) return;
+    const us = penTeam === "us";
+    const k = penaltyKind(penKind);
+    const at = elapsedSecs(live, now);
+    const player = us ? nameOf(penPlayer) : theirName(penOpp);
+    const playerId = us ? penPlayer : theirId(penOpp);
+    const when = whenNow();
+
+    /* A penalty shot is not time in the box. The foul goes on the sheet and
+       on the offender's minutes, and then the other team gets its shot. */
+    if (k.penaltyShot) {
+      push({
+        plays: [...plays, {
+          id: uid(), kind: "penalty", team: penTeam, ...when,
+          player, minutes: 0, infraction: penWhat + " (penalty shot)",
+        }],
+      });
+      setPenPlayer(""); setPenOpp("");
+      setPsAsk({ against: penTeam, infraction: penWhat, by: player });
+      return;
+    }
+
+    /* "Two and a ten" is two entries on the sheet, because it is two
+       penalties: the minor the team serves and the misconduct the player
+       does. Keeping them as one row is what made the console think the
+       team was short for twelve minutes. */
+    const rows = [{ kind: k.key, mins: k.mins }];
+    if (k.alsoMisconduct) rows.push({ kind: "misconduct", mins: k.alsoMisconduct });
+
+    const pens = rows.map((r) => ({
+      id: uid(), team: penTeam, kind: r.kind, minutes: r.mins,
+      player, playerId,
+      endsAt: at + r.mins * 60, ended: false,
+    }));
+    const newPlays = pens.map((p) => ({
+      id: p.id, kind: "penalty", team: penTeam, ...when,
+      player, minutes: p.minutes,
+      infraction: p.kind === "misconduct" && rows.length > 1 ? "Misconduct" : penWhat,
+    }));
+
+    /* Every minute counts on the player's line, whether the team was short
+       for it or not - penalty minutes are penalty minutes. */
+    const totalMins = rows.reduce((n, r) => n + r.mins, 0);
+    if (us && playerId) bumpLine(playerId, { pim: totalMins });
+
+    const ejected = k.ejects
+      ? [...(live.ejected || []), { id: playerId || null, name: player, team: penTeam }]
+      : (live.ejected || []);
+
+    /* A penalty typed up after the fact is a line on the sheet, not a clock
+       to run. Feeding it to the live strength model would leave a permanent
+       phantom power play, because there is no clock ticking to expire it -
+       so on a finished game only the play is written. The strength of each
+       goal is typed in beside it instead. */
+    push({
+      plays: [...plays, ...newPlays],
+      live: retro
+        ? { ...live, ejected }
+        : { ...live, penalties: [...(live.penalties || []), ...pens], ejected },
+    });
+    setPenPlayer(""); setPenOpp("");
+  };
+
+  const endPenalty = (id) =>
+    setLive({ penalties: (live.penalties || []).map((p) => (p.id === id ? { ...p, ended: true } : p)) });
+
+  /* ---- Undo ---- */
+  /* What a play meant, undone.
+   *
+   * Every kind is handled by name rather than falling through to one branch:
+   * a shot and a face-off were both being treated as penalties, which meant
+   * taking a shot back subtracted `undefined` minutes from whoever shared its
+   * name and wrote NaN onto their penalty line.
+   */
+  const describePlay = (p) =>
+    p.kind === "goal" ? p.scorer + " at " + (p.clock || "—") + " in the " + p.period
+      : p.kind === "penalty" ? p.player + ", " + p.minutes + " for " + p.infraction
+      : p.kind === "shot" ? "a shot" + (p.player ? " by " + p.player : "")
+        + (p.clock ? " at " + p.clock : "")
+      : p.kind + (p.clock ? " at " + p.clock : "");
+
+  const removePlay = async (play) => {
+    const ok = await ask({
+      title: "Remove this " + play.kind + "?",
+      message: describePlay(play),
+      detail: play.kind === "goal" ? "The score, the box score and the shot count are corrected too."
+        : play.kind === "penalty" ? "The penalty minutes come off the player's line."
+        : play.kind === "shot" ? "The shots on goal come down by one."
+        : "Nothing else is affected.",
+      confirmLabel: "Remove",
+      danger: true,
+    });
+    if (!ok) return;
+    applyRemoval(play);
+  };
+
+  /* Split out so an edit can reuse it: an edit is the old play undone and the
+     new one applied, which is the only way to keep the totals honest when the
+     scorer or the team changes. */
+  const applyRemoval = (play) => {
+    const without = plays.filter((p) => p.id !== play.id);
+
+    if (play.kind === "goal") {
+      const us = play.team === "us";
+      if (us && play.scorerId) {
+        bumpLine(play.scorerId, {
+          g: -1,
+          ...(play.strength === "PP" ? { ppg: -1 } : {}),
+          ...(play.strength === "SH" ? { shg: -1 } : {}),
+        });
+        (play.assistIds || []).forEach((id) => id && bumpLine(id, { a: -1 }));
+      }
+      push({
+        plays: without,
+        live: withShot({
+          ...live,
+          us: Math.max(0, (live.us || 0) - (us ? 1 : 0)),
+          them: Math.max(0, (live.them || 0) - (us ? 0 : 1)),
+        }, play.team, -1, play.period),
+      });
+      return;
+    }
+
+    if (play.kind === "penalty") {
+      const pl = play.playerId
+        ? roster.find((p) => p.id === play.playerId)
+        : roster.find((p) => p.name === play.player);
+      if (play.team === "us" && pl && Number(play.minutes)) {
+        bumpLine(pl.id, { pim: -Number(play.minutes) });
+      }
+      push({
+        plays: without,
+        live: { ...live, penalties: (live.penalties || []).filter((p) => p.id !== play.id) },
+      });
+      return;
+    }
+
+    if (play.kind === "shot") {
+      /* The counter and the log are the same fact counted once, so taking the
+         play out has to take the shot out with it. */
+      push({ plays: without, live: withShot(live, play.team, -1, play.period) });
+      return;
+    }
+
+    /* Period markers, the final whistle, timeouts, face-offs: nothing is
+       counted anywhere, so they just go. */
+    push({ plays: without });
+  };
+
+  /* ---- Correcting a play ----
+   *
+   * A correction is the old play undone and a new one put in its place. Doing
+   * it that way rather than patching the record in situ is what keeps the
+   * score, the box score and the shot count right when the part that changed
+   * is the scorer, the team or the strength - all of which are counted
+   * somewhere else as well as written down here.
+   */
+  const [editPlay, setEditPlay] = useState(null);
+  const [editDraft, setEditDraft] = useState({});
+
+  const beginEdit = (p) => {
+    setEditPlay(p);
+    /* The two assist slots are held apart from the play so the form can have
+       an empty one. Ours are ids, theirs are names, same as when a goal is
+       first entered. */
+    const mine = p.team === "us";
+    setEditDraft({
+      ...p,
+      a1: mine ? (p.assistIds || [])[0] || "" : (p.assists || [])[0] || "",
+      a2: mine ? (p.assistIds || [])[1] || "" : (p.assists || [])[1] || "",
+    });
+    setStopAsk(false);
+  };
+
+  const saveEdit = () => {
+    const before = editPlay;
+    const d = editDraft;
+    const next = { ...before, ...d, clock: normaliseClock(d.clock || "") };
+
+    if (next.kind === "goal") {
+      if (next.team === "us") {
+        const p = roster.find((x) => x.id === next.scorerId);
+        next.scorer = p ? p.name : next.scorer;
+        /* Blanks, duplicates and the scorer assisting themselves all fall out
+           here, the same way they do when the goal is first entered. */
+        const ids = cleanAssists([d.a1, d.a2], next.scorerId);
+        next.assistIds = ids;
+        next.assists = ids.map(nameOf);
+      } else {
+        const names = cleanAssists([d.a1, d.a2].map((x) => theirName(x)), next.scorer)
+          .map((x) => String(x || "").trim())
+          .filter(Boolean);
+        next.assists = names;
+        next.assistIds = names.map(() => null);
+      }
+      delete next.a1;
+      delete next.a2;
+    }
+    if (next.kind === "penalty") {
+      next.minutes = Number(next.minutes) || 0;
+    }
+
+    /* Undo, then redo. applyRemoval and the adders both write through push,
+       and push replaces the whole plays array each time, so the two have to
+       be composed by hand rather than called one after the other. */
+    let list = plays.filter((x) => x.id !== before.id);
+    let nextLive = { ...live };
+
+    if (before.kind === "goal") {
+      const wasUs = before.team === "us";
+      if (wasUs && before.scorerId) {
+        bumpLine(before.scorerId, {
+          g: -1,
+          ...(before.strength === "PP" ? { ppg: -1 } : {}),
+          ...(before.strength === "SH" ? { shg: -1 } : {}),
+        });
+        (before.assistIds || []).forEach((id) => id && bumpLine(id, { a: -1 }));
+      }
+      nextLive[wasUs ? "us" : "them"] = Math.max(0, (nextLive[wasUs ? "us" : "them"] || 0) - 1);
+      nextLive = withShot(nextLive, before.team, -1, before.period);
+    } else if (before.kind === "penalty" && before.team === "us") {
+      const pl = before.playerId
+        ? roster.find((x) => x.id === before.playerId)
+        : roster.find((x) => x.name === before.player);
+      if (pl && Number(before.minutes)) bumpLine(pl.id, { pim: -Number(before.minutes) });
+    } else if (before.kind === "shot") {
+      nextLive = withShot(nextLive, before.team, -1, before.period);
+    }
+
+    if (next.kind === "goal") {
+      const isUs = next.team === "us";
+      if (isUs && next.scorerId) {
+        bumpLine(next.scorerId, {
+          g: 1,
+          ...(next.strength === "PP" ? { ppg: 1 } : {}),
+          ...(next.strength === "SH" ? { shg: 1 } : {}),
+        });
+        (next.assistIds || []).forEach((id) => id && bumpLine(id, { a: 1 }));
+      }
+      nextLive[isUs ? "us" : "them"] = (nextLive[isUs ? "us" : "them"] || 0) + 1;
+      nextLive = withShot(nextLive, next.team, 1, next.period);
+    } else if (next.kind === "penalty" && next.team === "us") {
+      const pl = next.playerId
+        ? roster.find((x) => x.id === next.playerId)
+        : roster.find((x) => x.name === next.player);
+      if (pl && Number(next.minutes)) bumpLine(pl.id, { pim: Number(next.minutes) });
+    } else if (next.kind === "shot") {
+      nextLive = withShot(nextLive, next.team, 1, next.period);
+    }
+
+    push({ plays: [...list, next], live: nextLive });
+    setEditPlay(null);
+  };
+
+  /* ---- Backing out ---- */
+  /* Ending a game throws away the clock, the running penalties and the rest
+     of the live state - none of it means anything once the horn has gone.
+     The shot counts are different: they are a record of the game, and the
+     game page reads them from here. Nulling the whole object took the shots
+     with it, so a game scored in this console finished with no shots on it
+     while an imported one had them. */
+  const keepShots = (willBeFinal) => {
+    /* Only ever left behind on a game that has a result. gameState() reads a
+       game with `live` and no result as in progress, so keeping anything on
+       an abandoned fixture would put it on the front page as live. */
+    if (!willBeFinal && !game.result) return null;
+    const per = live.periodShots;
+    const us = Number(live.shotsUs) || 0;
+    const them = Number(live.shotsThem) || 0;
+    if (!us && !them && !per) return null;
+    return { periodShots: per || {}, shotsUs: us, shotsThem: them };
+  };
+
+  const abandon = async () => {
+    const ok = await ask({
+      title: retro ? "Stop scoring this game?" : "Stop live scoring?",
+      message: retro
+        ? "It stays final at " + ((game.result || {}).us) + "-" + ((game.result || {}).them)
+          + " and keeps whatever has been recorded so far."
+        : "The game goes back to scheduled and the live score comes off the site.",
+      detail: (plays.length
+        ? plays.length + " recorded " + (plays.length === 1 ? "play stays" : "plays stay")
+        : "Nothing has been recorded") + " on the box score.",
+      confirmLabel: "Stop scoring",
+      danger: true,
+    });
+    if (!ok) return;
+    push({ live: keepShots(false) });
+    onClose();
+  };
+
+  /* ---- End ----
+   * The three stars are picked here rather than on a form somebody has to
+   * remember to go back to. The moment the horn goes is the only moment
+   * anyone actually knows who they were.
+   */
+  const [ending, setEnding] = useState(false);
+  const [picks, setPicks] = useState(["", "", ""]);
+  /* Rebuilding a game that is already final. The score on the bug is being
+     reconstructed, so it is not the authority here - the recorded result is,
+     until someone says otherwise. */
+  const [replaceResult, setReplaceResult] = useState(false);
+
+  const confirmEnd = () => {
+    const rebuilt = {
+      us: live.us || 0, them: live.them || 0,
+      ot: live.period === "OT" || live.period === "SO",
+    };
+    /* The last line of the play-by-play. Written here rather than derived at
+       render time so it carries the clock it actually happened on - an
+       overtime winner ends the game where the puck went in, not at 00:00. */
+    const finalPlay = {
+      id: uid(), kind: "game", phase: "end",
+      period: curPeriod, clock: fmtClock(left),
+      us: live.us || 0, them: live.them || 0,
+    };
+    /* A game being rebuilt usually already carries a closing whistle from
+       whatever was imported into it. Two of them would read as two endings. */
+    const body = plays.filter((p) => !(p.kind === "game" && p.phase === "end"));
+    const stars = picks.map((x) => x.trim()).filter(Boolean);
+    push({
+      plays: [...body, finalPlay],
+      result: retro && !replaceResult ? (game.result || rebuilt) : rebuilt,
+      /* Nobody picking no stars on a rebuild means "leave the old ones". */
+      stars: stars.length || !retro ? stars : (game.stars || []),
+      live: keepShots(true),
+    });
+    setEnding(false);
+    onClose();
+  };
+
+  const sorted = [...plays].reverse();
+
+  /* Everyone who did something in this game, most involved first, so the
+     obvious names are near the top of the list. */
+  const starChoices = [...roster]
+    .map((p) => {
+      const l = (((site.gameStats || {})[game.id]) || {})[p.id] || {};
+      const weight = p.position === "G"
+        ? (Number(l.saves) || 0) / 10
+        : (Number(l.g) || 0) * 2 + (Number(l.a) || 0);
+      return { p, weight };
+    })
+    .sort((a, b) => b.weight - a.weight)
+    .map((x) => x.p);
+
+  return (
+    <div className="aulivegame">
+      {ending && (
+        <div className="auoverlay">
+          <div className="auscrim" onClick={() => setEnding(false)} />
+          <div className="aumodal austars" role="dialog" aria-modal="true" aria-label="End the game">
+            <p className="aumodaltitle">{retro ? "Finish this game?" : "End the game?"}</p>
+            {retro ? (
+              <>
+                <p className="aumodalmsg">
+                  Recorded result{" "}
+                  <b>{(game.result || {}).us}–{(game.result || {}).them}</b>
+                  {"  ·  "}rebuilt from what you entered{" "}
+                  <b>{live.us || 0}–{live.them || 0}</b>.
+                </p>
+                {(game.result || {}).us === (live.us || 0)
+                  && (game.result || {}).them === (live.them || 0) ? (
+                  <p className="bsm" style={{ margin: "8px 0 0", color: "var(--au-ok)" }}>
+                    They agree. The play-by-play adds up to the score on the books.
+                  </p>
+                ) : (
+                  <p className="bsm" style={{ margin: "8px 0 0", color: "var(--au-danger)" }}>
+                    They disagree, which usually means a goal is missing from the
+                    play-by-play rather than that the result is wrong.
+                  </p>
+                )}
+                <label className="aucheck" style={{ marginTop: 12 }}>
+                  <input type="checkbox" checked={replaceResult}
+                    onChange={(e) => setReplaceResult(e.target.checked)} />
+                  <span>Replace the recorded result with the rebuilt score</span>
+                </label>
+              </>
+            ) : (
+              <p className="aumodalmsg">
+                Final score {live.us || 0} to {live.them || 0} against {oppName || "this opponent"}.
+                The live score becomes the final score and starts counting towards the record.
+              </p>
+            )}
+
+            <p className="h6" style={{ margin: "18px 0 8px" }}>Three stars <span className="auopt">optional</span></p>
+            <div className="austarpicks">
+              {["First", "Second", "Third"].map((label, i) => (
+                <label className="austarpick" key={label}>
+                  <span className="austarnum">{i + 1}</span>
+                  <select value={picks[i]}
+                    onChange={(e) => setPicks(picks.map((x, j) => (j === i ? e.target.value : x)))}>
+                    <option value="">— {label.toLowerCase()} star —</option>
+                    {starChoices.map((p) => (
+                      <option key={p.id} value={p.name}>#{p.number} {p.name}</option>
+                    ))}
+                    {(((game.opponentRosterNames) || [])).map((n) => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+            </div>
+            <p className="bsm" style={{ marginTop: 8, color: "var(--au-faint)" }}>
+              Shown at the top of the game page. Leave blank to skip; you can add them
+              later from the schedule.
+            </p>
+
+            <div className="aumodalfoot">
+              <button className="btn bGhost bSm" onClick={() => setEnding(false)}>Cancel</button>
+              <button className="btn bNavy bSm" onClick={confirmEnd}>
+                {retro ? "Save and finish" : "End game"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="auwritebar">
+        {!embedded && <button className="btn bGhost bSm" onClick={onClose}>← Schedule</button>}
+        {retro
+          ? <span className="auretrotag">REBUILDING</span>
+          : <span className="aulivetag"><span className="livedot" aria-hidden="true" />LIVE</span>}
+        <span className="aulivewhen">{fmtDate(game.date)}{game.venue ? " · " + game.venue : ""}</span>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          {/* Started the wrong game, or the puck never dropped. Without this
+              the only way out is to record a final score that never happened. */}
+          <button className="btn bGhost bSm" onClick={abandon}>Stop scoring</button>
+          <button className="btn bNavy bSm" onClick={() => setEnding(true)}>
+            {retro ? "Finish" : "End game → final"}
+          </button>
+        </div>
+      </div>
+
+      {/* ---- Scoreboard ---- */}
+      <div className="aubug">
+        <div className="aubugside">
+          <p className="aubugname">{usLabel}</p>
+          <p className="aubugscore">{live.us || 0}</p>
+          <Shots value={live.shotsUs || 0} label={usLabel}
+            onChange={(v) => bumpShots("us", v - (live.shotsUs || 0))} />
+          <div className="aunet">
+            <label className="h6">In net</label>
+            <select value={live.goalieUs || ""}
+              onChange={(e) => setLive({
+                goalieUs: e.target.value,
+                netBase: { shots: live.shotsThem || 0, goals: live.them || 0 },
+              })}>
+              <option value="">— nobody —</option>
+              {goalies.map((p) => <option key={p.id} value={p.id}>#{p.number} {p.name}</option>)}
+              <option value="empty">Empty net</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="aubugmid">
+          {/* A finished game has no clock to run. Showing 20:00 frozen next to
+              a 6-2 final, with Start and Intermission buttons under it, invites
+              somebody to press them. */}
+          <p className="aubugclock">{retro ? "FINAL" : fmtClock(left)}</p>
+          <div className="aubugctl">
+            <select value={live.period || "1"}
+              onChange={(e) => { setPeriod(e.target.value); if (e.target.value === "SO") setTab("shootout"); }}>
+              {PERIODS.filter((p) => p !== "SO" || soReached)
+                .map((p) => <option key={p} value={p}>{p === "OT" || p === "SO" ? p : p + getOrdinal(p)}</option>)}
+            </select>
+            {!retro && (
+              <button className={"btn bSm " + (live.running ? "bGhost" : "bLive")} onClick={startStop}>
+                {live.running ? "Stop" : "Start"}
+              </button>
+            )}
+            {/* Stops the clock as well as saying so — an intermission with a
+                running clock is a state nobody wants to explain. */}
+            {!retro && (
+              <button className={"btn bSm " + (live.intermission ? "bNavy" : "bGhost")}
+                onClick={() => setLive({
+                  intermission: !live.intermission,
+                  running: false, clockMs: left, startedAt: null,
+                })}>
+                Intermission
+              </button>
+            )}
+            {!retro && (
+              <button className="btn bSm bGhost" onClick={() => {
+                if (live.running) setLive({ running: false, clockMs: left, startedAt: null });
+                setStopAsk(false);
+                setTimeoutAsk(true);
+              }}>
+                Timeout
+              </button>
+            )}
+          </div>
+          {!retro && (
+            <div className="aubugnudge">
+              {[[-60, "−1:00"], [-10, "−:10"], [10, "+:10"], [60, "+1:00"]].map(([d, label]) => (
+                <button key={d} className="btn bGhost" onClick={() => nudge(d)}>{label}</button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="aubugside">
+          <p className="aubugname">{oppName || "Them"}</p>
+          <p className="aubugscore">{live.them || 0}</p>
+          <Shots value={live.shotsThem || 0} label={oppName || "Them"}
+            onChange={(v) => bumpShots("them", v - (live.shotsThem || 0))} />
+          <div className="aunet">
+            <label className="h6">In net</label>
+            {theirs.filter((p) => p.position === "G").length ? (
+              <select value={live.goalieThem || ""} onChange={(e) => setLive({ goalieThem: e.target.value })}>
+                <option value="">— nobody —</option>
+                {theirs.filter((p) => p.position === "G").map((p) => (
+                  <option key={p.id} value={p.name}>#{p.number} {p.name}</option>
+                ))}
+                <option value="Empty net">Empty net</option>
+              </select>
+            ) : (
+              <input value={live.goalieThem || ""} placeholder="Their goaltender"
+                onChange={(e) => setLive({ goalieThem: e.target.value })} />
+            )}
+            <span className="bsm auopplink">
+              {theirs.length
+                ? theirs.length + (theirsFromSheet ? " dressed for this game" : " on their club roster")
+                : "No roster for them yet"}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {shotAsk && (
+        <div className="austop">
+          <span className="h6">Who shot it?</span>
+          {shotAsk.side === "us" ? (
+            <select value="" onChange={(e) => nameShooter(e.target.value)}>
+              <option value="">— pick a player —</option>
+              {skaters.filter((p) => p.position !== "G").map((p) => (
+                <option key={p.id} value={p.id}>#{p.number} {p.name}</option>
+              ))}
+            </select>
+          ) : theirs.length ? (
+            <select value="" onChange={(e) => nameShooter(e.target.value)}>
+              <option value="">— pick a player —</option>
+              {theirs.map((p) => (
+                <option key={p.id} value={p.name}>#{p.number} {p.name}</option>
+              ))}
+            </select>
+          ) : (
+            <input placeholder="Their shooter" onKeyDown={(e) => {
+              if (e.key === "Enter") nameShooter(e.currentTarget.value.trim());
+            }} />
+          )}
+          <button className="btn bGhost bSm austopskip" onClick={() => setShotAsk(null)}>
+            Don't know
+          </button>
+        </div>
+      )}
+
+      {faceoffAsk && (
+        <div className="austop">
+          <span className="h6">Who won the faceoff?</span>
+          <select value="" onChange={(e) => winFaceoff("us", e.target.value)}>
+            <option value="">{usLabel} — pick a player</option>
+            {skaters.filter((p) => p.position !== "G").map((p) => (
+              <option key={p.id} value={p.id}>#{p.number} {p.name}</option>
+            ))}
+          </select>
+          {theirs.length ? (
+            <select value="" onChange={(e) => winFaceoff("them", e.target.value)}>
+              <option value="">{oppName || "Them"} — pick a player</option>
+              {theirs.map((p) => (
+                <option key={p.id} value={p.name}>#{p.number} {p.name}</option>
+              ))}
+            </select>
+          ) : (
+            <button className="btn bGhost bSm" onClick={() => winFaceoff("them", "")}>
+              {oppName || "Them"} won it
+            </button>
+          )}
+          <button className="btn bGhost bSm austopskip" onClick={() => setFaceoffAsk(null)}>
+            Skip
+          </button>
+        </div>
+      )}
+
+      {psAsk && (
+        <div className="austop aups">
+          <span className="h6">
+            Penalty shot to {psAsk.against === "us" ? (oppName || "Them") : usLabel}
+          </span>
+          {psAsk.against === "us" ? (
+            theirs.length ? (
+              <select value={psWho} onChange={(e) => setPsWho(e.target.value)}>
+                <option value="">— who is taking it? —</option>
+                {theirSkaters.map((p) => (
+                  <option key={p.id} value={p.name}>#{p.number} {p.name}</option>
+                ))}
+              </select>
+            ) : (
+              <input value={psWho} placeholder="Shooter's name"
+                onChange={(e) => setPsWho(e.target.value)} />
+            )
+          ) : (
+            <select value={psWho} onChange={(e) => setPsWho(e.target.value)}>
+              <option value="">— who is taking it? —</option>
+              {skaters.filter((p) => p.position !== "G").map((p) => (
+                <option key={p.id} value={p.id}>#{p.number} {p.name}</option>
+              ))}
+            </select>
+          )}
+          <button className="btn bLive bSm" disabled={!psWho}
+            onClick={() => recordPenaltyShot("goal")}>Goal</button>
+          <button className="btn bGhost bSm" disabled={!psWho}
+            onClick={() => recordPenaltyShot("save")}>Saved</button>
+          <button className="btn bGhost bSm" disabled={!psWho}
+            onClick={() => recordPenaltyShot("miss")}>Missed</button>
+          <button className="btn bGhost bSm austopskip"
+            onClick={() => { setPsAsk(null); setPsWho(""); }}>
+            Not now
+          </button>
+        </div>
+      )}
+
+      {editPlay && (
+        <div className="austop auedit">
+          <span className="h6">Correcting</span>
+
+          <select value={editDraft.period || "1"}
+            onChange={(e) => setEditDraft({ ...editDraft, period: e.target.value })}>
+            {PERIODS.filter((x) => x !== "SO" || soReached).map((x) => (
+              <option key={x} value={x}>{x === "OT" || x === "SO" ? x : x + getOrdinal(x)}</option>
+            ))}
+          </select>
+
+          <input className="auentryclock" value={editDraft.clock || ""} placeholder="12:41"
+            onChange={(e) => setEditDraft({ ...editDraft, clock: e.target.value })}
+            onBlur={() => setEditDraft({ ...editDraft, clock: normaliseClock(editDraft.clock) })} />
+
+          {editPlay.kind === "goal" && (
+            <>
+              <select value={editDraft.strength || "EV"}
+                onChange={(e) => setEditDraft({ ...editDraft, strength: e.target.value })}>
+                {["EV", "PP", "SH", "EN", "PS"].map((x) => <option key={x} value={x}>{x}</option>)}
+              </select>
+              {editPlay.team === "us" ? (
+                <>
+                  <select value={editDraft.scorerId || ""}
+                    onChange={(e) => setEditDraft({ ...editDraft, scorerId: e.target.value })}>
+                    <option value="">— scorer —</option>
+                    {skaters.filter((x) => x.position !== "G").map((x) => (
+                      <option key={x.id} value={x.id}>#{x.number} {x.name}</option>
+                    ))}
+                  </select>
+                  {["a1", "a2"].map((slot, i) => (
+                    <select key={slot} value={editDraft[slot] || ""}
+                      onChange={(e) => setEditDraft({ ...editDraft, [slot]: e.target.value })}>
+                      <option value="">— {i ? "second" : "first"} assist —</option>
+                      {skaters
+                        .filter((x) => x.position !== "G" && x.id !== editDraft.scorerId)
+                        .map((x) => <option key={x.id} value={x.id}>#{x.number} {x.name}</option>)}
+                    </select>
+                  ))}
+                </>
+              ) : (
+                <>
+                  {theirSkaters.length ? (
+                    <select value={editDraft.scorer || ""}
+                      onChange={(e) => setEditDraft({ ...editDraft, scorer: e.target.value })}>
+                      <option value="">— scorer —</option>
+                      {theirSkaters.map((x) => (
+                        <option key={x.id} value={x.name}>#{x.number} {x.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input value={editDraft.scorer || ""} placeholder="Scorer"
+                      onChange={(e) => setEditDraft({ ...editDraft, scorer: e.target.value })} />
+                  )}
+                  {["a1", "a2"].map((slot, i) => (
+                    theirSkaters.length ? (
+                      <select key={slot} value={editDraft[slot] || ""}
+                        onChange={(e) => setEditDraft({ ...editDraft, [slot]: e.target.value })}>
+                        <option value="">— {i ? "second" : "first"} assist —</option>
+                        {theirSkaters
+                          .filter((x) => x.name !== editDraft.scorer)
+                          .map((x) => <option key={x.id} value={x.name}>#{x.number} {x.name}</option>)}
+                      </select>
+                    ) : (
+                      <input key={slot} value={editDraft[slot] || ""}
+                        placeholder={i ? "Second assist" : "First assist"}
+                        onChange={(e) => setEditDraft({ ...editDraft, [slot]: e.target.value })} />
+                    )
+                  ))}
+                </>
+              )}
+            </>
+          )}
+
+          {editPlay.kind === "penalty" && (
+            <>
+              <select value={editDraft.minutes || 2}
+                onChange={(e) => setEditDraft({ ...editDraft, minutes: Number(e.target.value) })}>
+                {[2, 4, 5, 10].map((m) => <option key={m} value={m}>{m} min</option>)}
+              </select>
+              <select value={editDraft.infraction || INFRACTIONS[0]}
+                onChange={(e) => setEditDraft({ ...editDraft, infraction: e.target.value })}>
+                {INFRACTIONS.map((k) => <option key={k}>{k}</option>)}
+              </select>
+            </>
+          )}
+
+          <button className="btn bNavy bSm" onClick={saveEdit}>Save</button>
+          <button className="btn bGhost bSm austopskip" onClick={() => setEditPlay(null)}>Cancel</button>
+        </div>
+      )}
+
+      {timeoutAsk && (
+        <div className="austop">
+          <span className="h6">Who called it?</span>
+          <button className="btn bGhost bSm" onClick={() => callTimeout("us")}>{usLabel}</button>
+          <button className="btn bGhost bSm" onClick={() => callTimeout("them")}>
+            {oppName || "Them"}
+          </button>
+          <button className="btn bGhost bSm austopskip" onClick={() => setTimeoutAsk(false)}>
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {stopAsk && (
+        <div className="austop">
+          <span className="h6">Why did play stop?</span>
+          {STOP_REASONS.map((r) => (
+            <button className="btn bGhost bSm" key={r} onClick={() => logStop(r)}>{r}</button>
+          ))}
+          <button className="btn bGhost bSm austopskip" onClick={() => setStopAsk(false)}>
+            Don't log it
+          </button>
+        </div>
+      )}
+
+      {/* ---- Strength ---- */}
+      <div className={"austrength " + strength.kind.toLowerCase()}>
+        <span className="austrengthtag">
+          {strength.kind === "EV"
+            ? "Even strength"
+            : strength.kind + (strength.diff > 1 ? " +" + strength.diff : "")}
+        </span>
+        {strength.active.map((p) => (
+          <button className={"aupen " + (p.shorts ? "" : "aupenfull")} key={p.id}
+            onClick={() => endPenalty(p.id)}
+            title={p.shorts
+              ? "End this penalty early"
+              : "Served by the player — the team is not short. End it early"}>
+            {p.team === "us" ? "" : oppName + " · "}{p.player} {fmtClock(p.left * 1000)}
+            {p.halfServed && <span className="aupennote">2nd half</span>}
+            {!p.shorts && <span className="aupennote">no advantage</span>}
+            {" ✕"}
+          </button>
+        ))}
+        {ejected.map((e, i) => (
+          <span className="aupen aupenout" key={"ej" + i}>
+            {e.team === "us" ? "" : oppName + " · "}{e.name}
+            <span className="aupennote">ejected</span>
+          </span>
+        ))}
+        {!strength.active.length && !ejected.length && (
+          <span className="bsm" style={{ color: "var(--au-faint)" }}>No penalties being served.</span>
+        )}
+      </div>
+
+      {liveChecks.length > 0 && (
+        <div className="aumismatch">
+          <span className="aumismatchtag">Check</span>
+          {liveChecks.map((c) => (
+            <span className="aumismatchitem" key={c.key || c.label}>
+              <b>{c.label}</b> {c.detail}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {retro && (
+        <div className="auentry">
+          <span className="h6">When</span>
+          <select value={entryPeriod} onChange={(e) => setEntryPeriod(e.target.value)}>
+            {PERIODS.filter((p) => p !== "SO" || soReached).map((p) => (
+              <option key={p} value={p}>{p === "OT" || p === "SO" ? p : p + getOrdinal(p)}</option>
+            ))}
+          </select>
+          <input className="auentryclock" value={entryClock} inputMode="numeric"
+            placeholder="12:41"
+            onChange={(e) => setEntryClock(e.target.value)}
+            onBlur={() => setEntryClock(normaliseClock(entryClock))} />
+          <div className="auentrynudge">
+            {[[-60, "−1:00"], [-10, "−:10"], [-1, "−:01"],
+              [1, "+:01"], [10, "+:10"], [60, "+1:00"]].map(([d, label]) => (
+              <button key={d} className="btn bGhost" onClick={() => nudgeEntry(d)}
+                title={d < 0 ? "Later in the period" : "Earlier in the period"}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <span className="bsm auentryhint">
+            Time on the clock, counting down — so minus is later in the period.
+            Typing 1241 works too. Everything added below uses this until you change it.
+          </span>
+        </div>
+      )}
+
+      {/* A shootout only happens after overtime has failed to settle it, so
+          the tab stays shut until the game is actually there. Reaching it is
+          the period select: 3rd, then OT, then SO. */}
+      <div className="autabs autabslive" role="tablist">
+        {[["scoring", "Scoring"], ...(retro ? [["sheet", "Scoresheet"]] : []),
+          ...(soStarted ? [["shootout", "Shootout"]] : []),
+          ["rosters", "Rosters"]].map(([k, label]) => (
+          <button key={k} role="tab" aria-selected={shownTab === k}
+            className={"autab " + (shownTab === k ? "on" : "")}
+            onClick={() => setTab(k)}>
+            {label}
+            {k === "shootout" && ((game.shootout || {}).attempts || []).length > 0 && (
+              <span className="autabcount">{((game.shootout || {}).attempts || []).length}</span>
+            )}
+            {k === "rosters" && !theirs.length && <span className="autabdot" aria-hidden="true" />}
+          </button>
+        ))}
+      </div>
+
+      {tab === "shootout" && !soStarted && setTab("scoring")}
+
+      {shownTab === "sheet" && (
+        <ScoresheetImport game={game} roster={roster} oppName={oppName} usLabel={usLabel}
+          plays={plays} push={push} live={live} site={site} />
+      )}
+
+      {shownTab === "shootout" && (
+        <LiveShootout game={game} live={live} roster={roster} theirs={theirs}
+          oppName={oppName} usLabel={usLabel} setGame={setGame} plays={plays} push={push} />
+      )}
+
+      {shownTab === "rosters" && (
+        opponent && opponent.id
+          ? <>
+              {/* This game's sheet first, because it is the list every picker
+                  in the console is actually offering. The club roster below
+                  is the fallback for games that have none. */}
+              <GameSheet game={game} oppName={oppName} site={site} setDraft={setDraft}
+                library={(opponent || {}).roster || []} />
+              <p className="auhint" style={{ margin: "18px 0 8px", maxWidth: 680 }}>
+                Below is {oppName || "their"} club roster — a general list kept between
+                games. It is what a game with no sheet of its own falls back to; editing it
+                does not change this game.
+              </p>
+              <OpponentRoster opponent={opponent} setOpp={setOpp}
+                onClose={() => setTab("scoring")} />
+            </>
+          : <section className="card">
+              <p className="h6" style={{ marginBottom: 6 }}>Rosters</p>
+              <p className="auhint" style={{ margin: 0 }}>
+                This game has no opponent from the library attached, so there is no
+                roster to edit. Set one on the Schedule tab.
+              </p>
+            </section>
+      )}
+
+      <div className="aulivegrid" hidden={shownTab !== "scoring"}>
+        {/* ---- Entry ---- */}
+        <div className="aulivecol">
+          <section className="card">
+            <p className="h6" style={{ marginBottom: 12 }}>Goal</p>
+            <div className="autoggle">
+              {[["us", usLabel], ["them", oppName || "Them"]].map(([k, label]) => (
+                <button key={k} className={"btn bSm " + (goalTeam === k ? "bNavy" : "bGhost")}
+                  onClick={() => { setGoalTeam(k); setStrengthPick(""); }}>{label}</button>
+              ))}
+            </div>
+
+            {goalTeam === "us" ? (
+              <>
+                <div className="field" style={{ marginTop: 12 }}>
+                  <label className="h6">Scorer</label>
+                  <select value={scorer} onChange={(e) => setScorer(e.target.value)}>
+                    <option value="">— pick a player —</option>
+                    {skaters.map((p) => <option key={p.id} value={p.id}>#{p.number} {p.name}</option>)}
+                  </select>
+                </div>
+                <div className="arow" style={{ gridTemplateColumns: "1fr 1fr", borderBottom: 0, padding: 0, minWidth: 0, marginTop: 12 }}>
+                  {[[a1, setA1, "First assist"], [a2, setA2, "Second assist"]].map(([val, set, label]) => (
+                    <div className="field" key={label}>
+                      <label className="h6">{label}</label>
+                      <select value={val} onChange={(e) => set(e.target.value)}>
+                        <option value="">— none —</option>
+                        {skaters.filter((p) => p.id !== scorer).map((p) => (
+                          <option key={p.id} value={p.id}>#{p.number} {p.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="field" style={{ marginTop: 12 }}>
+                  <label className="h6">Scorer</label>
+                  <OppPick theirs={theirs} value={oppScorer} onChange={setOppScorer} placeholder="Their player" />
+                </div>
+                <div className="arow" style={{ gridTemplateColumns: "1fr 1fr", borderBottom: 0, padding: 0, minWidth: 0, marginTop: 12 }}>
+                  {[[oppA1, setOppA1, "First assist"], [oppA2, setOppA2, "Second assist"]].map(([val, set, label]) => (
+                    <div className="field" key={label}>
+                      <label className="h6">{label}</label>
+                      <OppPick theirs={theirs} value={val} onChange={set} placeholder="Optional" />
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <div className="field" style={{ marginTop: 12 }}>
+              <label className="h6">Strength</label>
+              <div className="autoggle">
+                {["EV", "PP", "SH", "EN", "PS"].map((k) => (
+                  <button key={k} className={"btn bSm " + (goalStrength === k ? "bNavy" : "bGhost")}
+                    onClick={() => setStrengthPick(k)}>{k}</button>
+                ))}
+              </div>
+              <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
+                Suggested from the penalties on the clock. Override for an empty net or a penalty shot.
+              </p>
+            </div>
+
+            <div className="auaddrow" style={{ marginTop: 14 }}>
+              <button className="btn bLive bSm" onClick={addGoal} disabled={!!goalMissing}>
+                Add goal
+              </button>
+              {goalMissing && <span className="bsm auaddwhy">{goalMissing}</span>}
+            </div>
+          </section>
+
+          <section className="card" style={{ marginTop: 16 }}>
+            <p className="h6" style={{ marginBottom: 12 }}>Penalty</p>
+            <div className="autoggle">
+              {[["us", usLabel], ["them", oppName || "Them"]].map(([k, label]) => (
+                <button key={k} className={"btn bSm " + (penTeam === k ? "bNavy" : "bGhost")}
+                  onClick={() => setPenTeam(k)}>{label}</button>
+              ))}
+            </div>
+
+            <div className="field" style={{ marginTop: 12 }}>
+              <label className="h6">Player</label>
+              {penTeam === "us" ? (
+                <select value={penPlayer} onChange={(e) => setPenPlayer(e.target.value)}>
+                  <option value="">— pick a player —</option>
+                  {skaters.map((p) => <option key={p.id} value={p.id}>#{p.number} {p.name}</option>)}
+                </select>
+              ) : (
+                <OppPick theirs={theirs} value={penOpp} onChange={setPenOpp} placeholder="Their player" />
+              )}
+            </div>
+
+            <div className="arow" style={{ gridTemplateColumns: "minmax(0,1.1fr) minmax(0,1fr)", borderBottom: 0, padding: 0, minWidth: 0, marginTop: 12 }}>
+              <div className="field">
+                <label className="h6">Penalty</label>
+                <select value={penKind} onChange={(e) => setPenKind(e.target.value)}>
+                  {PENALTY_KINDS.map((k) => (
+                    <option key={k.key} value={k.key}>
+                      {k.label}{k.mins ? " · " + k.mins : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field">
+                <label className="h6">Infraction</label>
+                <select value={penWhat} onChange={(e) => setPenWhat(e.target.value)}>
+                  {INFRACTIONS.map((k) => <option key={k}>{k}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <p className="bsm" style={{ margin: "10px 0 0", color: "var(--au-faint)" }}>
+              {penaltyKind(penKind).penaltyShot
+                ? "No time is served — the other team takes a shot instead."
+                : penaltyKind(penKind).ejects
+                  ? "The player is out for the rest of the game."
+                  : penaltyKind(penKind).shorts
+                    ? "The team plays a skater short."
+                    : "Served by the player. The team stays at full strength."}
+            </p>
+
+            <div className="auaddrow" style={{ marginTop: 14 }}>
+              <button className="btn bNavy bSm" onClick={addPenalty} disabled={!!penMissing}>
+                {penaltyKind(penKind).penaltyShot ? "Award the penalty shot" : "Add penalty"}
+              </button>
+              {penMissing && <span className="bsm auaddwhy">{penMissing}</span>}
+            </div>
+          </section>
+        </div>
+
+        {/* ---- Play by play ---- */}
+        <div className="aulivecol">
+          <section className="card">
+            <p className="h6" style={{ marginBottom: 12 }}>
+              Play by play {plays.length ? "· " + plays.length : ""}
+            </p>
+            {!plays.length && (
+              <p className="bsm" style={{ color: "var(--au-faint)" }}>
+                Nothing recorded yet. Goals and penalties entered here go straight onto
+                the box score, so there is nothing to type up afterwards.
+              </p>
+            )}
+            <div className="auplays">
+              {sorted.map((p) => (
+                <div className={"auplay " + p.team} key={p.id}>
+                  <span className="auplaywhen">{p.period} · {p.clock}</span>
+                  <span className="auplaybody">
+                    {p.kind === "goal" ? (
+                      <>
+                        <span className="auplaykind goal">
+                          {p.strength === "EV" ? "GOAL" : p.strength + " GOAL"}
+                        </span>
+                        <span className="auplaywho">{p.scorer}</span>
+                        {p.assists && p.assists.length > 0 && (
+                          <span className="auplayassist">({p.assists.join(", ")})</span>
+                        )}
+                      </>
+                    ) : p.kind === "penalty" ? (
+                      <>
+                        <span className="auplaykind pen">{p.minutes} MIN</span>
+                        <span className="auplaywho">{p.player}</span>
+                        <span className="auplayassist">{p.infraction}</span>
+                      </>
+                    ) : p.kind === "game" ? (
+                      <>
+                        <span className="auplaykind stop">FINAL</span>
+                        <span className="auplaywho">Game end</span>
+                      </>
+                    ) : p.kind === "period" ? (
+                      <>
+                        <span className="auplaykind stop">PERIOD</span>
+                        <span className="auplaywho">
+                          {p.phase === "start" ? "Period start" : "Period end"}
+                        </span>
+                      </>
+                    ) : p.kind === "shot" ? (
+                      <>
+                        <span className="auplaykind stop">SOG</span>
+                        <span className="auplaywho">{p.shooter || "Shot on goal"}</span>
+                        {p.goalie && <span className="auplayassist">saved by {p.goalie}</span>}
+                      </>
+                    ) : p.kind === "faceoff" ? (
+                      <>
+                        <span className="auplaykind stop">FO</span>
+                        <span className="auplaywho">{p.winner || "Faceoff won"}</span>
+                      </>
+                    ) : p.kind === "timeout" ? (
+                      <>
+                        <span className="auplaykind stop">TO</span>
+                        <span className="auplaywho">Timeout</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="auplaykind stop">WHISTLE</span>
+                        <span className="auplaywho">{p.reason || "Stoppage"}</span>
+                      </>
+                    )}
+                  </span>
+                  <button className="btn bGhost auplayedit" aria-label="Correct this play"
+                    title="Correct this play" onClick={() => beginEdit(p)}>✎</button>
+                  <button className="btn bDanger" aria-label="Remove" onClick={() => removePlay(p)}>✕</button>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {dirty && (
+            <p className="bsm aulivewarn" style={{ marginTop: 12 }}>
+              Publishing a live change also publishes your other unsaved edits on this board.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function getOrdinal(p) {
+  return p === "1" ? "st" : p === "2" ? "nd" : p === "3" ? "rd" : "";
+}
+
+/* What the shooter did with it. Free text would give five spellings of
+   "backhand" inside a season, so it is a list. */
+const SHOT_TYPES = ["Wrist", "Snap", "Backhand", "Deke", "Slap", "Five-hole"];
+
+/* How an attempt ended. "nogoal" is the one an old scoresheet gives us: it
+   records that the puck stayed out without saying whether that was the
+   goaltender or the shooter. Scored live, an operator picks one of the
+   other three. */
+const SHOT_RESULTS = [
+  ["goal", "Scored", "Shootout Goal"],
+  ["save", "Saved", "Shootout Save"],
+  ["miss", "Missed", "Shootout Miss"],
+  ["nogoal", "No goal", "No Goal"],
+];
+const shotResult = (a) => a.result || (a.scored ? "goal" : "nogoal");
+const shotResultLabel = (a) =>
+  (SHOT_RESULTS.find(([k]) => k === shotResult(a)) || SHOT_RESULTS[3])[2];
+
+/* ---------------- Shootout editor ----------------
+ * Attempts in the order they were taken. Order is the whole structure here:
+ * the running score, and which round an attempt belongs to, are both read off
+ * the position in the list, so there is nothing else to record.
+ */
+/* ---------------- Reading a scoresheet ----------------
+ * The league's game reports are HTML wrapping plain text, and everything on
+ * a scoresheet is in there: every goal with its scorer, assists, time and
+ * strength, every penalty, shots by period, the goaltenders and the shootout.
+ * Typing that in by hand is twenty minutes a game; pasting it is a second.
+ *
+ * This is the same parser that read the thirty 2025-26 reports, moved into
+ * the browser. Two things it deliberately will not do:
+ *
+ *   - It never decides who a surname is. Reports print "Lee", and a roster
+ *     with two of them cannot be resolved by a parser. Ambiguous names are
+ *     kept as text and listed for a human.
+ *   - It never guesses which team is which from a name. The header says who
+ *     was home, and the game already knows whether we were - so the sides
+ *     come from that, not from string matching.
+ */
+const MONTHS = {
+  January: 1, February: 2, March: 3, April: 4, May: 5, June: 6,
+  July: 7, August: 8, September: 9, October: 10, November: 11, December: 12,
+};
+
+/* A report counts up from the start of the period; the site, like the clock
+   in the rink, counts down to the end of it. A goal printed at 2:08 went in
+   with 17:52 left, and storing the printed number would put every event in
+   the wrong half of the period and in the wrong order. */
+function remainingAt(period, elapsed) {
+  const total = periodSecs(period);
+  const secs = clockSecs(elapsed);
+  const left = Math.max(0, total - secs);
+  return String(Math.floor(left / 60)).padStart(2, "0") + ":"
+    + String(left % 60).padStart(2, "0");
+}
+
+/* Reports carry the infraction but never the length, so it is read out of the
+   wording - the one place this has to infer rather than read. */
+function minutesFor(infraction) {
+  const t = String(infraction || "").toLowerCase();
+  if (/game misconduct/.test(t)) return 10;
+  if (/misconduct/.test(t)) return 10;
+  if (/major|fighting|checking from behind|contact to the head/.test(t)) return 5;
+  if (/double minor/.test(t)) return 4;
+  return 2;
+}
+
+function parseScoresheet(raw) {
+  const warnings = [];
+  const t = String(raw || "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^Official statistics powered by LeagueStat\.com\s*/, "");
+
+  const head = t.match(/^(.+?) (\d+)(?: \(SO\))? at (.+?) (\d+) - Status: (Final(?: SO| OT)?)/);
+  if (!head) {
+    return { ok: false, error: "That does not look like a game report. Paste the whole page - it should start with the two team names and the score." };
+  }
+  const [, vName, vG, hName, hG, status] = head;
+
+  const dm = t.match(/(January|February|March|April|May|June|July|August|September|October|November|December) (\d{1,2}), (\d{4})/);
+  const date = dm
+    ? dm[3] + "-" + String(MONTHS[dm[1]]).padStart(2, "0") + "-" + String(Number(dm[2])).padStart(2, "0")
+    : null;
+
+  const marks = [...t.matchAll(/(\d)(?:st|nd|rd|th) (OT )?Period-/g)];
+  const goals = [];
+  const penalties = [];
+  const codes = new Set();
+
+  marks.forEach((m, i) => {
+    const period = m[2] ? "OT" : m[1];
+    const body = t.slice(m.index + m[0].length, i + 1 < marks.length ? marks[i + 1].index : t.length);
+    const [scoring, pens = ""] = body.split(/Penalties-/);
+
+    /* "7, TEAM, Fung 11 (Collins, Lee), 8:22 (PP)." and the unassisted form,
+       which carries no brackets at all: "7, TEAM, Mizuno 2 10:13 (SH)." */
+    const gre = /(\d+),\s*([^,]+?),\s*([A-Za-z'\-. ]+?)\s+\d+\s*(?:\(([^)]*)\)\s*,)?\s*(\d+:\d\d)(?:\s*\(([A-Z]{2})\))?/g;
+    let g;
+    while ((g = gre.exec(scoring)) !== null) {
+      goals.push({
+        period, teamName: g[2].trim(), scorer: g[3].trim(),
+        assists: (g[4] || "").split(",").map((x) => x.trim()).filter(Boolean),
+        at: g[5], strength: g[6] || "EV",
+      });
+    }
+
+    if (!/No Penalties/.test(pens)) {
+      const pre = /([A-Za-z'\-. ]+?)\s+(M\d[a-z]+)\s*\(([^)]*)\),\s*(\d+:\d\d)/g;
+      let p;
+      while ((p = pre.exec(pens)) !== null) {
+        const who = p[1].trim();
+        codes.add(p[2]);
+        penalties.push({
+          period, code: p[2],
+          player: who.replace(/^served by\s+/i, ""),
+          bench: /^served by/i.test(who),
+          infraction: p[3].split(",").map((x) => x.trim()).filter(Boolean).join(", "),
+          at: p[4],
+        });
+      }
+    }
+  });
+
+  const shots = {};
+  const sm = t.match(/Shots on Goal-(.+?)(?:Power Play|Goalies)/);
+  if (sm) {
+    for (const seg of sm[1].split(/\.\s*/)) {
+      const x = seg.match(/^(.+?)\s+(\d+(?:-\d+)+)$/);
+      if (x) shots[x[1].trim()] = x[2].split("-").map(Number);
+    }
+  }
+
+  /* "Shootout - CAL 1 (Sedlak-Braude NG, Mizuno NG, Chebaclo G), WEB 0 (...)"
+     The sheet lists each side's attempts in order but not how the two
+     interleaved, so the rounds are reconstructed by alternating and that
+     assumption is recorded on the game rather than hidden. */
+  let shootout = null;
+  const som = t.match(/Shootout\s*-\s*(.+?)\.\s*(?:Shots on Goal|Power Play|Goalies)/);
+  if (som) {
+    shootout = {};
+    /* The team names in a report start "MD2 ...", which is a letter then a
+       letter then a digit - not the "M2ucb" shape the penalty codes use. */
+    for (const sd of [...som[1].matchAll(/([A-Za-z][^,(]*?)\s+(\d+)\s*\(([^)]*)\)/g)]) {
+      const list = [];
+      for (const a of sd[3].split(",")) {
+        const hit = a.trim().match(/^(.+?)\s+(G|NG)$/);
+        if (hit) list.push({ name: hit[1].trim(), scored: hit[2] === "G" });
+      }
+      shootout[sd[1].trim()] = list;
+    }
+  }
+
+  if (!goals.length) warnings.push("No goals were found. If the game finished 0-0 that is right; otherwise the report may be incomplete.");
+  if (!marks.length) warnings.push("No period headings were found, so nothing could be filed by period.");
+
+  return {
+    ok: true, raw: t,
+    visitor: { name: vName.trim(), goals: Number(vG) },
+    home: { name: hName.trim(), goals: Number(hG) },
+    status, date, goals, penalties, shots, shootout,
+    codes: [...codes], warnings,
+  };
+}
+
+/* The panel around the parser: map the sheet's two sides onto ours and
+ * theirs, put surnames against the roster, show exactly what would be
+ * written, and only then write it.
+ */
+function ScoresheetImport({ game, roster, oppName, usLabel, plays, push, live, site }) {
+  const [text, setText] = useState("");
+  const [usCode, setUsCode] = useState("");
+  const [done, setDone] = useState(null);
+
+  const parsed = useMemo(() => (text.trim() ? parseScoresheet(text) : null), [text]);
+
+  /* Which side of the report is us is not a guess: the game already records
+     whether we were at home, and the header says who was. */
+  const home = game.homeAway === "H";
+  const ourName = parsed && parsed.ok ? (home ? parsed.home.name : parsed.visitor.name) : "";
+  const theirName = parsed && parsed.ok ? (home ? parsed.visitor.name : parsed.home.name) : "";
+  const ourGoals = parsed && parsed.ok ? (home ? parsed.home.goals : parsed.visitor.goals) : 0;
+  const theirGoals = parsed && parsed.ok ? (home ? parsed.visitor.goals : parsed.home.goals) : 0;
+
+  /* Penalties are tagged with a team code the header never mentions, so it
+     is offered as a choice with a guess already made: the code's letters
+     against the initials of each team name. */
+  const guessCode = () => {
+    if (!parsed || !parsed.ok || parsed.codes.length !== 2) return "";
+    const initials = (n) => n.toLowerCase().replace(/[^a-z ]/g, " ").split(/\s+/)
+      .filter((w) => w && !/^(of|the|md\d)$/.test(w)).map((w) => w[0]).join("");
+    const score = (code, name) => {
+      const tail = code.toLowerCase().replace(/^m\d/, "");
+      const ini = initials(name);
+      return [...tail].filter((c) => ini.includes(c)).length;
+    };
+    const best = [...parsed.codes].sort((a, b) => score(b, ourName) - score(a, ourName))[0];
+    return best || "";
+  };
+  const effectiveUsCode = usCode || guessCode();
+
+  const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z]/g, "");
+  const surname = (n) => String(n || "").trim().split(/\s+/).slice(-1)[0];
+
+  /* A surname against the roster. Two players sharing one is not something a
+     parser can settle, so it says so instead of picking. */
+  const resolve = (last) => {
+    const hits = roster.filter((p) => norm(surname(p.name)) === norm(last));
+    if (hits.length === 1) return { id: hits[0].id, name: hits[0].name };
+    if (hits.length > 1) return { id: null, name: last, ambiguous: hits.map((p) => p.name) };
+    return { id: null, name: last, missing: true };
+  };
+
+  const plan = useMemo(() => {
+    if (!parsed || !parsed.ok) return null;
+    const ambiguous = new Set();
+    const missing = new Set();
+    const out = [];
+
+    const seen = [];
+    for (const g of parsed.goals) if (!seen.includes(g.period)) seen.push(g.period);
+    for (const p of parsed.penalties) if (!seen.includes(p.period)) seen.push(p.period);
+    const periods = PERIOD_ORDER.filter((p) => seen.includes(p));
+
+    for (const per of periods) {
+      out.push({ id: uid(), kind: "period", phase: "start", period: per, clock: "20:00" });
+
+      const inPeriod = [
+        ...parsed.goals.filter((g) => g.period === per).map((g) => ({ t: "g", x: g })),
+        ...parsed.penalties.filter((p) => p.period === per).map((p) => ({ t: "p", x: p })),
+      ].sort((a, b) => clockSecs(a.x.at) - clockSecs(b.x.at));
+
+      for (const row of inPeriod) {
+        if (row.t === "g") {
+          const g = row.x;
+          const mine = g.teamName === ourName;
+          const s = mine ? resolve(g.scorer) : { id: null, name: g.scorer };
+          if (mine && s.ambiguous) ambiguous.add(g.scorer);
+          if (mine && s.missing) missing.add(g.scorer);
+          const as = g.assists.map((a) => {
+            const r = mine ? resolve(a) : { id: null, name: a };
+            if (mine && r.ambiguous) ambiguous.add(a);
+            if (mine && r.missing) missing.add(a);
+            return r;
+          });
+          out.push({
+            id: uid(), kind: "goal", team: mine ? "us" : "them", period: per,
+            clock: remainingAt(per, g.at),
+            strength: g.strength, scorer: s.name, scorerId: s.id,
+            assists: as.map((a) => a.name), assistIds: as.map((a) => a.id),
+          });
+        } else {
+          const p = row.x;
+          const mine = p.code === effectiveUsCode;
+          const r = mine && !p.bench ? resolve(p.player) : { id: null, name: p.player };
+          if (mine && !p.bench && r.ambiguous) ambiguous.add(p.player);
+          if (mine && !p.bench && r.missing) missing.add(p.player);
+          out.push({
+            id: uid(), kind: "penalty", team: mine ? "us" : "them", period: per,
+            clock: remainingAt(per, p.at),
+            player: r.name, playerId: r.id,
+            minutes: minutesFor(p.infraction), infraction: p.infraction,
+          });
+        }
+      }
+
+      out.push({ id: uid(), kind: "period", phase: "end", period: per, clock: "00:00" });
+    }
+
+    /* A shootout puts one goal on the scoreboard, credited to whoever scored
+       the attempt that settled it - the same thing the live console writes
+       when a shootout is scored by hand. */
+    const soSides = parsed.shootout
+      ? { us: parsed.shootout[ourName] || [], them: parsed.shootout[theirName] || [] }
+      : null;
+    if (soSides) {
+      const won = soSides.us.filter((a) => a.scored).length > soSides.them.filter((a) => a.scored).length
+        ? "us" : "them";
+      const last = [...soSides[won]].reverse().find((a) => a.scored);
+      const who = won === "us" && last ? resolve(last.name) : { id: null, name: last ? last.name : "Shootout Winner" };
+      out.push({
+        id: uid(), kind: "goal", team: won, period: "SO", clock: "", strength: "SO",
+        scorer: who.name, scorerId: who.id, assistIds: [], assists: [],
+      });
+    }
+
+    out.push({
+      id: uid(), kind: "game", phase: "end",
+      period: periods[periods.length - 1] || "3",
+      clock: parsed.shootout ? "" : "00:00",
+      us: ourGoals, them: theirGoals,
+    });
+
+    /* Shots by period, keyed by the names in the header. */
+    const ourShots = parsed.shots[ourName] || null;
+    const theirShots = parsed.shots[theirName] || null;
+    const periodShots = {};
+    if (ourShots && theirShots) {
+      for (let i = 0; i < Math.min(ourShots.length, theirShots.length) - 1; i++) {
+        periodShots[PERIOD_ORDER[i] || String(i + 1)] = { us: ourShots[i], them: theirShots[i] };
+      }
+    }
+
+    const soUs = parsed.shootout ? parsed.shootout[ourName] || [] : [];
+    const soThem = parsed.shootout ? parsed.shootout[theirName] || [] : [];
+    const attempts = [];
+    for (let i = 0; i < Math.max(soUs.length, soThem.length); i++) {
+      /* The sheet lists each side's attempts in order but not how they
+         interleaved, so they are alternated and the game is marked as
+         carrying an assumed order. */
+      if (soUs[i]) attempts.push({ id: uid(), team: "us", player: resolve(soUs[i].name).name, playerId: resolve(soUs[i].name).id, shot: "", result: soUs[i].scored ? "goal" : "nogoal", scored: soUs[i].scored });
+      if (soThem[i]) attempts.push({ id: uid(), team: "them", player: soThem[i].name, playerId: null, shot: "", result: soThem[i].scored ? "goal" : "nogoal", scored: soThem[i].scored });
+    }
+
+    return {
+      plays: out, periodShots,
+      ourShotTotal: ourShots ? ourShots[ourShots.length - 1] : null,
+      theirShotTotal: theirShots ? theirShots[theirShots.length - 1] : null,
+      shootout: attempts.length ? { attempts, orderAssumed: true } : null,
+      ambiguous: [...ambiguous], missing: [...missing],
+      goals: out.filter((p) => p.kind === "goal").length,
+      penalties: out.filter((p) => p.kind === "penalty").length,
+    };
+  }, [parsed, effectiveUsCode, ourName, theirName, ourGoals, theirGoals, roster]);
+
+  const apply = () => {
+    push({
+      plays: plan.plays,
+      shootout: plan.shootout,
+      live: {
+        ...live, us: ourGoals, them: theirGoals,
+        periodShots: plan.periodShots,
+        shotsUs: plan.ourShotTotal != null ? plan.ourShotTotal : live.shotsUs || 0,
+        shotsThem: plan.theirShotTotal != null ? plan.theirShotTotal : live.shotsThem || 0,
+      },
+    });
+    setDone({ goals: plan.goals, penalties: plan.penalties });
+    setText("");
+  };
+
+  const readFile = (file) => {
+    if (!file) return;
+    const fr = new FileReader();
+    fr.onload = () => setText(String(fr.result || ""));
+    fr.readAsText(file);
+  };
+
+  const dateMismatch = parsed && parsed.ok && parsed.date && game.date && parsed.date !== game.date;
+  const scoreMismatch = parsed && parsed.ok && game.result
+    && (game.result.us !== ourGoals || game.result.them !== theirGoals);
+
+  return (
+    <section className="card ausheet">
+      <p className="h6" style={{ marginBottom: 6 }}>Scoresheet</p>
+      <p className="auhint" style={{ marginTop: 0 }}>
+        Open the league&rsquo;s game report, select all, and paste it here — or drop the
+        saved file in. Everything on the sheet comes across: goals with assists and
+        strength, penalties, shots by period, and the shootout.
+      </p>
+
+      <textarea className="ta" rows={4} value={text} placeholder="Paste the game report"
+        onChange={(e) => { setText(e.target.value); setDone(null); }} />
+      <div className="auaddrow" style={{ marginTop: 8 }}>
+        <label className="auupload">
+          Upload a file
+          <input type="file" accept=".txt,.html,.htm,text/plain,text/html"
+            onChange={(e) => readFile(e.target.files && e.target.files[0])} />
+        </label>
+        {text && (
+          <button className="btn bGhost bSm" onClick={() => { setText(""); setDone(null); }}>Clear</button>
+        )}
+      </div>
+
+      {done && (
+        <p className="bsm" style={{ marginTop: 12, color: "var(--au-ok)" }}>
+          Read {done.goals} {done.goals === 1 ? "goal" : "goals"} and {done.penalties}{" "}
+          {done.penalties === 1 ? "penalty" : "penalties"} onto the sheet.
+        </p>
+      )}
+
+      {parsed && !parsed.ok && (
+        <p className="bsm" style={{ marginTop: 12, color: "var(--au-danger)" }}>{parsed.error}</p>
+      )}
+
+      {parsed && parsed.ok && plan && (
+        <div className="ausheetprev">
+          <div className="ausheetrow">
+            <span className="ausheetkey">Report</span>
+            <span>
+              {parsed.visitor.name} {parsed.visitor.goals} at {parsed.home.name} {parsed.home.goals}
+              {parsed.date ? " · " + fmtDate(parsed.date) : ""}
+            </span>
+          </div>
+          <div className="ausheetrow">
+            <span className="ausheetkey">This game</span>
+            <span>
+              {usLabel} vs {oppName || "them"} · {fmtDate(game.date)}
+              {game.result ? " · " + game.result.us + "-" + game.result.them : ""}
+            </span>
+          </div>
+
+          {dateMismatch && (
+            <p className="bsm ausheetwarn">
+              The report is dated {fmtDate(parsed.date)} and this game is {fmtDate(game.date)}.
+              Check it is the right sheet.
+            </p>
+          )}
+          {scoreMismatch && (
+            <p className="bsm ausheetwarn">
+              The report finishes {ourGoals}-{theirGoals} and this game is recorded as{" "}
+              {game.result.us}-{game.result.them}.
+            </p>
+          )}
+
+          {parsed.codes.length > 1 && (
+            <div className="field" style={{ marginTop: 10 }}>
+              <label className="h6">Our penalty code on this sheet</label>
+              <select value={effectiveUsCode} onChange={(e) => setUsCode(e.target.value)}>
+                {parsed.codes.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <p className="bsm" style={{ color: "var(--au-faint)", marginTop: 5 }}>
+                Penalties are tagged with a team code the header never spells out. This is
+                the best guess — change it if the penalties come out on the wrong side.
+              </p>
+            </div>
+          )}
+
+          <div className="ausheetrow" style={{ marginTop: 10 }}>
+            <span className="ausheetkey">Will write</span>
+            <span>
+              {plan.goals} goals, {plan.penalties} penalties
+              {plan.shootout ? ", " + plan.shootout.attempts.length + " shootout attempts" : ""}
+              {plan.ourShotTotal != null ? ", shots " + plan.ourShotTotal + "-" + plan.theirShotTotal : ""}
+            </span>
+          </div>
+
+          {plays.length > 0 && (
+            <p className="bsm ausheetwarn">
+              This game already has {plays.length} plays. Importing replaces all of them.
+            </p>
+          )}
+          {plan.ambiguous.length > 0 && (
+            <p className="bsm ausheetwarn">
+              More than one player answers to {plan.ambiguous.join(", ")}. Those are kept as
+              written and left unlinked — set them from the play-by-play afterwards.
+            </p>
+          )}
+          {plan.missing.length > 0 && (
+            <p className="bsm" style={{ color: "var(--au-faint)", marginTop: 8 }}>
+              Not on this season&rsquo;s roster: {plan.missing.join(", ")}. Kept as written.
+            </p>
+          )}
+          {parsed.warnings.map((w) => (
+            <p className="bsm ausheetwarn" key={w}>{w}</p>
+          ))}
+
+          <p className="bsm" style={{ color: "var(--au-faint)", marginTop: 8 }}>
+            Penalty lengths are not printed on a report, so they are read from the wording.
+            Box-score lines are left alone.
+          </p>
+
+          <button className="btn bNavy bSm" style={{ marginTop: 12 }} onClick={apply}>
+            Import onto this game
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/* ---------------- Does a game agree with itself? ----------------
+ *
+ * A game is written down three times over: the final score, the play-by-play,
+ * and the box score. Live scoring keeps all three in step because every entry
+ * writes to each of them at once - but a game can also be imported, typed up
+ * afterwards, or corrected by hand months later, and any of those can leave
+ * two of the three saying different things.
+ *
+ * Nothing here guesses which one is right. It says where they differ and by
+ * how much, and leaves the choice to a person. Every check is skipped rather
+ * than failed when the data it needs has not been entered - a game nobody has
+ * done the box score for is incomplete, not wrong, and a screen full of red
+ * on an untouched sheet teaches people to ignore the red.
+ *
+ * One function, used by the live console, the box editor and the schedule
+ * list, so those three can never drift into disagreeing about what agreement
+ * means.
+ */
+function reconcileGame({ game, roster, lines, oppRows, usLabel, oppName }) {
+  const R = roster || [];
+  const L = lines || {};
+  const O = oppRows || [];
+  const plays = Array.isArray(game.plays) ? game.plays : [];
+  const live = game.live || {};
+  const them = oppName || "Their";
+
+  const n = (v) => Number(v) || 0;
+  const sumLines = (key) => R.reduce((t, p) => t + n((L[p.id] || {})[key]), 0);
+  const sumOpp = (key) => O.reduce((t, r) => t + n(r[key]), 0);
+
+  const scoredUs = game.result ? n(game.result.us) : null;
+  const scoredThem = game.result ? n(game.result.them) : null;
+
+  /* A shootout puts a goal on the scoreboard that no skater scored, so the
+     box score is one short of the final score by design. */
+  const soAttempts = ((game.shootout || {}).attempts) || [];
+  const soWinner = (game.result || {}).so
+    ? (plays.find((p) => p.kind === "goal" && p.period === "SO") || null)
+    : null;
+  const soUs = soWinner && soWinner.team === "us" ? 1 : 0;
+  const soThem = soWinner && soWinner.team === "them" ? 1 : 0;
+
+  const goalPlaysUs = plays.filter((p) => p.kind === "goal" && p.team === "us" && p.period !== "SO").length;
+  const goalPlaysThem = plays.filter((p) => p.kind === "goal" && p.team === "them" && p.period !== "SO").length;
+  const boxGoals = sumLines("g");
+  const boxAssists = sumLines("a");
+  const boxPim = sumLines("pim");
+  const anyBox = R.some((p) => L[p.id]);
+
+  const playAssists = plays
+    .filter((p) => p.kind === "goal" && p.team === "us" && p.period !== "SO")
+    .reduce((t, p) => t + ((p.assists || []).length), 0);
+  const playPim = plays
+    .filter((p) => p.kind === "penalty" && p.team === "us")
+    .reduce((t, p) => t + n(p.minutes), 0);
+  const anyPenaltyPlays = plays.some((p) => p.kind === "penalty");
+
+  /* A goal into an empty net is charged to no goaltender, so the keepers'
+     goals-against is short by exactly that many and is not wrong for it. */
+  const emptyNetAgainst = plays.filter((p) =>
+    p.kind === "goal" && p.team === "them" && p.strength === "EN").length;
+  /* And the same on our side: a puck we put into their empty net was a shot
+     we took that their goaltender never faced. */
+  const emptyNetFor = plays.filter((p) =>
+    p.kind === "goal" && p.team === "us" && p.strength === "EN").length;
+
+  const ourKeepers = R.filter((p) => p.position === "G");
+  const keeperGa = ourKeepers.reduce((t, p) => t + n((L[p.id] || {}).ga), 0);
+  const keeperSaves = ourKeepers.reduce((t, p) => t + n((L[p.id] || {}).saves), 0);
+  const anyKeeperEntered = ourKeepers.some((p) => {
+    const l = L[p.id] || {};
+    return n(l.saves) || n(l.ga) || n(l.minutes);
+  });
+
+  const theirKeepers = O.filter(isOppGoalie);
+  const theirSaves = theirKeepers.reduce((t, r) => t + n(r.saves), 0);
+  const theirGa = theirKeepers.reduce((t, r) => t + n(r.ga), 0);
+  const anyTheirKeeper = theirKeepers.some((r) => n(r.saves) || n(r.ga));
+
+  const oppGoals = O.filter((r) => !isOppGoalie(r)).reduce((t, r) => t + n(r.g), 0)
+    + theirKeepers.reduce((t, r) => t + n(r.g), 0);
+  const anyOppRows = O.length > 0;
+
+  const shotsUs = n(live.shotsUs);
+  const shotsThem = n(live.shotsThem);
+  const givenUs = R.filter((p) => p.position !== "G")
+    .reduce((t, p) => {
+      const l = L[p.id] || {};
+      return t + Math.max(n(l.shots), n(l.g));
+    }, 0);
+  /* Whether anybody has actually started handing shots out, which is not the
+     same as the running total being above zero: a goal counts as a shot, so
+     any game with a goal in it has a non-zero total before a single shot has
+     been typed. Only an explicit figure on a line counts as started. */
+  const shotsStarted = R.some((p) => n((L[p.id] || {}).shots) > 0);
+
+  /* Three states, not two.
+   *
+   *   fail   two records of this game contradict each other. Somebody has to
+   *          decide which is wrong.
+   *   todo   nothing contradicts anything; the work has not been done yet.
+   *          Worth showing - it is the difference between a finished sheet
+   *          and an unfinished one - but it is not an error and must not be
+   *          coloured like one, or every game reads red until the last shot
+   *          has been typed and the real conflicts disappear into the noise.
+   *   muted  there is nothing to check against at all.
+   */
+  const out = [];
+  const check = (key, label, ok, detail, skip, todo) =>
+    out.push({ key, label, ok: !!ok, detail, muted: !!skip, todo: !!todo && !skip });
+
+  /* ---- the score against the two records of it ---- */
+  check("goals-play", usLabel + " goals timed",
+    goalPlaysUs + soUs === scoredUs,
+    goalPlaysUs + " in the play-by-play vs " + scoredUs + " on the scoreline"
+      + (soUs ? " (one of them the shootout)" : ""),
+    scoredUs == null || (!plays.length));
+
+  check("box-started", "Box score",
+    anyBox, anyBox ? "entered" : "nobody has a line for this game yet",
+    scoredUs == null, !anyBox);
+
+  check("goals-box", usLabel + " goals on player lines",
+    boxGoals + soUs === scoredUs,
+    boxGoals + " on player lines vs " + scoredUs + " scored"
+      + (soUs ? " — a shootout goal belongs to nobody, so one short is right" : ""),
+    scoredUs == null || !anyBox);
+
+  check("against-play", them + " goals timed",
+    goalPlaysThem + soThem === scoredThem,
+    goalPlaysThem + " in the play-by-play vs " + scoredThem + " conceded",
+    scoredThem == null || !plays.length);
+
+  check("against-keeper", "Goals against on our goaltenders",
+    keeperGa + soThem + emptyNetAgainst === scoredThem,
+    keeperGa + " charged to goaltenders"
+      + (emptyNetAgainst ? " + " + emptyNetAgainst + " into an empty net" : "")
+      + " vs " + scoredThem + " conceded",
+    scoredThem == null || !anyKeeperEntered);
+
+  check("against-opp", them + " goals on their lines",
+    oppGoals + soThem === scoredThem,
+    oppGoals + " on their player lines vs " + scoredThem + " conceded",
+    scoredThem == null || !anyOppRows);
+
+  /* ---- assists and minutes, where both records exist ---- */
+  check("assists", "Assists",
+    playAssists === boxAssists,
+    playAssists + " in the play-by-play vs " + boxAssists + " on player lines",
+    !anyBox || !plays.length);
+
+  check("pim", "Penalty minutes",
+    playPim === boxPim,
+    playPim + " in the play-by-play vs " + boxPim + " on player lines",
+    !anyBox || !anyPenaltyPlays);
+
+  /* ---- shots, from three directions ---- */
+  check("shots-faced", "Shots we faced",
+    keeperSaves + keeperGa + emptyNetAgainst === shotsThem,
+    keeperSaves + " saves + " + keeperGa + " past them"
+      + (emptyNetAgainst ? " + " + emptyNetAgainst + " into an empty net" : "")
+      + " = " + (keeperSaves + keeperGa + emptyNetAgainst)
+      + " vs " + shotsThem + " recorded against us",
+    !anyKeeperEntered || !shotsThem);
+
+  check("shots-taken", "Shots we took",
+    theirSaves + theirGa + emptyNetFor === shotsUs,
+    theirSaves + " saves + " + theirGa + " past them"
+      + (emptyNetFor ? " + " + emptyNetFor + " into an empty net" : "")
+      + " = " + (theirSaves + theirGa + emptyNetFor)
+      + " vs " + shotsUs + " recorded for us",
+    !anyTheirKeeper || !shotsUs);
+
+  const shotTarget = anyTheirKeeper ? theirSaves + theirGa + emptyNetFor : shotsUs;
+  check("shots-given", "Shots given to players",
+    givenUs === shotTarget,
+    givenUs + " of " + shotTarget + " handed out"
+      + (shotTarget - givenUs > 0 ? " · " + (shotTarget - givenUs) + " left"
+        : givenUs > shotTarget ? " · " + (givenUs - shotTarget) + " too many" : ""),
+    !shotTarget,
+    /* Not started is work outstanding; started and short is the same thing;
+       only going over the team's total is an actual contradiction. */
+    givenUs <= shotTarget);
+
+  /* ---- the shootout ---- */
+  const soGoals = { us: 0, them: 0 };
+  for (const a of soAttempts) {
+    if (shotResult(a) === "goal") soGoals[a.team === "us" ? "us" : "them"]++;
+  }
+  if (soAttempts.length || soWinner) check("shootout", "Shootout",
+    !soWinner
+      || (soWinner.team === "us" ? soGoals.us > soGoals.them : soGoals.them > soGoals.us),
+    soGoals.us + "–" + soGoals.them + " in the attempts, and the goal on the board is "
+      + (soWinner ? (soWinner.team === "us" ? usLabel : them) + "'s" : "nobody's"),
+    !soAttempts.length || !soWinner);
+
+  return out;
+}
+
+/* Two different questions, deliberately kept apart: what is wrong, and what
+   is simply not finished. */
+const failedChecks = (checks) => checks.filter((c) => !c.ok && !c.muted && !c.todo);
+const pendingChecks = (checks) => checks.filter((c) => !c.ok && !c.muted && c.todo);
+
+/* The other team's sheet for one game.
+ *
+ * Not the same thing as the club roster, and the difference matters here: the
+ * club roster is a general list that is empty for most opponents, while this
+ * is who actually dressed on the night - imported with the box score, and
+ * what every picker in the console is offering. Editing the club roster does
+ * nothing to this game, which is why this is the list the tab shows.
+ */
+function GameSheet({ game, oppName, site, setDraft, library }) {
+  const rows = (site.opponentStats || {})[game.id] || [];
+
+  const setRows = (next) =>
+    setDraft((s) => ({ ...s, opponentStats: { ...(s.opponentStats || {}), [game.id]: next } }));
+  const setRow = (id, patch) => setRows(rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+
+  const add = (goalie) => setRows([...rows, {
+    id: uid(), name: "", number: "", isGoalie: goalie, position: goalie ? "G" : "F",
+    g: 0, a: 0, pim: 0, shots: 0,
+    ...(goalie ? { saves: 0, ga: 0 } : {}),
+  }]);
+
+  /* A club roster is the obvious starting point when this game has no sheet
+     and somebody has typed one in for a previous meeting. */
+  const copyFromLibrary = () => setRows((library || []).map((p) => ({
+    id: uid(), name: p.name, number: p.number,
+    isGoalie: p.position === "G", position: p.position || "F",
+    g: 0, a: 0, pim: 0, shots: 0,
+    ...(p.position === "G" ? { saves: 0, ga: 0 } : {}),
+  })));
+
+  const skaters = rows.filter((r) => !isOppGoalie(r));
+  const keepers = rows.filter(isOppGoalie);
+
+  const line = (r) => (
+    <div className="opprow oppsheetrow" key={r.id}>
+      <input value={r.number || ""} placeholder="—"
+        onChange={(e) => setRow(r.id, { number: e.target.value })} />
+      <input value={r.name || ""} placeholder="Player name"
+        onChange={(e) => setRow(r.id, { name: e.target.value })} />
+      <select value={isOppGoalie(r) ? "G" : (r.position || "F")}
+        onChange={(e) => setRow(r.id, {
+          position: e.target.value, isGoalie: e.target.value === "G",
+          ...(e.target.value === "G" && r.saves === undefined ? { saves: 0, ga: 0 } : {}),
+        })}>
+        <option value="F">F</option><option value="D">D</option><option value="G">G</option>
+      </select>
+      <button className="btn bDanger" aria-label="Remove player"
+        onClick={() => setRows(rows.filter((x) => x.id !== r.id))}>✕</button>
+    </div>
+  );
+
+  return (
+    <section className="card">
+      <div className="boxhead">
+        <p className="h6" style={{ color: "var(--au-text)", margin: 0 }}>
+          {oppName || "Opponent"} · this game
+        </p>
+        <span className="bsm" style={{ color: "var(--au-faint)", marginLeft: "auto" }}>
+          {rows.length ? rows.length + " dressed" : "nobody yet"}
+        </span>
+      </div>
+
+      <p className="auhint" style={{ marginTop: 8, marginBottom: 12, maxWidth: 680 }}>
+        Who dressed for them on the night. This is the list every picker in the console
+        offers, and it belongs to this game alone.
+      </p>
+
+      {rows.length === 0 && (
+        <p className="bsm" style={{ color: "var(--au-faint)", margin: "0 0 12px" }}>
+          Nothing for them yet. Add players below, paste their lineup on the club roster
+          and copy it across, or import the scoresheet.
+        </p>
+      )}
+
+      {skaters.length > 0 && (
+        <>
+          <div className="opprow oppsheetrow head">
+            <span>#</span><span>Skaters</span><span>Pos</span><span />
+          </div>
+          {skaters.map(line)}
+        </>
+      )}
+
+      {keepers.length > 0 && (
+        <>
+          <div className="opprow oppsheetrow head" style={{ marginTop: 10 }}>
+            <span>#</span><span>Goaltenders</span><span>Pos</span><span />
+          </div>
+          {keepers.map(line)}
+        </>
+      )}
+
+      <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+        <button className="btn bGhost bSm" onClick={() => add(false)}>+ Skater</button>
+        <button className="btn bGhost bSm" onClick={() => add(true)}>+ Goaltender</button>
+        {(library || []).length > 0 && rows.length === 0 && (
+          <button className="btn bGhost bSm" onClick={copyFromLibrary}>
+            Copy their club roster ({library.length})
+          </button>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/* ---------------- Shootout, as it is actually run ----------------
+ * The rules live here so the person at the rink does not have to hold them:
+ * three rounds each, shooters alternating; a lead bigger than the attempts
+ * left ends it early; level after three goes to sudden death, decided the
+ * moment a round is split. The console works out whose turn it is and asks
+ * the only two questions there are - who is shooting, and what happened.
+ */
+const SHOOTOUT_ROUNDS = 3;
+
+function shootoutStatus(attempts, first) {
+  const second = first === "us" ? "them" : "us";
+  const goals = { us: 0, them: 0 };
+  const taken = { us: 0, them: 0 };
+  for (const a of attempts) {
+    taken[a.team]++;
+    if (shotResult(a) === "goal") goals[a.team]++;
+  }
+  const n = attempts.length;
+  const bestOf = taken.us < SHOOTOUT_ROUNDS || taken.them < SHOOTOUT_ROUNDS;
+
+  let winner = null;
+  if (bestOf) {
+    /* What each side has left inside the three. A lead bigger than that
+       cannot be answered, so it is over before the round is - the fourth
+       shooter in a 2-0 shootout never takes the puck. */
+    const left = {
+      us: Math.max(0, SHOOTOUT_ROUNDS - taken.us),
+      them: Math.max(0, SHOOTOUT_ROUNDS - taken.them),
+    };
+    if (goals.us > goals.them + left.them) winner = "us";
+    else if (goals.them > goals.us + left.us) winner = "them";
+  } else if (taken.us === taken.them && goals.us !== goals.them) {
+    /* Sudden death settles only once both sides have shot in the round. */
+    winner = goals.us > goals.them ? "us" : "them";
+  }
+
+  return {
+    goals, taken, winner,
+    round: Math.floor(n / 2) + 1,
+    onClock: n % 2 === 0 ? first : second,
+    sudden: !bestOf && !winner,
+  };
+}
+
+function LiveShootout({ game, live, roster, theirs, oppName, usLabel, setGame, plays, push }) {
+  const [who, setWho] = useState("");
+  const attempts = ((game.shootout || {}).attempts) || [];
+  const first = (live.shootout || {}).first || null;
+
+  const byNumber = (a, b) => (Number(a.number) || 0) - (Number(b.number) || 0);
+  const ours = [...roster].filter((p) => p.position !== "G").sort(byNumber);
+  const oppSkaters = [...(theirs || [])].filter((p) => p.position !== "G").sort(byNumber);
+
+  const setAttempts = (next) => push({
+    shootout: next.length ? { ...(game.shootout || {}), attempts: next } : null,
+  });
+
+  /* Choosing who goes first is the only thing the rules do not decide, so it
+     is asked once and then never again. */
+  if (!first) {
+    return (
+      <section className="card ausocard">
+        <p className="h6" style={{ marginBottom: 6 }}>Shootout</p>
+        <p className="auhint" style={{ marginTop: 0, marginBottom: 14 }}>
+          Three rounds each, alternating. Sudden death if it is still level after that.
+        </p>
+        <p className="h6" style={{ marginBottom: 8 }}>Who shoots first?</p>
+        <div className="autoggle">
+          <button className="btn bGhost bSm"
+            onClick={() => push({ live: { ...live, period: "SO", shootout: { first: "us" } } })}>
+            {usLabel}
+          </button>
+          <button className="btn bGhost bSm"
+            onClick={() => push({ live: { ...live, period: "SO", shootout: { first: "them" } } })}>
+            {oppName || "Them"}
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  const st = shootoutStatus(attempts, first);
+  const mine = st.onClock === "us";
+  const pool = mine ? ours : oppSkaters;
+  /* Nobody shoots twice until everybody has shot once - the rule holds in
+     sudden death too, not just inside the three. Once the bench is used up
+     the list reopens and the order starts again. */
+  const used = new Set(attempts.filter((a) => a.team === st.onClock).map((a) => a.player));
+  const unused = pool.filter((p) => !used.has(p.name));
+  const available = unused.length ? unused : pool;
+
+  const record = (result) => {
+    const p = pool.find((x) => x.id === who);
+    const name = p ? p.name : String(who || "").trim();
+    if (!name) return;
+    setAttempts([...attempts, {
+      id: uid(), team: st.onClock, player: name,
+      playerId: mine && p ? p.id : null,
+      shot: "", result, scored: result === "goal",
+    }]);
+    setWho("");
+  };
+
+  /* The single goal a shootout puts on the scoreboard, credited to whoever
+     scored the attempt that settled it. It is deliberately not written to
+     anyone's box-score line: a shootout goal is not a goal in the record. */
+  const soGoalPlay = plays.find((p) => p.kind === "goal" && p.period === "SO");
+  const addWinner = () => {
+    const side = st.winner;
+    const last = [...attempts].reverse().find((a) => a.team === side && shotResult(a) === "goal");
+    push({
+      plays: [...plays, {
+        id: uid(), kind: "goal", team: side, period: "SO", clock: "", strength: "SO",
+        scorer: last ? last.player : "Shootout Winner",
+        scorerId: last && last.playerId ? last.playerId : null,
+        assistIds: [], assists: [],
+      }],
+      live: { ...live, [side]: (live[side] || 0) + 1 },
+    });
+  };
+
+  /* Taking an attempt back has to take the decision back with it, or the
+     scoreboard keeps a winning goal for a shootout that is running again. */
+  const undoLast = () => {
+    const next = attempts.slice(0, -1);
+    if (!soGoalPlay) { setAttempts(next); return; }
+    push({
+      shootout: next.length ? { ...(game.shootout || {}), attempts: next } : null,
+      plays: plays.filter((p) => p.id !== soGoalPlay.id),
+      live: { ...live, [soGoalPlay.team]: Math.max(0, (live[soGoalPlay.team] || 0) - 1) },
+    });
+  };
+
+  const rounds = [];
+  for (let i = 0; i < attempts.length; i += 2) rounds.push(attempts.slice(i, i + 2));
+
+  return (
+    <section className="card ausocard">
+      <div className="ausohead">
+        <p className="h6" style={{ margin: 0 }}>Shootout</p>
+        <span className="ausoscore">
+          {usLabel} {st.goals.us} <span className="ausodash">–</span> {st.goals.them} {oppName || "Them"}
+        </span>
+      </div>
+
+      <div className="ausorounds">
+        {rounds.map((r, i) => (
+          <div className="ausoround" key={i}>
+            <span className="ausoroundno">{i + 1 > SHOOTOUT_ROUNDS ? "SD" : i + 1}</span>
+            {r.map((a) => (
+              <span className={"ausoshot " + shotResult(a)} key={a.id}>
+                <span className="ausoteam">{a.team === "us" ? usLabel : (oppName || "Them")}</span>
+                <span className="ausoplayer">{a.player}</span>
+                <span className="ausoresult">{shotResultLabel(a).replace("Shootout ", "")}</span>
+              </span>
+            ))}
+          </div>
+        ))}
+        {!attempts.length && (
+          <p className="bsm" style={{ margin: 0, color: "var(--au-faint)" }}>
+            No attempts yet. {first === "us" ? usLabel : (oppName || "Them")} shoots first.
+          </p>
+        )}
+      </div>
+
+      {st.winner ? (
+        <div className="ausodone">
+          <p style={{ margin: 0, fontWeight: 700, color: "var(--au-text)" }}>
+            {st.winner === "us" ? usLabel : (oppName || "Them")} wins the shootout
+            {" "}{Math.max(st.goals.us, st.goals.them)}–{Math.min(st.goals.us, st.goals.them)}.
+          </p>
+          {soGoalPlay ? (
+            <p className="bsm" style={{ margin: "6px 0 0" }}>
+              The winning goal is on the sheet. End the game when you are ready.
+            </p>
+          ) : (
+            <>
+              <p className="bsm" style={{ margin: "6px 0 10px" }}>
+                A shootout win adds one goal to the final score and nothing to anyone&rsquo;s
+                season totals.
+              </p>
+              <button className="btn bNavy bSm" onClick={addWinner}>
+                Add the winning goal
+              </button>
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="ausoturn">
+          <p className="ausoprompt">
+            {st.sudden ? "Sudden death" : "Round " + st.round}
+            {" · "}
+            <b>{mine ? usLabel : (oppName || "Them")}</b> to shoot
+          </p>
+          {pool.length ? (
+            <select value={who} onChange={(e) => setWho(e.target.value)}>
+              <option value="">— who is shooting? —</option>
+              {available.map((p) => (
+                <option key={p.id} value={p.id}>#{p.number} {p.name}</option>
+              ))}
+            </select>
+          ) : (
+            <input value={who} placeholder="Shooter's name"
+              onChange={(e) => setWho(e.target.value)} />
+          )}
+          <div className="ausobtns">
+            <button className="btn bLive bSm" disabled={!who} onClick={() => record("goal")}>Goal</button>
+            <button className="btn bGhost bSm" disabled={!who} onClick={() => record("save")}>Saved</button>
+            <button className="btn bGhost bSm" disabled={!who} onClick={() => record("miss")}>Missed</button>
+          </div>
+          {!pool.length && !mine && (
+            <p className="bsm" style={{ margin: "8px 0 0", color: "var(--au-faint)" }}>
+              Their roster is empty — add it on the Rosters tab to pick from a list.
+            </p>
+          )}
+        </div>
+      )}
+
+      {attempts.length > 0 && (
+        <button className="btn bGhost bSm" style={{ marginTop: 12 }} onClick={undoLast}>
+          Undo last attempt
+        </button>
+      )}
+    </section>
+  );
+}
+
+function ShootoutEditor({ game, roster, oppLines, oppName, usLabel, setGame }) {
+  const [team, setTeam] = useState("us");
+  const [who, setWho] = useState("");
+  const [oppWho, setOppWho] = useState("");
+  const [shot, setShot] = useState(SHOT_TYPES[0]);
+
+  const attempts = ((game.shootout || {}).attempts) || [];
+  const skaters = [...roster]
+    .filter((p) => p.position !== "G")
+    .sort((a, b) => (Number(a.number) || 0) - (Number(b.number) || 0));
+  const theirs = [...(oppLines || [])]
+    .sort((a, b) => (Number(a.number) || 0) - (Number(b.number) || 0));
+  const nameOf = (id) => (roster.find((p) => p.id === id) || {}).name || "";
+
+  const write = (next) => setGame(game.id, {
+    shootout: next.length ? { attempts: next } : null,
+  });
+
+  const add = (result) => {
+    const mine = team === "us";
+    const name = mine ? nameOf(who) : (theirs.find((x) => x.id === oppWho) || {}).name || oppWho.trim();
+    if (!name) return;
+    write([...attempts, {
+      id: uid(), team, player: name,
+      playerId: mine ? who || null : null,
+      shot, result,
+      /* Kept alongside so anything reading the older shape still works. */
+      scored: result === "goal",
+    }]);
+    setWho(""); setOppWho("");
+  };
+
+  /* The score after each attempt, the same way the public panel reads it. */
+  let us = 0;
+  let them = 0;
+  const withScore = attempts.map((a) => {
+    if (shotResult(a) === "goal") { if (a.team === "us") us++; else them++; }
+    return { ...a, us, them };
+  });
+
+  return (
+    <div className="card" style={{ marginTop: 18 }}>
+      <p className="h6" style={{ marginBottom: 8 }}>Shootout</p>
+      <p className="auhint" style={{ marginBottom: 14, maxWidth: 620 }}>
+        Attempts in the order they were taken — the running score and the round
+        both come from that order. A shootout decides the game, so the winning
+        side also needs its goal on the scoresheet above.
+      </p>
+
+      <div className="arow" style={{ gridTemplateColumns: "120px 1fr 130px auto auto auto", borderBottom: 0, padding: 0, minWidth: 0 }}>
+        <div className="field">
+          <label className="h6">Team</label>
+          <select value={team} onChange={(e) => setTeam(e.target.value)}>
+            <option value="us">{usLabel}</option>
+            <option value="them">{oppName || "Opponent"}</option>
+          </select>
+        </div>
+        <div className="field">
+          <label className="h6">Shooter</label>
+          {team === "us" ? (
+            <select value={who} onChange={(e) => setWho(e.target.value)}>
+              <option value="">— pick —</option>
+              {skaters.map((p) => (
+                <option key={p.id} value={p.id}>#{p.number} {p.name}</option>
+              ))}
+            </select>
+          ) : (
+            <OppPick theirs={theirs} value={oppWho} onChange={setOppWho}
+              placeholder="Their shooter" />
+          )}
+        </div>
+        <div className="field">
+          <label className="h6">Shot</label>
+          <select value={shot} onChange={(e) => setShot(e.target.value)}>
+            {SHOT_TYPES.map((x) => <option key={x}>{x}</option>)}
+          </select>
+        </div>
+        <button className="btn bNavy bSm" style={{ marginTop: 18 }} onClick={() => add("goal")}>Scored</button>
+        <button className="btn bGhost bSm" style={{ marginTop: 18 }} onClick={() => add("save")}>Saved</button>
+        <button className="btn bGhost bSm" style={{ marginTop: 18 }} onClick={() => add("miss")}>Missed</button>
+      </div>
+
+      {withScore.length > 0 && (
+        <div className="auplaylist" style={{ marginTop: 14 }}>
+          {withScore.map((a, i) => (
+            <div className="auplay" key={a.id}>
+              <span className="auplayclock">{i + 1}</span>
+              <span className="auplaymain">
+                <span className={"auplaykind " + (shotResult(a) === "goal" ? "goal" : "stop")}>
+                  {shotResultLabel(a).replace(/^Shootout /, "").toUpperCase()}
+                </span>
+                <span className="auplaywho">
+                  {a.player}
+                  <span className="auplayassist">
+                    {(a.team === "us" ? usLabel : oppName || "Opponent")}
+                    {a.shot ? " · " + a.shot : ""} · {a.us}-{a.them}
+                  </span>
+                </span>
+              </span>
+              <button className="btn bDanger" aria-label="Remove attempt"
+                onClick={() => write(attempts.filter((x) => x.id !== a.id))}>✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Retroactive play-by-play ----------------
+ * For games entered after the fact, or scored on paper and typed up later.
+ *
+ * It writes plays only. The per-player numbers above are the record and are
+ * usually already filled in, so adding a goal here does not touch them —
+ * otherwise typing up a game you already entered would double every stat.
+ * Instead the counts are compared, so a disagreement is visible rather than
+ * silent.
+ */
+function RetroPlays({ game, oppName, roster, lines, oppLines, setGame, usLabel }) {
+  if (!setGame) return null;
+  const ask = useAsk();
+  const plays = Array.isArray(game.plays) ? game.plays : [];
+
+  const [kind, setKind] = useState("goal");
+  const [team, setTeam] = useState("us");
+  const [period, setPeriod] = useState("1");
+  const [clock, setClock] = useState("");
+  const [scorer, setScorer] = useState("");
+  const [a1, setA1] = useState("");
+  const [a2, setA2] = useState("");
+  const [oppName1, setOppName1] = useState("");
+  const [oppA1, setOppA1] = useState("");
+  const [oppA2, setOppA2] = useState("");
+  const [strength, setStrength] = useState("EV");
+  const [mins, setMins] = useState(2);
+  const [what, setWhat] = useState(INFRACTIONS[0]);
+
+  const skaters = [...roster].sort((a, b) => (Number(a.number) || 0) - (Number(b.number) || 0));
+  const nameOf = (id) => (roster.find((p) => p.id === id) || {}).name || "";
+  const reset = () => {
+    setScorer(""); setA1(""); setA2("");
+    setOppName1(""); setOppA1(""); setOppA2("");
+    setClock(""); setStrength("EV");
+  };
+
+  /* ---- What is left to attribute ----
+   *
+   * The box score is the record: it says a player scored twice. A play says
+   * when one of those goals went in. So the pickers offer only players with a
+   * goal or an assist still unaccounted for, and adding a play spends one.
+   *
+   * Nothing here touches the totals. That is what makes it safe to type up a
+   * game that was already entered — you cannot end up with ten goals from a
+   * five-goal night, and you cannot attribute a goal to someone who did not
+   * score one.
+   */
+  const goalsUsed = (id) =>
+    plays.filter((p) => p.kind === "goal" && p.scorerId === id).length;
+  const assistsUsed = (id) =>
+    plays.filter((p) => p.kind === "goal" && (p.assistIds || []).includes(id)).length;
+  const pimUsed = (name) =>
+    plays.filter((p) => p.kind === "penalty" && p.team === "us" && p.player === name)
+      .reduce((n, p) => n + (Number(p.minutes) || 0), 0);
+
+  const lineOf = (id) => lines[id] || {};
+  const goalsLeft = (p) => (Number(lineOf(p.id).g) || 0) - goalsUsed(p.id);
+  const assistsLeft = (p) => (Number(lineOf(p.id).a) || 0) - assistsUsed(p.id);
+  const pimLeft = (p) => (Number(lineOf(p.id).pim) || 0) - pimUsed(p.name);
+
+  const oppRowById = (id) => oppRows.find((r) => r.id === id) || null;
+  const oppRowName = (v) => (oppRowById(v) || {}).name || String(v || "").trim();
+
+  /* Their box score, matched on id where the play carries one and on name
+     where it does not - plays recorded before ids were kept, and any player
+     typed in free text, only ever had a name. */
+  const oppUsed = (row, key) => {
+    const isRow = (p, idField, nameField) =>
+      (p[idField] ? p[idField] === row.id : p[nameField] === row.name);
+    if (key === "pim") {
+      return plays
+        .filter((p) => p.kind === "penalty" && p.team === "them" && isRow(p, "playerId", "player"))
+        .reduce((n, p) => n + (Number(p.minutes) || 0), 0);
+    }
+    if (key === "g") {
+      return plays
+        .filter((p) => p.kind === "goal" && p.team === "them" && isRow(p, "scorerId", "scorer")).length;
+    }
+    return plays.filter((p) => p.kind === "goal" && p.team === "them"
+      && ((p.assistIds || []).length
+        ? (p.assistIds || []).includes(row.id)
+        : (p.assists || []).includes(row.name))).length;
+  };
+  const oppLeft = (row, key) => (Number(row[key]) || 0) - oppUsed(row, key);
+
+  const usGoalPicks = roster.filter((p) => goalsLeft(p) > 0);
+  const usAssistPicks = roster.filter((p) => assistsLeft(p) > 0);
+  const usPenaltyPicks = roster.filter((p) => pimLeft(p) > 0);
+  const themGoalPicks = oppLines.filter((r) => oppLeft(r, "g") > 0);
+  const themAssistPicks = oppLines.filter((r) => oppLeft(r, "a") > 0);
+  const themPenaltyPicks = oppLines.filter((r) => oppLeft(r, "pim") > 0);
+
+  /* What is stopping this from being added, in the order someone fills the
+   * form in. A button that looks pressable and then does nothing is worse
+   * than one that tells you why it cannot. */
+  const missing = (() => {
+    const us = team === "us";
+    const pool = kind === "goal"
+      ? (us ? usGoalPicks : themGoalPicks)
+      : (us ? usPenaltyPicks : themPenaltyPicks);
+    if (!pool.length) {
+      const who = us ? usLabel : (oppName || "them");
+      const anyCredit = kind === "goal"
+        ? (us
+            ? roster.some((p) => (Number(lineOf(p.id).g) || 0) > 0)
+            : oppLines.some((r) => (Number(r.g) || 0) > 0))
+        : (us
+            ? roster.some((p) => (Number(lineOf(p.id).pim) || 0) > 0)
+            : oppLines.some((r) => (Number(r.pim) || 0) > 0));
+      if (!anyCredit) {
+        return kind === "goal"
+          ? "No goals on the box score for " + who + " yet — enter them above first."
+          : "No penalty minutes on the box score for " + who + " yet.";
+      }
+      return kind === "goal"
+        ? "Every " + who + " goal on the box score already has a time."
+        : "Every " + who + " penalty on the box score already has a time.";
+    }
+    if (us && !scorer) return kind === "goal" ? "Pick a scorer." : "Pick a player.";
+    if (!us && !oppName1.trim()) return kind === "goal" ? "Pick a scorer." : "Pick a player.";
+    return null;
+  })();
+
+  const add = () => {
+    if (missing) return;
+    const us = team === "us";
+    const play = kind === "goal"
+      ? {
+          id: uid(), kind: "goal", team, period, clock: clock.trim() || "—",
+          strength,
+          scorerId: us ? scorer : null,
+          scorerId: us ? scorer : (oppRowById(oppName1) ? oppName1 : null),
+          scorer: us ? nameOf(scorer) : oppRowName(oppName1),
+          assistIds: us ? cleanAssists([a1, a2], scorer) : [],
+          assists: us
+            ? cleanAssists([a1, a2], scorer).map(nameOf)
+            : cleanAssists([oppA1, oppA2], oppName1).map(oppRowName),
+        }
+      : {
+          id: uid(), kind: "penalty", team, period, clock: clock.trim() || "—",
+          player: us ? nameOf(scorer) : oppRowName(oppName1),
+          playerId: us ? scorer : (oppRowById(oppName1) ? oppName1 : null),
+          minutes: Number(mins), infraction: what,
+        };
+    setGame(game.id, { plays: [...plays, play] });
+    reset();
+  };
+
+  const remove = async (p) => {
+    const ok = await ask({
+      title: "Remove this " + p.kind + "?",
+      message: (p.scorer || p.player) + " at " + p.clock + " in the " + p.period + ".",
+      detail: "The goal goes back to being unattributed; the box score is unchanged.",
+      confirmLabel: "Remove",
+      danger: true,
+    });
+    if (!ok) return;
+    setGame(game.id, { plays: plays.filter((x) => x.id !== p.id) });
+  };
+
+  /* Plays and the box score should agree. Showing both is more use than
+     picking one and hoping. */
+  const playGoalsUs = plays.filter((p) => p.kind === "goal" && p.team === "us").length;
+  const playGoalsThem = plays.filter((p) => p.kind === "goal" && p.team === "them").length;
+  const boxGoals = roster.reduce((n, p) => n + (Number((lines[p.id] || {}).g) || 0), 0);
+  const scoredUs = game.result ? Number(game.result.us) || 0 : 0;
+  const scoredThem = game.result ? Number(game.result.them) || 0 : 0;
+
+  /* Progress, not reconciliation: how much of the box score has been given a
+     time yet. Worded so it cannot be mistaken for the shared reconciler's
+     checks, which answer a different question on the same screen. */
+  const checks = [
+    { ok: playGoalsUs === boxGoals, label: usLabel + " goals attributed",
+      detail: playGoalsUs + " of " + boxGoals + " given a time" },
+    { ok: playGoalsThem === scoredThem, label: (oppName || "Their") + " goals attributed",
+      detail: playGoalsThem + " of " + scoredThem + " given a time" },
+  ];
+
+  return (
+    <div className="auretro">
+      <div className="auretrohead">
+        <p className="h6" style={{ margin: 0 }}>Scoring plays</p>
+        <span className="bsm" style={{ color: "var(--au-faint)" }}>
+          {plays.length} recorded
+        </span>
+      </div>
+
+      <p className="auhint" style={{ margin: "0 0 14px", maxWidth: 620 }}>
+        When each goal went in, and who set it up. The box score above stays the
+        record — this only says <em>when</em>, so the pickers offer players with a
+        goal or assist still unaccounted for and the totals never move.
+      </p>
+
+      <div className="auretroform">
+        <div className="autoggle">
+          {[["goal", "Goal"], ["penalty", "Penalty"]].map(([k, l]) => (
+            <button key={k} className={"btn bSm " + (kind === k ? "bNavy" : "bGhost")}
+              onClick={() => { setKind(k); reset(); }}>{l}</button>
+          ))}
+          <span style={{ width: 10 }} />
+          {[["us", usLabel], ["them", oppName || "Them"]].map(([k, l]) => (
+            <button key={k} className={"btn bSm " + (team === k ? "bNavy" : "bGhost")}
+              onClick={() => { setTeam(k); reset(); }}>{l}</button>
+          ))}
+        </div>
+
+        <div className="auretrogrid">
+          <div className="field">
+            <label className="h6">Period</label>
+            <select value={period} onChange={(e) => setPeriod(e.target.value)}>
+              {PERIODS.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+          <div className="field">
+            <label className="h6">Time</label>
+            <input value={clock} placeholder="12:34" onChange={(e) => setClock(e.target.value)} />
+          </div>
+
+          <div className="field">
+            <label className="h6">{kind === "goal" ? "Scorer" : "Player"}</label>
+            {team === "us" ? (
+              <select value={scorer} onChange={(e) => setScorer(e.target.value)}>
+                <option value="">— pick a player —</option>
+                {(kind === "goal" ? usGoalPicks : usPenaltyPicks).map((p) => (
+                  <option key={p.id} value={p.id}>
+                    #{p.number} {p.name} ({kind === "goal" ? goalsLeft(p) : pimLeft(p) + " PIM"} left)
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <select value={oppName1} onChange={(e) => setOppName1(e.target.value)}>
+                <option value="">— pick a player —</option>
+                {(kind === "goal" ? themGoalPicks : themPenaltyPicks).map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.number ? "#" + r.number + " " : ""}{r.name}
+                    {" ("}{kind === "goal" ? oppLeft(r, "g") : oppLeft(r, "pim") + " PIM"} left)
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {kind === "goal" ? (
+            <>
+              {[[a1, setA1, "First assist", []], [a2, setA2, "Second assist", [a1, oppA1]]]
+                .map(([val, set, label, taken]) => (
+                <div className="field" key={label}>
+                  <label className="h6">{label}</label>
+                  {team === "us" ? (
+                    <select value={val} onChange={(e) => set(e.target.value)}>
+                      <option value="">— none —</option>
+                      {usAssistPicks
+                        .filter((p) => p.id !== scorer && !taken.includes(p.id))
+                        .map((p) => (
+                          <option key={p.id} value={p.id}>
+                            #{p.number} {p.name} ({assistsLeft(p)} left)
+                          </option>
+                        ))}
+                    </select>
+                  ) : (
+                    <select value={val} onChange={(e) => set(e.target.value)}>
+                      <option value="">— none —</option>
+                      {themAssistPicks
+                        .filter((r) => r.id !== oppName1 && !taken.includes(r.id))
+                        .map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.number ? "#" + r.number + " " : ""}{r.name} ({oppLeft(r, "a")} left)
+                          </option>
+                        ))}
+                    </select>
+                  )}
+                </div>
+              ))}
+              <div className="field">
+                <label className="h6">Strength</label>
+                <select value={strength} onChange={(e) => setStrength(e.target.value)}>
+                  {["EV", "PP", "SH", "EN", "PS"].map((k) => <option key={k}>{k}</option>)}
+                </select>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="field">
+                <label className="h6">Minutes</label>
+                <select value={mins} onChange={(e) => setMins(Number(e.target.value))}>
+                  {[2, 4, 5, 10].map((m) => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+              <div className="field">
+                <label className="h6">Infraction</label>
+                <select value={what} onChange={(e) => setWhat(e.target.value)}>
+                  {INFRACTIONS.map((k) => <option key={k}>{k}</option>)}
+                </select>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="auaddrow">
+          <button className="btn bNavy bSm" onClick={add} disabled={!!missing}>
+            Add {kind === "goal" ? "goal" : "penalty"}
+          </button>
+          {missing && <span className="bsm auaddwhy">{missing}</span>}
+        </div>
+      </div>
+
+      {plays.length > 0 && (
+        <>
+          <div className="auplays" style={{ marginTop: 16 }}>
+            {[...plays]
+              .sort((a, b) => PERIODS.indexOf(a.period) - PERIODS.indexOf(b.period))
+              .map((p) => (
+                <div className={"auplay " + p.team} key={p.id}>
+                  <span className="auplaywhen">{p.period} · {p.clock}</span>
+                  <span className="auplaybody">
+                    {p.kind === "goal" ? (
+                      <>
+                        <span className="auplaykind goal">
+                          {p.strength === "EV" ? "GOAL" : p.strength + " GOAL"}
+                        </span>
+                        <span className="auplaywho">{p.scorer}</span>
+                        {p.assists && p.assists.length > 0 && (
+                          <span className="auplayassist">({p.assists.join(", ")})</span>
+                        )}
+                      </>
+                    ) : p.kind === "penalty" ? (
+                      <>
+                        <span className="auplaykind pen">{p.minutes} MIN</span>
+                        <span className="auplaywho">{p.player}</span>
+                        <span className="auplayassist">{p.infraction}</span>
+                      </>
+                    ) : p.kind === "game" ? (
+                      <>
+                        <span className="auplaykind stop">FINAL</span>
+                        <span className="auplaywho">Game end</span>
+                      </>
+                    ) : p.kind === "period" ? (
+                      <>
+                        <span className="auplaykind stop">PERIOD</span>
+                        <span className="auplaywho">
+                          {p.phase === "start" ? "Period start" : "Period end"}
+                        </span>
+                      </>
+                    ) : p.kind === "shot" ? (
+                      <>
+                        <span className="auplaykind stop">SOG</span>
+                        <span className="auplaywho">{p.shooter || "Shot on goal"}</span>
+                        {p.goalie && <span className="auplayassist">saved by {p.goalie}</span>}
+                      </>
+                    ) : p.kind === "faceoff" ? (
+                      <>
+                        <span className="auplaykind stop">FO</span>
+                        <span className="auplaywho">{p.winner || "Faceoff won"}</span>
+                      </>
+                    ) : p.kind === "timeout" ? (
+                      <>
+                        <span className="auplaykind stop">TO</span>
+                        <span className="auplaywho">Timeout</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="auplaykind stop">WHISTLE</span>
+                        <span className="auplaywho">{p.reason || "Stoppage"}</span>
+                      </>
+                    )}
+                  </span>
+                  <button className="btn bDanger" aria-label="Remove" onClick={() => remove(p)}>✕</button>
+                </div>
+              ))}
+          </div>
+
+          <div className="boxchecks" style={{ marginTop: 14 }}>
+            {checks.filter((c) => !c.muted).map((c) => (
+              <span className={"boxcheck " + (c.ok ? "ok" : "bad")} key={c.label}>
+                {c.ok ? "✓" : "!"} {c.label} — {c.detail}
+              </span>
+            ))}
+          </div>
+
+          {/* Only for a game that actually went to one. Ticking "shootout" on
+              the result is what opens this. */}
+          {(game.result || {}).so && (
+            <ShootoutEditor game={game} roster={roster} oppLines={oppLines}
+              oppName={oppName} usLabel={usLabel} setGame={setGame} />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function BoxScore({ game, oppName, opponent, setGame, roster, site, setDraft, onSave, dirty, onClose }) {
+  const lines = (site.gameStats || {})[game.id] || {};
+
+  const setLine = (playerId, patch) =>
+    setDraft((s) => {
+      const all = s.gameStats || {};
+      const forGame = all[game.id] || {};
+      const cur = forGame[playerId] || { dressed: true, g: 0, a: 0, pim: 0 };
+      return { ...s, gameStats: { ...all, [game.id]: { ...forGame, [playerId]: { ...cur, ...patch } } } };
+    });
+
+  const num = (playerId, key) => (e) =>
+    setLine(playerId, { [key]: e.target.value === "" ? 0 : Number(e.target.value) });
+
+  /* A goal is a shot on goal, so the two fields cannot be set independently:
+     raising goals raises shots to match if it was behind, and shots can never
+     be typed below the goals already recorded. Without this a sheet could
+     read "2 goals, 0 shots", which is not a thing that happens. */
+  const setGoals = (playerId) => (e) => {
+    const g = e.target.value === "" ? 0 : Number(e.target.value);
+    const cur = lines[playerId] || {};
+    const shots = Math.max(Number(cur.shots) || 0, g);
+    setLine(playerId, { g, shots });
+  };
+
+  const setShots = (playerId) => (e) => {
+    const v = e.target.value === "" ? 0 : Number(e.target.value);
+    const cur = lines[playerId] || {};
+    setLine(playerId, { shots: Math.max(v, Number(cur.g) || 0) });
+  };
+
+  /* Forwards, then defense, then anyone unclassified — the order a lineup
+   * sheet comes in, so entering from one is a straight read down the page
+   * rather than a hunt for each name. */
+  const POS_RANK = { F: 0, D: 1 };
+  const skaters = roster
+    .filter((p) => p.position !== "G")
+    .slice()
+    .sort((a, b) =>
+      (POS_RANK[a.position] ?? 2) - (POS_RANK[b.position] ?? 2) ||
+      (Number(a.number) || 0) - (Number(b.number) || 0));
+  const goalies = roster.filter((p) => p.position === "G");
+
+  const sum = (ids, key) =>
+    ids.reduce((n, p) => n + (Number((lines[p.id] || {})[key]) || 0), 0);
+  const entries = () => roster.map((p) => lines[p.id]).filter(Boolean);
+
+  const scoredUs = game.result ? Number(game.result.us) || 0 : 0;
+  const scoredThem = game.result ? Number(game.result.them) || 0 : 0;
+  const goalsFor = sum(roster, "g");
+  const ppg = sum(roster, "ppg");
+  const shg = sum(roster, "shg");
+  const gwCount = entries().filter((e) => e.gwg).length;
+  const oppRows = (site.opponentStats || {})[game.id] || [];
+
+  /* The one reconciler, shared with the live console and the schedule list,
+     so a game cannot read as clean in one place and broken in another. */
+  const checks = reconcileGame({
+    game, roster, lines, oppRows,
+    usLabel: (((site.settings || {}).org || {}).abbr) || "Us",
+    oppName,
+  });
+  /* Situational goals are subsets of the total, and only one goal wins a game. */
+  if (ppg + shg > goalsFor) {
+    checks.push({
+      ok: false, label: "Situational",
+      detail: ppg + " PP + " + shg + " SH exceeds " + goalsFor + " goals",
+    });
+  }
+  if (gwCount > 1) {
+    checks.push({ ok: false, label: "Game winner", detail: gwCount + " marked, only one can win it" });
+  }
+
+  const problems = checks.filter((c) => !c.ok && !c.muted);
+
+  const row = (p, goalie) => {
+    const l = lines[p.id] || { dressed: true, g: 0, a: 0, pim: 0 };
+    const off = l.dressed === false;
+    return (
+      <div className={off ? "boxrow scratched" : "boxrow"} key={p.id}>
+        <input type="checkbox" checked={!off} title="Dressed"
+          onChange={(e) => setLine(p.id, { dressed: e.target.checked })}
+          style={{ width: "auto", justifySelf: "center" }} />
+        <span style={{ fontSize: 13.5 }}>
+          <strong>{p.number || "—"}</strong> {p.name}
+        </span>
+        {goalie ? (
+          <>
+            <span className="bsm" style={{ color: "var(--au-dim)" }}>GK</span>
+            <input type="number" min="0" placeholder="SV" title="Saves"
+              value={l.saves === undefined ? "" : l.saves} onChange={num(p.id, "saves")} disabled={off} />
+            <input type="number" min="0" placeholder="GA" title="Goals against"
+              value={l.ga === undefined ? "" : l.ga} onChange={num(p.id, "ga")} disabled={off} />
+            <input type="number" min="0" placeholder="PIM"
+              value={l.pim || ""} onChange={num(p.id, "pim")} disabled={off} />
+            <input type="number" min="0" step="0.5" placeholder="MIN"
+              value={l.minutes === undefined ? "" : l.minutes} onChange={num(p.id, "minutes")} disabled={off} />
+            <span /><span /><span />
+          </>
+        ) : (
+          <>
+            <span className="bsm" style={{ color: "var(--au-dim)" }}>{p.position}</span>
+            <input type="number" min="0" placeholder="G"
+              value={l.g || ""} onChange={setGoals(p.id)} disabled={off} />
+            <input type="number" min="0" placeholder="A"
+              value={l.a || ""} onChange={num(p.id, "a")} disabled={off} />
+            {/* Never disabled: a shot is not conditional on having scored,
+                which is what made this look switched off on every line that
+                did not have a goal beside it. */}
+            <input type="number" min={l.g || 0} placeholder="S"
+              title="Shots on goal — goals included, so it can never be below G"
+              value={l.shots === undefined ? "" : l.shots} onChange={setShots(p.id)}
+              disabled={off} />
+            <input type="number" min="0" placeholder="PIM"
+              value={l.pim || ""} onChange={num(p.id, "pim")} disabled={off} />
+            {/* Situational goals are a subset of G, so they cannot exceed it. */}
+            <input type="number" min="0" max={l.g || 0} placeholder="PPG" title="Power-play goals — a subset of goals, so it opens once there is one"
+              value={l.ppg || ""} onChange={num(p.id, "ppg")} disabled={off || !l.g} />
+            <input type="number" min="0" max={l.g || 0} placeholder="SHG" title="Short-handed goals — a subset of goals, so it opens once there is one"
+              value={l.shg || ""} onChange={num(p.id, "shg")} disabled={off || !l.g} />
+            <input type="checkbox" title="Game winning goal" checked={!!l.gwg}
+              onChange={(e) => setLine(p.id, { gwg: e.target.checked })}
+              disabled={off || !l.g} style={{ width: "auto", justifySelf: "center" }} />
+          </>
+        )}
+      </div>
+    );
+  };
+
+  if (!roster.length) {
+    return (
+      <div className="boxscore">
+        <p className="bsm" style={{ color: "var(--au-dim)", margin: 0 }}>
+          No players on this season's roster yet.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="boxscore">
+      <div className="boxhead">
+        <p className="h6" style={{ color: "var(--au-text)", margin: 0 }}>
+          Box score · {oppName || "opponent TBD"}
+          {game.result ? "  " + scoredUs + "–" + scoredThem : ""}
+        </p>
+        <div className="boxchecks">
+          {checks.filter((c) => !c.muted).map((c) => (
+            <span key={c.label}
+              className={"boxcheck " + (c.muted ? "muted" : c.ok ? "ok" : c.todo ? "todo" : "bad")}>
+              {c.muted ? "○" : c.ok ? "✓" : c.todo ? "◐" : "!"} {c.label}
+              {!c.ok && !c.muted ? " — " + c.detail : ""}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="boxrow head">
+        <span>Dr</span><span>Forwards</span><span>Pos</span><span>G</span><span>A</span>
+        <span title="Shots on goal">S</span><span>PIM</span>
+        <span title="Power-play goals">PPG</span><span title="Short-handed goals">SHG</span>
+        <span title="Game-winning goal">GWG</span>
+      </div>
+      {/* React is imported as named hooks only, so no keyed Fragment here:
+          the heading is emitted as its own element in a flat list. */}
+      {skaters.flatMap((p, i) => {
+        const prev = skaters[i - 1];
+        const opensDefense = p.position === "D" && (!prev || prev.position !== "D");
+        const rowEl = row(p, false);
+        if (!opensDefense) return [rowEl];
+        return [
+          <div className="boxrow head" style={{ marginTop: 10 }} key={p.id + "-defense"}>
+            <span>Dr</span><span>Defense</span><span>Pos</span><span>G</span><span>A</span>
+            <span title="Shots on goal">S</span><span>PIM</span>
+            <span title="Power-play goals">PPG</span><span title="Short-handed goals">SHG</span>
+            <span title="Game-winning goal">GWG</span>
+          </div>,
+          rowEl,
+        ];
+      })}
+
+      {goalies.length > 0 && (
+        <>
+          <div className="boxrow head" style={{ marginTop: 10 }}>
+            <span>Dr</span><span>Goaltenders</span><span /><span>SV</span><span>GA</span><span>PIM</span><span />
+            <span title="Minutes played">MIN</span><span /><span />
+          </div>
+          {goalies.map((p) => row(p, true))}
+        </>
+      )}
+
+      <OpponentBoxScore game={game} oppName={oppName} site={site} setDraft={setDraft} />
+
+      <RetroPlays game={game} oppName={oppName} roster={roster}
+        lines={lines} oppLines={(site.opponentStats || {})[game.id] || []} setGame={setGame}
+        usLabel={((site.settings || {}).org || {}).abbr || gameName(site) || "Us"} />
+
+      <div className="boxfoot">
+        <span className="bsm" style={{ color: problems.length ? "var(--au-warn)" : "var(--au-dim)" }}>
+          {problems.length
+            ? problems.length + " mismatch" + (problems.length === 1 ? "" : "es") + " — save anyway if the score is what you meant"
+            : "Totals agree with the final score."}
+        </span>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          <button className="btn bGhost bSm" onClick={onClose}>Close</button>
+          <button className="btn bNavy bSm" disabled={!dirty}
+            onClick={() => { onSave(); onClose(); }}>
+            {dirty ? "Save box score" : "Saved"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Roster editor ---------------- */
+function RosterEditor({ site, updateSeason: updateSeasonProp }) {
+  const ask = useAsk();
+  const [sel, setSel] = useState(site.currentSeason);
+  const lock = useSeasonLock(site, sel);
+  /* `inert` stops a real user touching a locked season, but a presentational
+   * attribute is the wrong place for the only guard — the write path refuses
+   * too. */
+  const updateSeason = (name, patch) => {
+    if (lock.locked) return;
+    updateSeasonProp(name, patch);
+  };
+  const [bioOpen, setBioOpen] = useState(null);
+  const [posFilter, setPosFilter] = useState("");
+  const [sortBy, setSortBy] = useSticky("admin.roster.sort", "entry");
+  const season = site.seasons[sel] || { roster: [], schedule: [] };
+  const roster = season.roster || [];
+
+  const setP = (id, patch) =>
+    updateSeason(sel, { roster: roster.map((p) => (p.id === id ? { ...p, ...patch } : p)) });
+
+  /* Totals come from box scores once any exist; the typed numbers are only a
+   * fallback for seasons with no game log. Showing which is which stops
+   * someone typing into a field that will be overwritten by the next game. */
+  const derived = (p) => boxScoreTotals(site, season, p);
+
+  const removePlayer = async (p) => {
+    const played = derived(p);
+    const ok = await ask({
+      title: "Remove player?",
+      message: (p.name || "This player") + " will be removed from the " + sel + " roster.",
+      detail: played
+        ? "Their box score lines in " + played.gp + " game" + (played.gp === 1 ? "" : "s") + " are deleted too."
+        : undefined,
+      confirmLabel: "Remove",
+      danger: true,
+    });
+    if (!ok) return;
+    updateSeason(sel, { roster: roster.filter((x) => x.id !== p.id) });
+  };
+
+  /* Places this program already recruits from rank above the bundled list. */
+  const knownHometowns = useMemo(() => {
+    const set = new Set();
+    for (const season of Object.values(site.seasons || {})) {
+      for (const pl of season.roster || []) {
+        if (pl.hometown && pl.hometown.includes(",")) set.add(pl.hometown.trim());
+      }
+    }
+    return [...set].sort();
+  }, [site.seasons]);
+
+  /* Two players in the same jersey is nearly always a typo. */
+  const dupeNumbers = new Set();
+  const seen = new Map();
+  for (const p of roster) {
+    const n = (p.number || "").trim();
+    if (!n) continue;
+    if (seen.has(n)) { dupeNumbers.add(n); } else { seen.set(n, p.id); }
+  }
+
+  /* Two players with the same name is not a typo - it happens - but it is
+     worth knowing about, because a name is what the three stars and the
+     career table match on. Their game stats are safe either way: those are
+     keyed by player id. */
+  const dupeNames = new Set();
+  const seenNames = new Map();
+  for (const p of roster) {
+    const key = (p.name || "").trim().toLowerCase();
+    if (!key) continue;
+    if (seenNames.has(key)) dupeNames.add((p.name || "").trim());
+    else seenNames.set(key, p.id);
+  }
+
+  const prevSeasons = Object.keys(site.seasons)
+    .filter((n) => n !== sel && (site.seasons[n].roster || []).length)
+    .sort().reverse();
+
+  const copyFrom = async (from) => {
+    const src = site.seasons[from].roster || [];
+    const have = new Set(roster.map((p) => p.name));
+    const add = src.filter((p) => !have.has(p.name))
+      .map((p) => ({ ...p, id: uid(), stats: {}, captain: "" }));
+    if (!add.length) {
+      await ask({
+        title: "Nothing to copy",
+        message: "Every player from " + from + " is already on this roster.",
+        blocked: true,
+      });
+      return;
+    }
+    const ok = await ask({
+      title: "Copy roster?",
+      message: "Adds " + add.length + " player" + (add.length === 1 ? "" : "s") + " from " + from + " to " + sel + ".",
+      detail: "Stats and captaincy are not copied — only the players.",
+      confirmLabel: "Copy",
+    });
+    if (!ok) return;
+    updateSeason(sel, { roster: [...roster, ...add] });
+  };
+
+  /* Sorting the view only. The stored order is left alone, because the roster
+   * is edited in place and re-ordering rows under someone's cursor while they
+   * type a jersey number is how you get the wrong number on the wrong player. */
+  const shown = useMemo(() => {
+    const list = posFilter ? roster.filter((p) => p.position === posFilter) : [...roster];
+    const num = (p) => Number(p.number) || 0;
+    const byName = (a, b) => (lastFirst(a.name) || "").localeCompare(lastFirst(b.name) || "");
+    if (sortBy === "number") return [...list].sort((a, b) => num(a) - num(b));
+    if (sortBy === "name") return [...list].sort(byName);
+    if (sortBy === "position") {
+      const rank = { F: 0, D: 1, G: 2 };
+      return [...list].sort((a, b) =>
+        (rank[a.position] ?? 3) - (rank[b.position] ?? 3) || num(a) - num(b));
+    }
+    if (sortBy === "year") {
+      const rank = { Fr: 0, So: 1, Jr: 2, Sr: 3, Grad: 4 };
+      return [...list].sort((a, b) =>
+        (rank[a.year] ?? 9) - (rank[b.year] ?? 9) || num(a) - num(b));
+    }
+    return list;
+  }, [roster, posFilter, sortBy]);
+
+  /* Height and weight carry a stepper and a unit now, so they need the room
+     for three digits plus the furniture rather than clipping to two. */
+  /* # · name · pos · spot · shoots · year · C/A · height · weight · hometown
+     · school · bio · delete */
+  const cols = "44px 1.55fr 52px 56px 58px 62px 50px 96px 92px 1.2fr 1.3fr 50px 28px";
+
+  return (
+    <>
+      <SeasonPicker site={site} sel={sel} setSel={setSel} />
+      <ArchivedSeason sel={sel} lock={lock} />
+      <div className={lock.locked ? "aulocked" : undefined} inert={lock.locked || undefined}>
+
+      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 14 }}>
+        <div className="tabs">
+          {[["", "All"], ["F", "Forwards"], ["D", "Defense"], ["G", "Goalies"]].map(([k, label]) => (
+            <button key={k} className={"tab " + (posFilter === k ? "on" : "")}
+              onClick={() => setPosFilter(k)}>{label}</button>
+          ))}
+        </div>
+        <span className="bsm" style={{ color: "var(--au-dim)" }}>
+          {shown.length} of {roster.length}
+        </span>
+        <label className="bsm ausortlab">
+          Sort
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+            <option value="entry">As entered</option>
+            <option value="number">Jersey</option>
+            <option value="name">Name</option>
+            <option value="position">Position</option>
+            <option value="year">Class</option>
+          </select>
+        </label>
+        {prevSeasons.length > 0 && (
+          <select style={{ marginLeft: "auto", padding: "7px 9px", fontSize: 13.5 }}
+            value="" onChange={(e) => e.target.value && copyFrom(e.target.value)}>
+            <option value="">Copy roster from…</option>
+            {prevSeasons.map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+        )}
+      </div>
+
+      {dupeNumbers.size > 0 && (
+        <p className="bsm" style={{ color: "var(--au-danger)", marginBottom: 10 }}>
+          Duplicate jersey number{dupeNumbers.size === 1 ? "" : "s"}: {[...dupeNumbers].join(", ")}
+        </p>
+      )}
+
+      {dupeNames.size > 0 && (
+        <p className="bsm" style={{ color: "var(--au-warn)", marginBottom: 10 }}>
+          Two players named {[...dupeNames].join(", ")}. Their stats stay separate,
+          but three stars and the career table match on the name — add a middle
+          initial to tell them apart.
+        </p>
+      )}
+
+      <div className="arow ahead" style={{ gridTemplateColumns: cols }}>
+        <span>#</span><span>Name</span><span>Pos</span><span>Spot</span><span>Shoots</span><span>Year</span>
+        <span>C/A</span><span>Height</span><span>Weight</span><span>Hometown</span><span>School</span>
+        <span>Bio</span><span />
+      </div>
+
+      {shown.map((p) => {
+        const dupe = (p.number || "").trim() && dupeNumbers.has((p.number || "").trim());
+
+        return (
+          <div key={p.id}>
+            <div className="arow" style={{ gridTemplateColumns: cols }}>
+              <input value={p.number} style={dupe ? { borderColor: "var(--au-danger)" } : undefined}
+                onChange={(e) => setP(p.id, { number: e.target.value })} />
+              <input value={p.name} onChange={(e) => setP(p.id, { name: e.target.value })} />
+              <select value={p.position} onChange={(e) => setP(p.id, { position: e.target.value })}>
+                <option value="F">F</option><option value="D">D</option><option value="G">G</option>
+              </select>
+              {/* Only a forward has a wing to be on. */}
+              <select value={p.spot || ""} disabled={p.position !== "F"}
+                onChange={(e) => setP(p.id, { spot: e.target.value })}>
+                <option value="">—</option>
+                {FORWARD_SPOTS.map((x) => <option key={x} value={x}>{x}</option>)}
+              </select>
+              <select value={p.shoots} onChange={(e) => setP(p.id, { shoots: e.target.value })}>
+                <option value="">—</option><option value="L">L</option><option value="R">R</option>
+              </select>
+              <select value={p.year || ""} onChange={(e) => setP(p.id, { year: e.target.value })}>
+                <option value="">—</option>
+                {CLASS_YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
+              <select value={p.captain || ""} onChange={(e) => setP(p.id, { captain: e.target.value })}>
+                <option value="">—</option><option value="C">C</option><option value="A">A</option>
+              </select>
+              <HeightField value={p.height} onChange={(v) => setP(p.id, { height: v })} />
+              <WeightField value={p.weight} onChange={(v) => setP(p.id, { weight: v })} />
+              <HometownField value={p.hometown} extra={knownHometowns}
+                onChange={(v) => setP(p.id, { hometown: v })} />
+              <input value={p.highSchool || ""} placeholder="High school · prior team"
+                onChange={(e) => setP(p.id, { highSchool: e.target.value })} />
+              <button className={"btn bSm " + (bioOpen === p.id ? "bNavy" : "bGhost")}
+                onClick={() => setBioOpen(bioOpen === p.id ? null : p.id)}>Bio</button>
+              <button className="btn bDanger" aria-label="Delete player"
+                onClick={() => removePlayer(p)}>✕</button>
+            </div>
+
+            {bioOpen === p.id && (
+              <div style={{ padding: "10px 0 16px" }}>
+                <div className="arow" style={{ gridTemplateColumns: "1fr 1fr", borderBottom: 0 }}>
+                  <div>
+                    <label className="h6" style={{ color: "var(--au-dim)" }}>High school</label>
+                    <input value={p.highSchool || ""} placeholder="Bellarmine College Prep"
+                      onChange={(e) => setP(p.id, { highSchool: e.target.value })} />
+                  </div>
+                  <div>
+                    <label className="h6" style={{ color: "var(--au-dim)" }}>Prior team</label>
+                    <input value={p.priorTeam || ""} placeholder="San Jose Jr. Sharks (16U AAA)"
+                      onChange={(e) => setP(p.id, { priorTeam: e.target.value })} />
+                  </div>
+                </div>
+                <div className="arow" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", borderBottom: 0 }}>
+                  {PLAYER_SOCIALS.map((sn) => (
+                    <div key={sn.key}>
+                      <label className="h6" style={{ color: "var(--au-dim)" }}>{sn.label}</label>
+                      <input value={(p.socials || {})[sn.key] || ""}
+                        placeholder={sn.at ? "@handle" : "handle"}
+                        onChange={(e) => setP(p.id, {
+                          socials: { ...(p.socials || {}), [sn.key]: e.target.value },
+                        })} />
+                    </div>
+                  ))}
+                </div>
+                <p className="bsm" style={{ margin: "0 0 14px", color: "var(--au-faint)" }}>
+                  Handles, not links — the address is built for you. Leave blank to hide.
+                </p>
+
+                <div className="auphotos">
+                  <div className="field">
+                    <label className="h6">Headshot</label>
+                    <ImageField value={p.photo} preset="headshot" label="headshot"
+                      onChange={(v) => setP(p.id, { photo: v })} />
+                  </div>
+                  <div className="field">
+                    <label className="h6">Cover photo</label>
+                    <ImageField value={p.cover} preset="cover" label="cover" aspect="wide"
+                      onChange={(v) => setP(p.id, { cover: v })} />
+                  </div>
+                </div>
+                <textarea className="ta" rows={5} value={p.bio || ""}
+                  onChange={(e) => setP(p.id, { bio: e.target.value })}
+                  placeholder={"# Personal\n- Intends to major in ..."} />
+                <p className="bsm" style={{ color: "var(--au-dim)", marginTop: 6 }}>
+                  Shown on the player's bio page. Lines starting with "# " become section headers,
+                  "- " become bullets. High school and prior team are separate fields above.
+                </p>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      <button className="btn bNavy bSm" style={{ marginTop: 18 }}
+        onClick={() => updateSeason(sel, {
+          roster: [...roster, {
+            id: uid(), number: "", name: "", position: "F", shoots: "L", year: "Fr",
+            height: "", weight: "", hometown: "", highSchool: "", priorTeam: "", captain: "",
+          }],
+        })}>
+        + Add Player
+      </button>
+
+      <p className="bsm" style={{ color: "var(--au-dim)", marginTop: 12 }}>
+        Player statistics live on the Stats tab.
+      </p>
+      </div>
+    </>
+  );
+}
+
+/* ---------------- Coaches editor ---------------- */
+function CoachesEditor({ site, setDraft }) {
+  const coaches = site.staff || [];
+  const setStaff = (next) => setDraft((s) => ({ ...s, staff: next }));
+  const setC = (id, patch) => setStaff(coaches.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+  /* Kept for the call sites below; staff are not season-scoped any more. */
+  const updateSeason = (_name, patch) => setStaff(patch.coaches);
+  const sel = null;
+
+  return (
+    <>
+      <p className="auhint" style={{ marginBottom: 18, maxWidth: 700 }}>
+        The program's current staff. This is one list — it does not reset when you
+        add a season, and there is no historical record kept.
+      </p>
+      <div>
+      <div style={{ display: "grid", gap: 18 }}>
+        {coaches.map((c) => (
+          <div className="card" key={c.id} style={{ display: "grid", gap: 10 }}>
+            <div style={{ display: "grid", gap: 10, gridTemplateColumns: "1fr 1fr 1fr 150px 34px", alignItems: "center" }}>
+              <div className="field"><label className="h6">Name</label><input value={c.name} onChange={(e) => setC(c.id, { name: e.target.value })} /></div>
+              <div className="field"><label className="h6">Title</label><input value={c.title} onChange={(e) => setC(c.id, { title: e.target.value })} /></div>
+              <div className="field"><label className="h6">Email</label><input value={c.email} onChange={(e) => setC(c.id, { email: e.target.value })} /></div>
+              <div className="field">
+                <label className="h6">Section</label>
+                <select value={c.roleGroup || "coaching"}
+                  onChange={(e) => setC(c.id, { roleGroup: e.target.value })}>
+                  <option value="coaching">Coaching</option>
+                  <option value="operations">Executive</option>
+                  <option value="medical">Medical &amp; Performance</option>
+                  <option value="other">Support</option>
+                </select>
+              </div>
+              <button className="btn bDanger" style={{ marginTop: 18 }} aria-label="Delete staff member"
+                onClick={() => updateSeason(sel, { coaches: coaches.filter((x) => x.id !== c.id) })}>✕</button>
+            </div>
+            <div className="arow" style={{ gridTemplateColumns: "340px 120px 150px 1fr", borderBottom: 0, padding: 0, minWidth: 0 }}>
+              <div className="field">
+                <label className="h6">Photo</label>
+                <ImageField value={c.photo} preset="headshot" label="photo"
+                  onChange={(v) => setC(c.id, { photo: v })} />
+              </div>
+              <div className="field">
+                <label className="h6">Since</label>
+                <input value={c.since || ""} placeholder="2021"
+                  onChange={(e) => setC(c.id, { since: e.target.value })} />
+              </div>
+              <div className="field">
+                <label className="h6">Phone</label>
+                <input value={c.phone || ""} placeholder="Optional"
+                  onChange={(e) => setC(c.id, { phone: e.target.value })} />
+              </div>
+              <div className="field">
+                <label className="h6">Lead</label>
+                <label className="bsm" style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, paddingTop: 7 }}>
+                  <input type="checkbox" checked={!!c.featured} style={{ width: "auto" }}
+                    onChange={(e) => {
+                      /* Only one lead: the page gives it the whole top block. */
+                      updateSeason(sel, {
+                        coaches: coaches.map((x) => ({ ...x, featured: x.id === c.id ? e.target.checked : false })),
+                      });
+                    }} />
+                  Feature at the top
+                </label>
+              </div>
+            </div>
+            <div className="field"><label className="h6">Bio</label>
+              <textarea className="ta" rows={2} value={c.bio} onChange={(e) => setC(c.id, { bio: e.target.value })} /></div>
+          </div>
+        ))}
+      </div>
+      <button className="btn bNavy bSm" style={{ marginTop: 18 }}
+        onClick={() => updateSeason(sel, { coaches: [...coaches, { id: uid(), name: "", title: "", email: "", bio: "", category: "hockey_ops", photo: null }] })}>
+        + Add Staff Member
+      </button>
+      </div>
+    </>
+  );
+}
+
+/* ---------------- Season manager ---------------- */
+function SeasonManager({ site, setSite }) {
+  const ask = useAsk();
+  const [name, setName] = useState("");
+  const [msg, setMsg] = useState(null);
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const names = Object.keys(site.seasons).sort().reverse();
+
+  const addSeason = () => {
+    const n = name.trim();
+    if (!/^\d{4}-\d{2}$/.test(n)) return setMsg('Use the format "2026-27".');
+    if (site.seasons[n]) return setMsg("That season already exists.");
+    setSite((s) => ({ ...s, seasons: { ...s.seasons, [n]: { schedule: [], roster: [], coaches: [] } } }));
+    setName("");
+    setMsg(null);
+  };
+  /* Deleting a season takes its roster, game log, coaches and box scores with
+   * it. Two clicks is not enough friction for that, so it asks you to type the
+   * season name and tells you exactly what disappears. */
+  /* Rare, and it changes what every visitor sees. Worth a confirmation that
+   * says so, rather than a button sitting one click away. */
+  const makeCurrent = async (n) => {
+    const from = site.currentSeason;
+    const ok = await ask({
+      title: "Make " + n + " the current season?",
+      message: "The public homepage, record slab and scoreboard all switch to " + n + ".",
+      detail: from
+        ? from + " stays published and browsable under the season tabs — it just stops being the default."
+        : undefined,
+      confirmLabel: "Make " + n + " current",
+    });
+    if (!ok) return;
+    setSite((s) => ({ ...s, currentSeason: n }));
+    setMsg(n + " is now the current season.");
+  };
+
+  const removeSeason = async (n) => {
+    if (n === site.currentSeason) return setMsg("Can't delete the current season — set another season as current first.");
+    const season = site.seasons[n] || {};
+    const games = (season.schedule || []).length;
+    const players = (season.roster || []).length;
+    const coaches = (season.coaches || []).length;
+    const boxes = (season.schedule || []).filter(
+      (g) => Object.keys((site.gameStats || {})[g.id] || {}).length
+    ).length;
+
+    const losing = [
+      players + " player" + (players === 1 ? "" : "s"),
+      games + " game" + (games === 1 ? "" : "s"),
+      coaches + " coach" + (coaches === 1 ? "" : "es"),
+      boxes + " box score" + (boxes === 1 ? "" : "s"),
+    ].join(", ");
+
+    const ok = await ask({
+      title: "Delete season " + n + "?",
+      message: "This also deletes " + losing + ".",
+      detail: "This cannot be undone.",
+      confirmLabel: "Delete season",
+      danger: true,
+      requireText: n,
+    });
+    if (!ok) return;
+
+    setSite((s) => {
+      const next = { ...s.seasons };
+      delete next[n];
+      // Drop orphaned box scores along with the games they belonged to.
+      const stats = { ...(s.gameStats || {}) };
+      for (const g of season.schedule || []) delete stats[g.id];
+      return { ...s, seasons: next, gameStats: stats };
+    });
+    setPendingDelete(null);
+    setMsg(n + " deleted.");
+  };
+
+  const offSeason = !!(site.settings || {}).offSeason;
+
+  return (
+    <>
+      <label className="auvisrow auoffseason">
+        <input type="checkbox" checked={offSeason}
+          onChange={(e) => setSite((s) => ({ ...s, settings: { ...(s.settings || {}), offSeason: e.target.checked } }))} />
+        <span>
+          <span className="auvislabel">Off-season</span>
+          <span className="auvishelp">
+            Hides the score strip at the top of every public page. Nothing else changes —
+            the schedule, roster and stats for {site.currentSeason} stay exactly where they are.
+          </span>
+        </span>
+      </label>
+
+      <div style={{ display: "grid", gap: 12, maxWidth: 560 }}>
+        {names.map((n) => (
+          <div key={n} className="card" style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px" }}>
+            <span className="h3" style={{ color: "var(--au-text)" }}>{n}</span>
+            {n === site.currentSeason
+              ? <span className="pill pNext">Current</span>
+              : <button className="btn bGhost bSm" onClick={() => makeCurrent(n)}>Make current…</button>}
+            <span className="bsm" style={{ color: "var(--au-dim)", marginLeft: "auto" }}>
+              {site.seasons[n].schedule.length} games · {site.seasons[n].roster.length} players
+            </span>
+            <button className="btn bDanger" aria-label={"Delete season " + n} onClick={() => removeSeason(n)}>✕</button>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 10, marginTop: 22, maxWidth: 420 }}>
+        <input className="ta" placeholder="2026-27" value={name} onChange={(e) => setName(e.target.value)} />
+        <button className="btn bGold" onClick={addSeason}>Add Season</button>
+      </div>
+      {msg && <p className="bsm" style={{ color: "var(--au-danger)", marginTop: 12, fontWeight: 600 }}>{msg}</p>}
+      <p className="bsm" style={{ color: "var(--au-dim)", marginTop: 12 }}>
+        The ★ season is what the public site shows on Home. Archives stay browsable via the season tabs.
+      </p>
+    </>
+  );
+}
+
+/* ---------------- ACHA bulk-paste importer ---------------- */
+function Importer({ site, updateSeason }) {
+  const [sel, setSel] = useState(site.currentSeason);
+  const [target, setTarget] = useState("schedule");
+  const [text, setText] = useState("");
+  const [report, setReport] = useState(null);
+
+  const detect = (line) => (line.includes("|") ? "|" : line.includes("\t") ? "\t" : ",");
+
+  const parse = () => {
+    const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (!lines.length) return [];
+    const d = detect(lines[0]);
+    return lines.map((l) => l.split(d).map((c) => c.trim()));
+  };
+
+  const doImport = () => {
+    const rows = parse();
+    if (!rows.length) return setReport({ ok: 0, err: "Nothing to import." });
+    const season = site.seasons[sel];
+    if (target === "schedule") {
+      const items = rows.map((c) => ({
+        id: uid(), date: c[0] || "", opponent: c[1] || "", homeAway: (c[2] || "H").toUpperCase().startsWith("A") ? "A" : "H",
+        venue: c[3] || "", time: c[4] || "",
+        result: c[5] !== undefined && c[5] !== "" ? { us: Number(c[5]) || 0, them: Number(c[6]) || 0, ot: /ot|y|true/i.test(c[7] || "") } : null,
+      }));
+      updateSeason(sel, { schedule: [...season.schedule, ...items] });
+      setReport({ ok: items.length });
+    } else if (target === "roster") {
+      const items = rows.map((c) => ({
+        id: uid(), number: c[0] || "", name: c[1] || "", position: (c[2] || "F").toUpperCase()[0],
+        shoots: (c[3] || "L").toUpperCase()[0], year: c[4] || "", height: c[5] || "", hometown: c[6] || "",
+      }));
+      updateSeason(sel, { roster: [...season.roster, ...items] });
+      setReport({ ok: items.length });
+    } else {
+      const items = rows.map((c) => ({ id: uid(), name: c[0] || "", title: c[1] || "", email: c[2] || "", bio: c[3] || "" }));
+      updateSeason(sel, { coaches: [...season.coaches, ...items] });
+      setReport({ ok: items.length });
+    }
+    setText("");
+  };
+
+  const formats = {
+    schedule: "date | opponent | H/A | venue | time | us | them | ot",
+    roster: "number | name | position(F/D/G) | shoots(L/R) | year | height | hometown",
+    coaches: "name | title | email | bio",
+  };
+
+  return (
+    <>
+      <p className="bsm" style={{ color: "var(--au-dim)", marginBottom: 18, maxWidth: "70ch" }}>
+        Artifacts can't fetch achahockey.org directly (cross-origin), so copy rows from the ACHA site or a
+        spreadsheet and paste them here. Pipe, tab, and comma delimiters are auto-detected. Production replaces
+        this with a scheduled server-side sync job.
+      </p>
+      <SeasonPicker site={site} sel={sel} setSel={setSel} />
+      <div className="tabs" style={{ marginBottom: 14 }}>
+        {["schedule", "roster", "coaches"].map((t) => (
+          <button key={t} className={`tab ${target === t ? "on" : ""}`} onClick={() => { setTarget(t); setReport(null); }}>{t}</button>
+        ))}
+      </div>
+      <p className="bsm" style={{ color: "var(--au-dim)", marginBottom: 8 }}>Expected columns: <code>{formats[target]}</code></p>
+      <textarea className="ta" rows={8} value={text} onChange={(e) => setText(e.target.value)}
+        placeholder={"2025-11-06 | UCLA | A | Los Angeles, CA | 8:00 PM\n2025-11-13 | USC | H | Oakland Ice Center | 7:30 PM | 4 | 2 | ot"} />
+      <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 14 }}>
+        <button className="btn bGold" onClick={doImport}>Import {parse().length ? `${parse().length} rows` : ""}</button>
+        {report && (report.err
+          ? <span className="bsm" style={{ color: "var(--au-danger)" }}>{report.err}</span>
+          : <span className="bsm" style={{ color: "var(--au-text)", fontWeight: 700 }}>Imported {report.ok} rows into {sel} {target}.</span>)}
+      </div>
+    </>
+  );
+}
+
+/* ---------------- News ----------------
+ * Three distinct fields, because they appear in different places:
+ *   Headline  — the card and the article title
+ *   Teaser    — the homepage card only; never shown in the article
+ *   Content   — the article body
+ *
+ * Player mentions are stored as [[Name]] and rendered as links to that
+ * player's page. They are inserted deliberately rather than auto-detected on
+ * render: a story about "Ryan Lee's brother" should not silently become a link
+ * to Ryan Lee, and a name that matches two players cannot be guessed at.
+ */
+
+/** Every player across every season, de-duplicated, for the mention picker. */
+/* The current roster, and only that.
+ *
+ * A mention is a link to a player page, so the question is who should be
+ * linkable from a story written today - and that is the team, not everyone
+ * who has ever worn the shirt. Every season on file put the picker past a
+ * hundred names and had Link players quietly reach back years to link a
+ * graduate who happened to share a sentence.
+ *
+ * Mentions already written are untouched: renderInline links whatever name a
+ * body carries, so an archived story about a 2019 team still works. This
+ * governs what you can add, not what exists. */
+function allPlayers(site) {
+  const season = (site.seasons || {})[site.currentSeason] || {};
+  const byName = new Map();
+  for (const p of season.roster || []) {
+    if (!p.name) continue;
+    if (!byName.has(p.name)) byName.set(p.name, p);
+  }
+  return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+const MENTION_RE = /\[\[([^\]]+)\]\]/g;
+
+/** Names already wrapped as mentions in a body. */
+function mentionedNames(text) {
+  const out = new Set();
+  let m;
+  const re = new RegExp(MENTION_RE.source, "g");
+  while ((m = re.exec(text || "")) !== null) out.add(m[1].trim());
+  return out;
+}
+
+/**
+ * Wrap unlinked occurrences of a roster name. Longest names first so
+ * "Dominik Sedlak-Braude" is not half-consumed by a shorter match, and already
+ * wrapped mentions are left alone.
+ */
+function linkPlayersIn(text, players) {
+  let out = text || "";
+  let added = 0;
+  const names = players.map((p) => p.name).sort((a, b) => b.length - a.length);
+
+  for (const name of names) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    // Not already inside [[ ]], and on a word boundary.
+    const re = new RegExp("(?<!\\[\\[)\\b" + escaped + "\\b(?!\\]\\])", "g");
+    out = out.replace(re, () => { added++; return "[[" + name + "]]"; });
+  }
+  return { text: out, added };
+}
+
+/* The tag vocabulary is small and shared across stories, so picking from
+ * what already exists is the common case and typing a new one is the rare
+ * one. The rare case hides behind a single option rather than a second
+ * field sitting empty on every story. A tag becomes part of the list by
+ * being used, so there is no separate place to go and manage one.
+ */
+function TagPicker({ value, tags, onChange }) {
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState("");
+  const commit = () => {
+    const t = draft.trim().toUpperCase();
+    if (t) onChange(t);
+    setDraft("");
+    setAdding(false);
+  };
+  const cancel = () => { setDraft(""); setAdding(false); };
+
+  if (adding) {
+    return (
+      <div style={{ display: "flex", gap: 8 }}>
+        <input autoFocus value={draft} placeholder="New tag"
+          onChange={(e) => setDraft(e.target.value.toUpperCase())}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { e.preventDefault(); commit(); }
+            if (e.key === "Escape") { e.preventDefault(); cancel(); }
+          }} />
+        <button className="btn bNavy bSm" onClick={commit}>Add</button>
+        <button className="btn bGhost bSm" onClick={cancel}>Cancel</button>
+      </div>
+    );
+  }
+  return (
+    <select value={value || ""}
+      onChange={(e) => (e.target.value === "__new" ? setAdding(true) : onChange(e.target.value))}>
+      {!value && <option value="">Choose a tag</option>}
+      {tags.map((t) => <option key={t} value={t}>{t}</option>)}
+      <option value="__new">+ New tag…</option>
+    </select>
+  );
+}
+
+function NewsEditor({ site, setSite }) {
+  const ask = useAsk();
+  const news = site.news || [];
+  const [editingId, setEditingId] = useState(null);
+  const [displaced, setDisplaced] = useState(null);
+  const [sortBy, setSortBy] = useSticky("admin.news.sort", "newest");
+  const players = useMemo(() => allPlayers(site), [site]);
+
+  /* Every hook in this component has to run on both branches - the editor
+     below returns early, and a hook that sits after that return is only
+     reached when the list is showing. React counts them, so the mismatch
+     blanks the screen rather than failing quietly. */
+  /* Every tag any story carries, plus a starting set for an empty site.
+     Uppercased and deduplicated so "recap" and "RECAP" are one entry. */
+  const tags = useMemo(() => {
+    const base = ["RECAP", "PREVIEW", "NEWS", "FEATURE"];
+    const used = news.map((n) => (n.tag || "").trim().toUpperCase()).filter(Boolean);
+    return [...new Set([...base, ...used])].sort();
+  }, [news]);
+
+  const sorted = useMemo(() => {
+    const list = [...news];
+    const byDate = (a, b) => (b.date || "").localeCompare(a.date || "");
+    if (sortBy === "oldest") return list.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+    if (sortBy === "title") return list.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+    /* Drafts and scheduled stories first: the ones with something still to do. */
+    if (sortBy === "state") {
+      const rank = { draft: 0, scheduled: 1, published: 2 };
+      return list.sort((a, b) => rank[newsState(a)] - rank[newsState(b)] || byDate(a, b));
+    }
+    return list.sort(byDate);
+  }, [news, sortBy]);
+
+  const setN = (id, patch) =>
+    setSite((s) => ({ ...s, news: (s.news || []).map((n) => (n.id === id ? { ...n, ...patch } : n)) }));
+
+  /* Every game there is, newest first, flattened across seasons and carrying
+     enough to label itself. A recap written in August can still be attached
+     to a game from February two seasons ago. */
+  const allGames = useMemo(() => {
+    const opps = site.opponents || [];
+    const rows = [];
+    for (const [seasonName, season] of Object.entries(site.seasons || {})) {
+      for (const g of season.schedule || []) {
+        const o = opps.find((x) => x.id === g.opponentId) || {};
+        rows.push({ ...g, seasonName, oppName: o.name || "(no opponent)" });
+      }
+    }
+    return rows.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  }, [site.seasons, site.opponents]);
+
+  /* Where a story is attached, if anywhere. The link is stored on the game,
+     so finding it means looking from the other end. */
+  const linkFor = (storyId) => {
+    for (const g of allGames) {
+      if (g.recapId === storyId) return { gameId: g.id, role: "recapId", game: g };
+      if (g.previewId === storyId) return { gameId: g.id, role: "previewId", game: g };
+    }
+    return null;
+  };
+
+  /* One story belongs to one game in one role, so anything else pointing at
+     it is cleared in the same pass - otherwise moving a recap to another game
+     leaves the first one still claiming it. */
+  const linkStory = (storyId, gameId, role) => {
+    /* If that slot on that game was already taken, say so rather than
+       silently unhooking somebody else's article. */
+    const target = gameId ? allGames.find((g) => g.id === gameId) : null;
+    const prev = target && target[role] && target[role] !== storyId ? target[role] : null;
+    setDisplaced(prev ? (site.news || []).find((n) => n.id === prev) || null : null);
+    setSite((s) => ({
+      ...s,
+      seasons: Object.fromEntries(Object.entries(s.seasons || {}).map(([sn, se]) => [sn, {
+        ...se,
+        schedule: (se.schedule || []).map((g) => {
+          let next = g;
+          if (next.recapId === storyId) next = { ...next, recapId: null };
+          if (next.previewId === storyId) next = { ...next, previewId: null };
+          if (gameId && next.id === gameId) next = { ...next, [role]: storyId };
+          return next;
+        }),
+      }])),
+    }));
+  };
+
+  const remove = async (n) => {
+    const ok = await ask({
+      title: "Delete story?",
+      message: (n.title || "This story") + " will be removed.",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
+    setSite((s) => ({ ...s, news: (s.news || []).filter((x) => x.id !== n.id) }));
+    setEditingId(null);
+  };
+
+  const create = () => {
+    const id = uid();
+    setSite((s) => ({
+      ...s,
+      news: [{
+        id, date: new Date().toISOString().slice(0, 10), tag: "NEWS", title: "",
+        blurb: "", body: "", author: "", image: null, published: false, publishAt: null,
+      }, ...(s.news || [])],
+    }));
+    setEditingId(id);
+  };
+
+  const editing = news.find((n) => n.id === editingId);
+
+  /* ---- The editor is its own screen, not a row that unfolds. Writing an
+     article next to a list of other articles is a cramped way to work, and the
+     list was scrolling under the cursor as the body grew. ---- */
+  if (editing) {
+    const link = linkFor(editing.id);
+    return (
+      <div className="auwrite">
+        <div className="auwritebar">
+          <button className="btn bGhost bSm" onClick={() => setEditingId(null)}>
+            ← All stories
+          </button>
+<span className={"austorystate " + newsState(editing)}>
+            {newsState(editing) === "scheduled"
+              ? "Scheduled · " + fmtDateTime(editing.publishAt)
+              : newsState(editing) === "draft" ? "Draft" : "Published"}
+          </span>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+            <button className="btn bDanger" aria-label="Delete story"
+              onClick={() => remove(editing)}>✕</button>
+          </div>
+        </div>
+
+        <div className="auwritegrid">
+          <div className="auwritemain">
+            <input className="auwritetitle" value={editing.title} placeholder="Headline"
+              onChange={(e) => setN(editing.id, { title: e.target.value })} />
+
+            <div className="field">
+              <label className="h6">Subheader</label>
+              <textarea className="ta" rows={2} value={editing.blurb || ""}
+                placeholder="One or two lines. Sits under the headline on the story, and on cards and the news list."
+                onChange={(e) => setN(editing.id, { blurb: e.target.value })} />
+            </div>
+
+            <ArticleBody post={editing} setN={setN} players={players} />
+          </div>
+
+          <aside className="auwriteside">
+            <div className="card">
+              <p className="h6" style={{ marginBottom: 12 }}>Visibility</p>
+              <VisibilityPicker post={editing} setN={setN} />
+            </div>
+
+            <div className="card" style={{ marginTop: 14 }}>
+              <p className="h6" style={{ marginBottom: 12 }}>Story details</p>
+              <div className="field">
+                <label className="h6">Date</label>
+                <input type="date" value={editing.date}
+                  onChange={(e) => setN(editing.id, { date: e.target.value })} />
+              </div>
+              <div className="field" style={{ marginTop: 12 }}>
+                <label className="h6">Tag</label>
+                <TagPicker value={editing.tag} tags={tags}
+                  onChange={(t) => setN(editing.id, { tag: t })} />
+              </div>
+              <div className="field" style={{ marginTop: 12 }}>
+                <label className="h6">Author</label>
+                <input value={editing.author || ""} placeholder="Byline — optional"
+                  onChange={(e) => setN(editing.id, { author: e.target.value })} />
+              </div>
+
+              {/* Which game this story belongs to.
+                  The link itself lives on the game - the game page asks for
+                  its recap, not the other way round - but the person writing
+                  the recap is in here, not on the schedule grid, so it can be
+                  set from either end. */}
+              <div className="field" style={{ marginTop: 12 }}>
+                <label className="h6">Game</label>
+                <select value={link ? link.gameId : ""}
+                  onChange={(e) => {
+                    const gid = e.target.value;
+                    if (!gid) { linkStory(editing.id, null, null); return; }
+                    const g = allGames.find((x) => x.id === gid);
+                    /* A finished game wants a recap and an unplayed one wants
+                       a preview. Either can be overridden underneath. */
+                    linkStory(editing.id, gid,
+                      link && link.gameId === gid
+                        ? link.role
+                        : gameState(g) === "final" ? "recapId" : "previewId");
+                  }}>
+                  <option value="">— not about a game —</option>
+                  {allGames.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.seasonName} · {fmtDate(g.date)} · {vsAt(g)}{" "}
+                      {g.oppName}{g.result ? " (" + g.result.us + "-" + g.result.them + ")" : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {link && (
+                <div className="field" style={{ marginTop: 12 }}>
+                  <label className="h6">Shown as</label>
+                  <select value={link.role}
+                    onChange={(e) => linkStory(editing.id, link.gameId, e.target.value)}>
+                    <option value="recapId">Recap — after the game is final</option>
+                    <option value="previewId">Preview — until the game is final</option>
+                  </select>
+                  {displaced && (
+                    <p className="bsm" style={{ color: "var(--au-faint)", marginTop: 5 }}>
+                      This took the slot from “{displaced.title || "Untitled"}”,
+                      which is now attached to nothing.
+                    </p>
+                  )}
+                </div>
+              )}
+
+            </div>
+
+            <div className="card" style={{ marginTop: 14 }}>
+              <p className="h6" style={{ marginBottom: 12 }}>Cover photo</p>
+              <ImageField value={editing.image} preset="cover" label="cover photo" aspect="wide"
+                onChange={(v) => setN(editing.id, { image: v })} />
+              <p className="bsm" style={{ color: "var(--au-faint)", marginTop: 8 }}>
+                Used on the homepage hero, cards and the article header.
+              </p>
+            </div>
+          </aside>
+        </div>
+      </div>
+    );
+  }
+
+  /* ---------------- Visibility picker ----------------
+ * Three states, one control. Kept out of NewsEditor so the writing screen
+ * stays readable.
+ */
+function VisibilityPicker({ post, setN }) {
+  const state = newsState(post);
+  const scheduled = !!post.publishAt;
+
+  /* Default to the next round hour a day out — a plausible slot, so the
+     editor is choosing rather than typing a whole timestamp from scratch. */
+  const defaultSlot = () => {
+    const d = new Date(Date.now() + 86400000);
+    d.setMinutes(0, 0, 0);
+    return toLocalInput(d);
+  };
+
+  const OPTIONS = [
+    ["draft", "Draft", "Only visible here."],
+    ["published", "Publish now", "Live on the site immediately."],
+    ["scheduled", "Schedule", "Goes live on its own at the time you set."],
+  ];
+
+  const choose = (next) => {
+    if (next === "draft") return setN(post.id, { published: false });
+    if (next === "published") return setN(post.id, { published: true, publishAt: null });
+    setN(post.id, { published: true, publishAt: post.publishAt || defaultSlot() });
+  };
+
+  const picked = state === "scheduled" || (state === "draft" && scheduled) ? "scheduled" : state;
+
+  return (
+    <>
+      <div className="auvis">
+        {OPTIONS.map(([k, label, help]) => (
+          <label className={"auvisrow " + (picked === k ? "on" : "")} key={k}>
+            <input type="radio" name={"vis-" + post.id} checked={picked === k}
+              onChange={() => choose(k)} />
+            <span>
+              <span className="auvislabel">{label}</span>
+              <span className="auvishelp">{help}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+
+      {picked === "scheduled" && (
+        <div className="field" style={{ marginTop: 12 }}>
+          <label className="h6">Goes live</label>
+          <input type="datetime-local" value={post.publishAt || ""}
+            onChange={(e) => setN(post.id, { published: true, publishAt: e.target.value })} />
+          <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
+            {state === "published"
+              ? "That time has passed, so this story is already live."
+              : "Your local time. Nothing is public until then."}
+          </p>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ---- The list ---- */
+  return (
+    <>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18, flexWrap: "wrap" }}>
+        <p className="auhint" style={{ margin: 0, maxWidth: 560 }}>
+          {news.length} {news.length === 1 ? "story" : "stories"}. Drafts stay off the public site.
+        </p>
+        <label className="bsm ausortlab" style={{ marginLeft: "auto" }}>
+          Sort
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="title">Title</option>
+            <option value="state">Needs attention</option>
+          </select>
+        </label>
+        <button className="btn bNavy bSm" onClick={create}>
+          + New story
+        </button>
+      </div>
+
+      {!sorted.length && (
+        <div className="auempty">
+          <p style={{ margin: 0, fontWeight: 600, color: "var(--au-text)" }}>No stories yet</p>
+        </div>
+      )}
+
+      <div className="austorylist">
+        {sorted.map((n) => (
+          <button className="austory" key={n.id} onClick={() => setEditingId(n.id)}>
+            <span className="austoryart">
+              {n.image
+                ? <img src={n.image} alt="" />
+                : <span className="austorynoart">No cover</span>}
+            </span>
+            <span className="austorybody">
+              <span className="austorytitle">{n.title || "Untitled story"}</span>
+              <span className="austoryblurb">{n.blurb || "No subheader"}</span>
+              <span className="austorymeta">
+                <span className={"austorystate " + newsState(n)}>
+                  {newsState(n) === "scheduled"
+                    ? "Scheduled · " + fmtDateTime(n.publishAt)
+                    : newsState(n) === "draft" ? "Draft" : "Published"}
+                </span>
+                {n.tag} · {fmtDate(n.date) || "No date"}
+                {n.author ? " · " + n.author : ""}
+                {(n.body || "").trim() ? "" : " · no content"}
+              </span>
+            </span>
+            <span className="austoryedit">Edit <IcArrowR size={14} /></span>
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+const MARKS = [
+  ["Bold", "B", "**", "**", "b", { fontWeight: 800 }],
+  ["Italic", "I", "*", "*", "i", { fontStyle: "italic", fontFamily: "Georgia, serif" }],
+  ["Underline", "U", "__", "__", "u", { textDecoration: "underline" }],
+  ["Highlight", "H", "==", "==", null, { background: "var(--gold)", color: "#1b1b1b", borderRadius: 2, padding: "0 3px" }],
+];
+
+function MarkButton({ label, glyph, style, onClick }) {
+  return (
+    <button type="button" className="aumark" title={label} aria-label={label}
+      style={style} onMouseDown={(e) => e.preventDefault()} onClick={onClick}>
+      {glyph}
+    </button>
+  );
+}
+
+function ArticleBody({ post, setN, players }) {
+  const ask = useAsk();
+  const bodyRef = useRef(null);
+  const [preview, setPreview] = useState(false);
+
+  const linked = mentionedNames(post.body || "");
+
+  const insertMention = (name) => {
+    const el = bodyRef.current;
+    const text = post.body || "";
+    const token = "[[" + name + "]]";
+    const at = el ? el.selectionStart : text.length;
+    setN(post.id, { body: text.slice(0, at) + token + text.slice(el ? el.selectionEnd : at) });
+  };
+
+  /* Wrap the selection, or unwrap it if it is already wrapped - the same
+     button has to turn bold off, or it is only half a button. With nothing
+     selected the markers go in and the caret lands between them, ready to
+     type. The caret is restored after the value lands, because setting value
+     on a controlled textarea sends it to the end. */
+  const applyMark = (open, close) => {
+    const el = bodyRef.current;
+    if (!el) return;
+    const text = post.body || "";
+    const a = el.selectionStart;
+    const b = el.selectionEnd;
+
+    const wrappedOutside =
+      text.slice(a - open.length, a) === open && text.slice(b, b + close.length) === close;
+    const wrappedInside =
+      text.slice(a, a + open.length) === open && text.slice(b - close.length, b) === close
+      && b - a >= open.length + close.length;
+
+    let body;
+    let selA;
+    let selB;
+    if (wrappedOutside) {
+      body = text.slice(0, a - open.length) + text.slice(a, b) + text.slice(b + close.length);
+      selA = a - open.length;
+      selB = selA + (b - a);
+    } else if (wrappedInside) {
+      const bare = text.slice(a + open.length, b - close.length);
+      body = text.slice(0, a) + bare + text.slice(b);
+      selA = a;
+      selB = a + bare.length;
+    } else {
+      body = text.slice(0, a) + open + text.slice(a, b) + close + text.slice(b);
+      selA = a + open.length;
+      selB = selA + (b - a);
+    }
+
+    setN(post.id, { body });
+    requestAnimationFrame(() => {
+      const node = bodyRef.current;
+      if (!node) return;
+      node.focus();
+      node.setSelectionRange(selA, selB);
+    });
+  };
+
+  /* The shortcuts everyone already has in their fingers. */
+  const onKeyDown = (e) => {
+    if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+    const hit = MARKS.find((m) => m[4] && m[4] === e.key.toLowerCase());
+    if (!hit) return;
+    e.preventDefault();
+    applyMark(hit[2], hit[3]);
+  };
+
+  const autoLink = async () => {
+    const { text, added } = linkPlayersIn(post.body || "", players);
+    if (!added) {
+      await ask({
+        title: "No new names found",
+        message: "Nothing in the content matches a player who is not already linked.",
+        blocked: true,
+      });
+      return;
+    }
+    setN(post.id, { body: text });
+  };
+
+  return (
+    <div style={{ display: "grid", gap: 16, marginTop: 16 }}>
+      <div className="field">
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
+          <label className="h6" style={{ margin: 0 }}>Content</label>
+          {!preview && (
+            <div className="aumarkbar">
+              {MARKS.map(([label, glyph, open, close, , style]) => (
+                <MarkButton key={label} label={label} glyph={glyph} style={style}
+                  onClick={() => applyMark(open, close)} />
+              ))}
+            </div>
+          )}
+          <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+            <select value="" style={{ width: "auto", fontSize: 12.5 }}
+              onChange={(e) => { if (e.target.value) insertMention(e.target.value); }}>
+              <option value="">Mention a player…</option>
+              {players.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}
+            </select>
+            <button className="btn bGhost bSm" onClick={autoLink}>Link players</button>
+            <button className={"btn bSm " + (preview ? "bNavy" : "bGhost")}
+              onClick={() => setPreview(!preview)}>Preview</button>
+          </div>
+        </div>
+
+        {preview ? (
+          <div className="aupreview">
+            {renderArticle(post.body || "", () => {})}
+            {!(post.body || "").trim() && (
+              <p className="bsm" style={{ color: "var(--au-faint)", margin: 0 }}>Nothing written yet.</p>
+            )}
+          </div>
+        ) : (
+          <textarea className="ta" rows={10} ref={bodyRef} value={post.body || ""}
+            onKeyDown={onKeyDown}
+            placeholder={"The full story.\n\n# Subheadings start with a hash\n- Bullets start with a dash\n\n**Bold**, *italic*, __underline__, ==highlight==.\nMention a player with [[Their Name]]."}
+            onChange={(e) => setN(post.id, { body: e.target.value })} />
+        )}
+
+        <p className="bsm" style={{ color: "var(--au-faint)", marginTop: 6 }}>
+          {linked.size
+            ? linked.size + " player" + (linked.size === 1 ? "" : "s") + " linked: " + [...linked].join(", ")
+            : "No players linked yet."}
+        </p>
+        <p className="bsm" style={{ color: "var(--au-faint)", marginTop: 2 }}>
+          Only this season's roster can be mentioned. Names in older stories keep working.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Recruit inbox ---------------- */
+/**
+ * Sponsors, as they appear in the footer band above the copyright line.
+ *
+ * A logo is optional: with none, the footer prints the name instead, which is
+ * better than a gap where a local rink or restaurant should be.
+ */
+function SponsorsEditor({ site, setDraft }) {
+  const ask = useAsk();
+  const list = site.sponsors || [];
+
+  const setSponsors = (fn) =>
+    setDraft((s) => ({ ...s, sponsors: fn(s.sponsors || []) }));
+  const setOne = (id, patch) =>
+    setSponsors((all) => all.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+
+  const add = () =>
+    setSponsors((all) => [...all, { id: uid(), name: "", url: "", logo: "" }]);
+
+  const move = (id, dir) =>
+    setSponsors((all) => {
+      const i = all.findIndex((x) => x.id === id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= all.length) return all;
+      const next = [...all];
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+
+  const remove = async (sp) => {
+    const ok = await ask({
+      title: "Remove sponsor?",
+      message: (sp.name || "This sponsor") + " will come off the footer.",
+      confirmLabel: "Remove",
+      danger: true,
+    });
+    if (ok) setSponsors((all) => all.filter((x) => x.id !== sp.id));
+  };
+
+  /* Same rule the opponent marks use: stored inline here, uploaded to
+     Storage in production. An SVG is encoded rather than kept as markup,
+     which would leave a broken image behind. */
+  const pickLogo = (id, file) => {
+    if (!file) return;
+    if (file.size > 400 * 1024) {
+      ask({ title: "Image too large", message: "Sponsor logos must be under 400KB.", blocked: true });
+      return;
+    }
+    const isSvg = file.type === "image/svg+xml" || /\.svg$/i.test(file.name || "");
+    const fr = new FileReader();
+    fr.onload = () => setOne(id, { logo: isSvg ? svgDataUrl(fr.result) : fr.result });
+    if (isSvg) fr.readAsText(file); else fr.readAsDataURL(file);
+  };
+
+  return (
+    <>
+      <p className="bsm" style={{ marginBottom: 18 }}>
+        Shown in a band above the copyright line, in this order. A sponsor with no
+        logo appears as its name.
+      </p>
+
+      {!list.length && (
+        <div className="auempty">
+          <p style={{ margin: 0, fontWeight: 600, color: "var(--au-text)" }}>No sponsors yet</p>
+          <p className="bsm" style={{ margin: "6px 0 0" }}>
+            The band stays hidden until there is at least one.
+          </p>
+        </div>
+      )}
+
+      <div style={{ display: "grid", gap: 14 }}>
+        {list.map((sp, i) => (
+          <article className="card" key={sp.id}>
+            <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+              <div style={{ flex: "0 0 auto", width: 132 }}>
+                <div className="spprev">
+                  {sp.logo
+                    ? <img src={sp.logo} alt="" />
+                    : <span className="bsm" style={{ color: "var(--au-faint)" }}>No logo</span>}
+                </div>
+                {sp.logo ? (
+                  <button className="btn bGhost bSm" style={{ marginTop: 8, width: "100%" }}
+                    onClick={() => setOne(sp.id, { logo: "" })}>Remove logo</button>
+                ) : (
+                  <label className="btn bGhost bSm" style={{ marginTop: 8, width: "100%", textAlign: "center", cursor: "pointer" }}>
+                    Upload logo
+                    <input type="file" accept="image/*" style={{ display: "none" }}
+                      onChange={(e) => pickLogo(sp.id, e.target.files && e.target.files[0])} />
+                  </label>
+                )}
+              </div>
+
+              <div style={{ flex: "1 1 260px", minWidth: 0 }}>
+                <div className="field">
+                  <label className="h6">Name</label>
+                  <input value={sp.name || ""} placeholder="Oakland Ice Center"
+                    onChange={(e) => setOne(sp.id, { name: e.target.value })} />
+                </div>
+                <div className="field" style={{ marginTop: 12 }}>
+                  <label className="h6">Link</label>
+                  <input value={sp.url || ""} placeholder="https://…"
+                    onChange={(e) => setOne(sp.id, { url: e.target.value })} />
+                </div>
+                <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+                  <button className="btn bGhost bSm" disabled={i === 0}
+                    onClick={() => move(sp.id, -1)}>Move up</button>
+                  <button className="btn bGhost bSm" disabled={i === list.length - 1}
+                    onClick={() => move(sp.id, 1)}>Move down</button>
+                  <button className="btn bGhost bSm" style={{ marginLeft: "auto" }}
+                    onClick={() => remove(sp)}>Remove</button>
+                </div>
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <button className="btn bNavy bSm" style={{ marginTop: 18 }} onClick={add}>
+        <IcPlusC size={15} /> Add sponsor
+      </button>
+    </>
+  );
+}
+
+/* The alumni list. Same shape as the recruit inbox and deliberately plainer -
+   there is no scouting to do here, only names to keep. */
+function AlumniInbox({ alumni, setAlumni }) {
+  const ask = useAsk();
+  const [show, setShow] = useState("all");
+  const unread = alumni.filter((a) => !a.read).length;
+  const list = show === "unread" ? alumni.filter((a) => !a.read) : alumni;
+
+  const remove = async (a) => {
+    const ok = await ask({
+      title: "Remove from the list?",
+      message: (a.name || "This person") + " will be deleted from the alumni list.",
+      detail: "This cannot be undone — there is no archive.",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
+    setAlumni((all) => all.filter((x) => x.id !== a.id));
+  };
+
+  const csv = () => {
+    const rows = [["Name", "Email", "Years", "Class", "Number", "Position", "City", "Note", "Submitted"]];
+    for (const a of alumni) {
+      rows.push([a.name, a.email, a.years, a.gradYear, a.number, a.position, a.city,
+        String(a.note || "").replace(/\s+/g, " "), a.submittedAt]);
+    }
+    const text = rows.map((r) => r.map((c) => '"' + String(c || "").replace(/"/g, '""') + '"').join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob([text], { type: "text/csv" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = "cal-hockey-alumni.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <>
+      {alumni.length > 0 && (
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 18 }}>
+          <div className="tabs">
+            {[["all", "All (" + alumni.length + ")"], ["unread", "New (" + unread + ")"]].map(([k, label]) => (
+              <button key={k} className={"tab " + (show === k ? "on" : "")}
+                onClick={() => setShow(k)}>{label}</button>
+            ))}
+          </div>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 9 }}>
+            <button className="btn bGhost bSm" onClick={csv}>Export CSV</button>
+            {unread > 0 && (
+              <button className="btn bGhost bSm"
+                onClick={() => setAlumni((all) => all.map((a) => ({ ...a, read: true })))}>
+                Mark all read
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {!alumni.length && (
+        <div className="auempty">
+          <p style={{ margin: 0, fontWeight: 600, color: "var(--au-text)" }}>Nobody on the list yet</p>
+          <p className="bsm" style={{ margin: "6px 0 0" }}>
+            Sign-ups from More → Alumni on the public site land here.
+          </p>
+        </div>
+      )}
+      {alumni.length > 0 && !list.length && (
+        <div className="auempty"><p style={{ margin: 0 }}>Nothing new.</p></div>
+      )}
+
+      <div style={{ display: "grid", gap: 12 }}>
+        {list.map((a) => (
+          <article className="card" key={a.id}
+            style={{ borderTopColor: a.read ? "var(--au-line)" : "var(--au-primary)" }}>
+            <div style={{ display: "flex", gap: 12, alignItems: "baseline", flexWrap: "wrap" }}>
+              {!a.read && <span className="savedot on" style={{ alignSelf: "center" }} aria-label="New" />}
+              <h3 className="h3" style={{ color: "var(--au-text)" }}>{a.name}</h3>
+              {a.years && <span className="pill pNext">{a.years}</span>}
+              {a.position && <span className="bsm" style={{ color: "var(--au-dim)" }}>{a.position}</span>}
+              {a.number && <span className="bsm" style={{ color: "var(--au-dim)" }}>#{a.number}</span>}
+              <span className="bsm" style={{ marginLeft: "auto", color: "var(--au-dim)" }}>
+                {a.submittedAt ? new Date(a.submittedAt).toLocaleDateString() : ""}
+              </span>
+            </div>
+            <p className="bsm" style={{ margin: "8px 0 0" }}>
+              <a className="flegallink" href={"mailto:" + a.email}>{a.email}</a>
+              {a.city ? " · " + a.city : ""}
+              {a.gradYear ? " · Class of " + a.gradYear : ""}
+            </p>
+            {a.note && <p className="bsm" style={{ margin: "10px 0 0", color: "var(--au-dim)", lineHeight: 1.6 }}>{a.note}</p>}
+            <div style={{ display: "flex", gap: 9, marginTop: 14 }}>
+              <button className="btn bGhost bSm"
+                onClick={() => setAlumni((all) => all.map((x) => (x.id === a.id ? { ...x, read: !x.read } : x)))}>
+                Mark {a.read ? "new" : "read"}
+              </button>
+              <button className="btn bGhost bSm" onClick={() => remove(a)}>Delete</button>
+            </div>
+          </article>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function Inbox({ recruits, setRecruits }) {
+  const ask = useAsk();
+  const [show, setShow] = useState("all");
+  const unread = recruits.filter((r) => !r.read).length;
+  const list = show === "unread" ? recruits.filter((r) => !r.read) : recruits;
+
+  const setR = (id, patch) =>
+    setRecruits((all) => all.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+
+  const remove = async (r) => {
+    const ok = await ask({
+      title: "Delete submission?",
+      message: "The enquiry from " + (r.name || "this recruit") + " will be removed.",
+      detail: "This cannot be undone — there is no archive.",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
+    setRecruits((all) => all.filter((x) => x.id !== r.id));
+  };
+
+  return (
+    <>
+
+      {recruits.length > 0 && (
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 18 }}>
+          <div className="tabs">
+            {[["all", "All (" + recruits.length + ")"], ["unread", "Unread (" + unread + ")"]].map(([k, label]) => (
+              <button key={k} className={"tab " + (show === k ? "on" : "")}
+                onClick={() => setShow(k)}>{label}</button>
+            ))}
+          </div>
+          {unread > 0 && (
+            <button className="btn bGhost bSm" style={{ marginLeft: "auto" }}
+              onClick={() => setRecruits((all) => all.map((r) => ({ ...r, read: true })))}>
+              Mark all read
+            </button>
+          )}
+        </div>
+      )}
+
+      {!recruits.length && (
+        <div className="auempty">
+          <p style={{ margin: 0, fontWeight: 600, color: "var(--au-text)" }}>No submissions yet</p>
+          <p className="bsm" style={{ margin: "6px 0 0" }}>
+            Share the Join the Team page with prospects and they will land here.
+          </p>
+        </div>
+      )}
+      {recruits.length > 0 && !list.length && (
+        <div className="auempty"><p style={{ margin: 0 }}>Nothing unread.</p></div>
+      )}
+
+      <div style={{ display: "grid", gap: 16 }}>
+        {list.map((r) => (
+          <article className="card" key={r.id}
+            style={{ borderTopColor: r.read ? "var(--au-line)" : "var(--au-primary)" }}>
+            <div style={{ display: "flex", gap: 12, alignItems: "baseline", flexWrap: "wrap" }}>
+              {!r.read && <span className="savedot on" style={{ alignSelf: "center" }} aria-label="Unread" />}
+              <h3 className="h3" style={{ color: "var(--au-text)" }}>{r.name}</h3>
+              <span className="pill pNext">{r.position}</span>
+              <span className="bsm" style={{ color: "var(--au-dim)" }}>
+                {r.submittedAt ? new Date(r.submittedAt).toLocaleString() : ""}
+              </span>
+              <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+                <button className="btn bGhost bSm" onClick={() => setR(r.id, { read: !r.read })}>
+                  {r.read ? "Mark unread" : "Mark read"}
+                </button>
+                <button className="btn bDanger" onClick={() => remove(r)}>Delete</button>
+              </div>
+            </div>
+            <p className="bsm" style={{ marginTop: 10, color: "var(--au-dim)" }}>
+              {r.email} · Grad {r.gradYear} · Shoots {r.shoots} · {r.height || "ht n/a"} · GPA {r.gpa || "n/a"}
+            </p>
+            {r.currentTeam && <p className="bsm" style={{ marginTop: 4 }}><strong>Current team:</strong> {r.currentTeam}</p>}
+            {r.highlightLink && <p className="bsm" style={{ marginTop: 4 }}>
+              <strong>Highlights:</strong> <a href={r.highlightLink} target="_blank" rel="noreferrer" style={{ color: "var(--au-text)" }}>{r.highlightLink}</a></p>}
+            {r.message && <p style={{ marginTop: 10, fontSize: 15, lineHeight: 1.6 }}>{r.message}</p>}
+          </article>
+        ))}
+      </div>
+    </>
+  );
+}

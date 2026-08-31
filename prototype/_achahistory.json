@@ -1,0 +1,6833 @@
+[
+ {
+  "seasonId": "1",
+  "seasonName": "2020-2021 Men's Regular Season",
+  "teamId": "241",
+  "players": [],
+  "staff": [],
+  "games": []
+ },
+ {
+  "seasonId": "10",
+  "seasonName": "2021-2022 Men's Regular Season",
+  "teamId": "241",
+  "players": [
+   {
+    "section": "Forwards",
+    "id": "6965",
+    "name": "Thor Oase",
+    "number": "2",
+    "position": "F",
+    "shoots": "R",
+    "height": "5-9",
+    "weight": "160",
+    "hometown": "Berkeley, CA",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "6974",
+    "name": "Andrew Wong",
+    "number": "3",
+    "position": "F",
+    "shoots": "",
+    "height": "",
+    "weight": "",
+    "hometown": "South Pasadena, CA",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "6969",
+    "name": "Michael Shum",
+    "number": "8",
+    "position": "F",
+    "shoots": "L",
+    "height": "5-6",
+    "weight": "155",
+    "hometown": "Hong Kong",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "6972",
+    "name": "Zachary Tam",
+    "number": "9",
+    "position": "F",
+    "shoots": "R",
+    "height": "5-8",
+    "weight": "150",
+    "hometown": "Berkeley, CA",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "6962",
+    "name": "Lane Karlitz",
+    "number": "10",
+    "position": "F",
+    "shoots": "R",
+    "height": "5-8",
+    "weight": "155",
+    "hometown": "Berkeley, CA",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "6958",
+    "name": "Alexander Carbone",
+    "number": "12",
+    "position": "F",
+    "shoots": "",
+    "height": "",
+    "weight": "",
+    "hometown": "Berkeley, CA",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "6963",
+    "name": "Nolan Mcmahon",
+    "number": "22",
+    "position": "F",
+    "shoots": "R",
+    "height": "5-10",
+    "weight": "180",
+    "hometown": "Roseville, CA",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "6961",
+    "name": "Brian Faun",
+    "number": "23",
+    "position": "F",
+    "shoots": "L",
+    "height": "6-1",
+    "weight": "180",
+    "hometown": "Saratoga, CA",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "6971",
+    "name": "Alexander Soloviev",
+    "number": "28",
+    "position": "F",
+    "shoots": "",
+    "height": "",
+    "weight": "",
+    "hometown": "Millbrae, CA",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "6975",
+    "name": "Andrew Wulee",
+    "number": "48",
+    "position": "F",
+    "shoots": "R",
+    "height": "6-0",
+    "weight": "165",
+    "hometown": "Lomita, CA",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "6964",
+    "name": "John Nalder",
+    "number": "76",
+    "position": "F",
+    "shoots": "L",
+    "height": "5-7",
+    "weight": "175",
+    "hometown": "Oakdale, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "6966",
+    "name": "Matthew Podelnyk",
+    "number": "91",
+    "position": "F",
+    "shoots": "L",
+    "height": "5-10",
+    "weight": "165",
+    "hometown": "Miami, FL",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "6959",
+    "name": "Matthew Chorlian",
+    "number": "4",
+    "position": "D",
+    "shoots": "L",
+    "height": "5-8",
+    "weight": "160",
+    "hometown": "Berkeley, CA",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "6967",
+    "name": "Amir Sadikov",
+    "number": "7",
+    "position": "D",
+    "shoots": "L",
+    "height": "6-0",
+    "weight": "185",
+    "hometown": "Vienna, Va, United States",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "6970",
+    "name": "Jacob Sitak",
+    "number": "11",
+    "position": "D",
+    "shoots": "R",
+    "height": "6-2",
+    "weight": "190",
+    "hometown": "North Andover, MA",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "6960",
+    "name": "Nicholas Daal",
+    "number": "17",
+    "position": "D",
+    "shoots": "R",
+    "height": "6-1",
+    "weight": "175",
+    "hometown": "Berkeley, CA",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "6968",
+    "name": "Ethan Sheppy",
+    "number": "27",
+    "position": "D",
+    "shoots": "L",
+    "height": "6-1",
+    "weight": "165",
+    "hometown": "Redwood City, CA",
+    "rookie": false
+   },
+   {
+    "section": "Goalies",
+    "id": "6973",
+    "name": "Max Wiseman",
+    "number": "30",
+    "position": "G",
+    "shoots": "R",
+    "height": "6-2",
+    "weight": "195",
+    "hometown": "Berkeley, CA",
+    "rookie": false
+   },
+   {
+    "section": "Goalies",
+    "id": "6957",
+    "name": "Matthew Adrian",
+    "number": "35",
+    "position": "G",
+    "shoots": "R",
+    "height": "5-10",
+    "weight": "165",
+    "hometown": "Dublin, CA",
+    "rookie": false
+   }
+  ],
+  "staff": [
+   {
+    "name": "Mark Arneson",
+    "role": "Coach"
+   },
+   {
+    "name": "Mark Cornwell",
+    "role": "Coach"
+   },
+   {
+    "name": "Devin Cox",
+    "role": "Coach"
+   },
+   {
+    "name": "Michele Cox",
+    "role": "Coach"
+   },
+   {
+    "name": "Christopher Linden",
+    "role": "Coach"
+   }
+  ],
+  "games": [
+   {
+    "game_id": "4697",
+    "date_with_day": "Fri, Oct 1",
+    "home_goal_count": "1",
+    "visiting_goal_count": "6",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "M2 Stanford University",
+    "visiting_team_city": "M2 University of California-Berkeley",
+    "venue_name": "Nazareth Ice Oasis",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "237"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=4697&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=4697",
+      "gameLink": "4697"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "3817",
+    "date_with_day": "Fri, Oct 8",
+    "home_goal_count": "5",
+    "visiting_goal_count": "2",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "M2 University of Oregon",
+    "visiting_team_city": "M2 University of California-Berkeley",
+    "venue_name": "The RRRink (OR)",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "358"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "venue_name": {
+      "venueUrl": "https://therrrink.com/"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=3817&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=3817",
+      "gameLink": "3817"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "3818",
+    "date_with_day": "Sat, Oct 9",
+    "home_goal_count": "8",
+    "visiting_goal_count": "2",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "M2 University of Oregon",
+    "visiting_team_city": "M2 University of California-Berkeley",
+    "venue_name": "The RRRink (OR)",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "358"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "venue_name": {
+      "venueUrl": "https://therrrink.com/"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=3818&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=3818",
+      "gameLink": "3818"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "4098",
+    "date_with_day": "Fri, Oct 15",
+    "home_goal_count": "8",
+    "visiting_goal_count": "0",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "M2 University of California-Berkeley",
+    "visiting_team_city": "M2 University of California-San Diego",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "244"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=4098&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=4098",
+      "gameLink": "4098"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "4099",
+    "date_with_day": "Sat, Oct 16",
+    "home_goal_count": "6",
+    "visiting_goal_count": "2",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "M2 University of California-Berkeley",
+    "visiting_team_city": "M2 University of California-San Diego",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "244"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=4099&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=4099",
+      "gameLink": "4099"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "5413",
+    "date_with_day": "Fri, Oct 22",
+    "home_goal_count": "4",
+    "visiting_goal_count": "7",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "M2 Stanford University",
+    "visiting_team_city": "M2 University of California-Berkeley",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "237"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=5413&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=5413",
+      "gameLink": "5413"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "4100",
+    "date_with_day": "Fri, Oct 29",
+    "home_goal_count": "5",
+    "visiting_goal_count": "0",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "M2 University of California-Berkeley",
+    "visiting_team_city": "M2 Stanford University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "237"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=4100&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=4100",
+      "gameLink": "4100"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "5687",
+    "date_with_day": "Fri, Nov 5",
+    "home_goal_count": "0",
+    "visiting_goal_count": "5",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "M2 San Jose State University",
+    "visiting_team_city": "M2 University of California-Berkeley",
+    "venue_name": "Sharks Ice at San Jose",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "260"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=5687&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=5687",
+      "gameLink": "5687"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "2878",
+    "date_with_day": "Sat, Nov 6",
+    "home_goal_count": "2",
+    "visiting_goal_count": "3",
+    "schedule_notes": "",
+    "game_status": "Final OT",
+    "home_team_city": "M2 San Jose State University",
+    "visiting_team_city": "M2 University of California-Berkeley",
+    "venue_name": "Sharks Ice at San Jose",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "260"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=2878&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=2878",
+      "gameLink": "2878"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "4101",
+    "date_with_day": "Fri, Nov 12",
+    "home_goal_count": "4",
+    "visiting_goal_count": "2",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "M2 University of California-Berkeley",
+    "visiting_team_city": "M2 Stanford University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "237"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=4101&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=4101",
+      "gameLink": "4101"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "5414",
+    "date_with_day": "Thu, Nov 18",
+    "home_goal_count": "9",
+    "visiting_goal_count": "4",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "M2 University of California-Berkeley",
+    "visiting_team_city": "M2 University of Utah",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "474"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=5414&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=5414",
+      "gameLink": "5414"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "6113",
+    "date_with_day": "Sun, Jan 16",
+    "home_goal_count": "6",
+    "visiting_goal_count": "10",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "M2 Santa Clara University",
+    "visiting_team_city": "M2 University of California-Berkeley",
+    "venue_name": "Solar4America",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "261"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=6113&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=6113",
+      "gameLink": "6113"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "2114",
+    "date_with_day": "Fri, Jan 21",
+    "home_goal_count": "-",
+    "visiting_goal_count": "-",
+    "schedule_notes": "",
+    "game_status": "Postponed",
+    "tickets_url": "Get Tickets",
+    "home_team_city": "M2 University of Utah",
+    "visiting_team_city": "M2 University of California-Berkeley",
+    "venue_name": "Salt Lake City Sports Complex (UT)",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "tickets_url": {
+      "ticketsUrl": "https://tickets.utahhockey.com"
+     },
+     "home_team_city": {
+      "teamLink": "474"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "venue_name": {
+      "venueUrl": "https://slco.org/sports-complex/ice/"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "2115",
+    "date_with_day": "Sat, Jan 22",
+    "home_goal_count": "-",
+    "visiting_goal_count": "-",
+    "schedule_notes": "",
+    "game_status": "Postponed",
+    "tickets_url": "Get Tickets",
+    "home_team_city": "M2 University of Utah",
+    "visiting_team_city": "M2 University of California-Berkeley",
+    "venue_name": "Salt Lake City Sports Complex (UT)",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "tickets_url": {
+      "ticketsUrl": "https://tickets.utahhockey.com"
+     },
+     "home_team_city": {
+      "teamLink": "474"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "venue_name": {
+      "venueUrl": "https://slco.org/sports-complex/ice/"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "4104",
+    "date_with_day": "Fri, Jan 28",
+    "home_goal_count": "3",
+    "visiting_goal_count": "2",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "M2 University of California-Berkeley",
+    "visiting_team_city": "M2 San Jose State University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "260"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=4104&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=4104",
+      "gameLink": "4104"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "4105",
+    "date_with_day": "Sat, Jan 29",
+    "home_goal_count": "6",
+    "visiting_goal_count": "4",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "M2 University of California-Berkeley",
+    "visiting_team_city": "M2 San Jose State University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "260"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=4105&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=4105",
+      "gameLink": "4105"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "4102",
+    "date_with_day": "Sun, Jan 30",
+    "home_goal_count": "10",
+    "visiting_goal_count": "5",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "M2 University of California-Berkeley",
+    "visiting_team_city": "M2 Santa Clara University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "261"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=4102&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=4102",
+      "gameLink": "4102"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   }
+  ]
+ },
+ {
+  "seasonId": "21",
+  "seasonName": "2022-2023 Men's Regular Season",
+  "teamId": "241",
+  "players": [
+   {
+    "section": "Forwards",
+    "id": "6965",
+    "name": "Thor Oase",
+    "number": "2",
+    "position": "F",
+    "shoots": "R",
+    "height": "5-9",
+    "weight": "160",
+    "hometown": "Berkeley, CA",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "14201",
+    "name": "James Li",
+    "number": "3",
+    "position": "F",
+    "shoots": "L",
+    "height": "5-9",
+    "weight": "160",
+    "hometown": "Sterling, VA",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "6969",
+    "name": "Michael Shum",
+    "number": "8",
+    "position": "F",
+    "shoots": "L",
+    "height": "5-6",
+    "weight": "155",
+    "hometown": "Hong Kong",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "6972",
+    "name": "Zachary Tam",
+    "number": "9",
+    "position": "F",
+    "shoots": "R",
+    "height": "5-8",
+    "weight": "150",
+    "hometown": "Berkeley, CA",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "6962",
+    "name": "Lane Karlitz",
+    "number": "15",
+    "position": "F",
+    "shoots": "R",
+    "height": "5-8",
+    "weight": "155",
+    "hometown": "Berkeley, CA",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "14205",
+    "name": "Tyson Storr",
+    "number": "18",
+    "position": "F",
+    "shoots": "L",
+    "height": "5-10",
+    "weight": "175",
+    "hometown": "El Segundo, CA, United States",
+    "rookie": true
+   },
+   {
+    "section": "Forwards",
+    "id": "14197",
+    "name": "Lukas Balen",
+    "number": "21",
+    "position": "F",
+    "shoots": "L",
+    "height": "6-4",
+    "weight": "195",
+    "hometown": "Hermosa Beach, CA",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "6963",
+    "name": "Nolan Mcmahon",
+    "number": "22",
+    "position": "F",
+    "shoots": "R",
+    "height": "5-10",
+    "weight": "180",
+    "hometown": "Roseville, CA",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "6961",
+    "name": "Brian Faun",
+    "number": "23",
+    "position": "F",
+    "shoots": "L",
+    "height": "6-1",
+    "weight": "180",
+    "hometown": "Saratoga, CA",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "19010",
+    "name": "Schuyler St. Germain",
+    "number": "24",
+    "position": "F",
+    "shoots": "R",
+    "height": "6-2",
+    "weight": "190",
+    "hometown": "Berkeley, CA",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "19009",
+    "name": "Charles Brigham",
+    "number": "25",
+    "position": "F",
+    "shoots": "R",
+    "height": "6-2",
+    "weight": "190",
+    "hometown": "Berkeley, CA",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "6975",
+    "name": "Andrew Wulee",
+    "number": "48",
+    "position": "F",
+    "shoots": "R",
+    "height": "6-0",
+    "weight": "165",
+    "hometown": "Lomita, CA",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "14196",
+    "name": "Ergun Acikoz",
+    "number": "57",
+    "position": "F",
+    "shoots": "R",
+    "height": "5-9",
+    "weight": "160",
+    "hometown": "Berkeley, CA",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "6964",
+    "name": "John Nalder",
+    "number": "76",
+    "position": "F",
+    "shoots": "L",
+    "height": "5-7",
+    "weight": "175",
+    "hometown": "Oakdale, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "14202",
+    "name": "Tianshu Liu",
+    "number": "81",
+    "position": "F",
+    "shoots": "R",
+    "height": "5-10",
+    "weight": "160",
+    "hometown": "Beijing, China, China",
+    "rookie": true
+   },
+   {
+    "section": "Forwards",
+    "id": "6966",
+    "name": "Matthew Podelnyk",
+    "number": "91",
+    "position": "F",
+    "shoots": "L",
+    "height": "5-10",
+    "weight": "165",
+    "hometown": "Miami, FL",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "6959",
+    "name": "Matthew Chorlian",
+    "number": "4",
+    "position": "D",
+    "shoots": "L",
+    "height": "5-8",
+    "weight": "160",
+    "hometown": "Berkeley, CA",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "6967",
+    "name": "Amir Sadikov",
+    "number": "7",
+    "position": "D",
+    "shoots": "L",
+    "height": "6-0",
+    "weight": "185",
+    "hometown": "Vienna, Va, United States",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "6970",
+    "name": "Jacob Sitak",
+    "number": "11",
+    "position": "D",
+    "shoots": "R",
+    "height": "6-2",
+    "weight": "190",
+    "hometown": "North Andover, MA",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "14198",
+    "name": "Jack Burbank",
+    "number": "16",
+    "position": "D",
+    "shoots": "L",
+    "height": "5-11",
+    "weight": "155",
+    "hometown": "Brier, WA",
+    "rookie": true
+   },
+   {
+    "section": "Defencemen",
+    "id": "6960",
+    "name": "Nicholas Daal",
+    "number": "21",
+    "position": "D",
+    "shoots": "R",
+    "height": "6-1",
+    "weight": "175",
+    "hometown": "Berkeley, CA",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "6968",
+    "name": "Ethan Sheppy",
+    "number": "27",
+    "position": "D",
+    "shoots": "L",
+    "height": "6-1",
+    "weight": "165",
+    "hometown": "Redwood City, CA",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "14206",
+    "name": "Nur Adib Zafry",
+    "number": "34",
+    "position": "D",
+    "shoots": "",
+    "height": "5-9",
+    "weight": "160",
+    "hometown": "Berkeley, CA",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "14200",
+    "name": "Sean Dolim",
+    "number": "88",
+    "position": "D",
+    "shoots": "L",
+    "height": "6-2",
+    "weight": "210",
+    "hometown": "Manhattan Beach, CA, United States",
+    "rookie": true
+   },
+   {
+    "section": "Defencemen",
+    "id": "14199",
+    "name": "Quinn Deshler",
+    "number": "92",
+    "position": "D",
+    "shoots": "L",
+    "height": "6-2",
+    "weight": "170",
+    "hometown": "Torrance, CA",
+    "rookie": false
+   },
+   {
+    "section": "Goalies",
+    "id": "6973",
+    "name": "Max Wiseman",
+    "number": "30",
+    "position": "G",
+    "shoots": "R",
+    "height": "6-2",
+    "weight": "195",
+    "hometown": "Berkeley, CA",
+    "rookie": false
+   },
+   {
+    "section": "Goalies",
+    "id": "6957",
+    "name": "Matthew Adrian",
+    "number": "35",
+    "position": "G",
+    "shoots": "R",
+    "height": "5-10",
+    "weight": "165",
+    "hometown": "Dublin, CA",
+    "rookie": false
+   }
+  ],
+  "staff": [],
+  "games": [
+   {
+    "game_id": "9830",
+    "date_with_day": "Fri, Sep 16",
+    "home_goal_count": "6",
+    "visiting_goal_count": "1",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "webcast_url": "https://www.bdehockey.com/home.php",
+    "home_team_city": "M2 University of California-Berkeley",
+    "visiting_team_city": "M2 San Jose State University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "webcast_url": {
+      "webcastUrl": "https://www.bdehockey.com/home.php"
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "260"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=9830&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=9830",
+      "gameLink": "9830"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "9831",
+    "date_with_day": "Sat, Sep 17",
+    "home_goal_count": "5",
+    "visiting_goal_count": "2",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "webcast_url": "https://www.bdehockey.com/home.php",
+    "home_team_city": "M2 University of California-Berkeley",
+    "visiting_team_city": "M2 San Jose State University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "webcast_url": {
+      "webcastUrl": "https://www.bdehockey.com/home.php"
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "260"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=9831&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=9831",
+      "gameLink": "9831"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "9832",
+    "date_with_day": "Sun, Oct 2",
+    "home_goal_count": "6",
+    "visiting_goal_count": "7",
+    "schedule_notes": "",
+    "game_status": "Final OT",
+    "home_team_city": "M2 University of California-Berkeley",
+    "visiting_team_city": "M2 Loyola Marymount University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "228"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=9832&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=9832",
+      "gameLink": "9832"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "11159",
+    "date_with_day": "Thu, Oct 6",
+    "home_goal_count": "5",
+    "visiting_goal_count": "9",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "M2 University of Southern California",
+    "visiting_team_city": "M2 University of California-Berkeley",
+    "venue_name": "The Rinks Anaheim Ice (CA)",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "249"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=11159&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=11159",
+      "gameLink": "11159"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "11160",
+    "date_with_day": "Fri, Oct 7",
+    "home_goal_count": "2",
+    "visiting_goal_count": "10",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "M2 University of Southern California",
+    "visiting_team_city": "M2 University of California-Berkeley",
+    "venue_name": "The Rinks Anaheim Ice (CA)",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "249"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=11160&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=11160",
+      "gameLink": "11160"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "7148",
+    "date_with_day": "Fri, Oct 21",
+    "home_goal_count": "3",
+    "visiting_goal_count": "2",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "webcast_url": "https://broadcast.utahhockey.com/",
+    "home_team_city": "M2 University of Utah",
+    "visiting_team_city": "M2 University of California-Berkeley",
+    "venue_name": "Salt Lake City Sports Complex (UT)",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "webcast_url": {
+      "webcastUrl": "https://broadcast.utahhockey.com/"
+     },
+     "home_team_city": {
+      "teamLink": "474"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "venue_name": {
+      "venueUrl": "https://slco.org/sports-complex/ice/"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=7148&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=7148",
+      "gameLink": "7148"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "7149",
+    "date_with_day": "Sat, Oct 22",
+    "home_goal_count": "5",
+    "visiting_goal_count": "3",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "webcast_url": "https://broadcast.utahhockey.com/",
+    "home_team_city": "M2 University of Utah",
+    "visiting_team_city": "M2 University of California-Berkeley",
+    "venue_name": "Salt Lake City Sports Complex (UT)",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "webcast_url": {
+      "webcastUrl": "https://broadcast.utahhockey.com/"
+     },
+     "home_team_city": {
+      "teamLink": "474"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "venue_name": {
+      "venueUrl": "https://slco.org/sports-complex/ice/"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=7149&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=7149",
+      "gameLink": "7149"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "11548",
+    "date_with_day": "Fri, Nov 4",
+    "home_goal_count": "1",
+    "visiting_goal_count": "6",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "M2 Washington State University",
+    "visiting_team_city": "M2 University of California-Berkeley",
+    "venue_name": "Eagles Arena",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "373"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=11548&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=11548",
+      "gameLink": "11548"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "11549",
+    "date_with_day": "Sat, Nov 5",
+    "home_goal_count": "2",
+    "visiting_goal_count": "8",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "M2 Washington State University",
+    "visiting_team_city": "M2 University of California-Berkeley",
+    "venue_name": "Eagles Arena",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "373"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=11549&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=11549",
+      "gameLink": "11549"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "9834",
+    "date_with_day": "Fri, Nov 11",
+    "home_goal_count": "2",
+    "visiting_goal_count": "5",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "M2 University of California-Berkeley",
+    "visiting_team_city": "M2 University of Washington",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "367"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=9834&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=9834",
+      "gameLink": "9834"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "9835",
+    "date_with_day": "Sat, Nov 12",
+    "home_goal_count": "3",
+    "visiting_goal_count": "6",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "M2 University of California-Berkeley",
+    "visiting_team_city": "M2 University of Washington",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "367"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=9835&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=9835",
+      "gameLink": "9835"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "11311",
+    "date_with_day": "Fri, Nov 18",
+    "home_goal_count": "1",
+    "visiting_goal_count": "14",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "M2 University of California-San Diego",
+    "visiting_team_city": "M2 University of California-Berkeley",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "244"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=11311&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=11311",
+      "gameLink": "11311"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "11312",
+    "date_with_day": "Sat, Nov 19",
+    "home_goal_count": "1",
+    "visiting_goal_count": "8",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "M2 University of California-San Diego",
+    "visiting_team_city": "M2 University of California-Berkeley",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "244"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=11312&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=11312",
+      "gameLink": "11312"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "9836",
+    "date_with_day": "Fri, Dec 2",
+    "home_goal_count": "6",
+    "visiting_goal_count": "4",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "M2 University of California-Berkeley",
+    "visiting_team_city": "M2 Eastern Washington University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "286"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=9836&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=9836",
+      "gameLink": "9836"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "10274",
+    "date_with_day": "Sat, Dec 3",
+    "home_goal_count": "3",
+    "visiting_goal_count": "0",
+    "schedule_notes": "",
+    "game_status": "Visiting Forfeit",
+    "home_team_city": "M2 University of California-Berkeley",
+    "visiting_team_city": "M2 Eastern Washington University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "286"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=10274&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=10274",
+      "gameLink": "10274"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "11456",
+    "date_with_day": "Fri, Jan 20",
+    "home_goal_count": "3",
+    "visiting_goal_count": "6",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "M2 Santa Clara University",
+    "visiting_team_city": "M2 University of California-Berkeley",
+    "venue_name": "Solar4America",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "261"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=11456&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=11456",
+      "gameLink": "11456"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "11135",
+    "date_with_day": "Sat, Jan 21",
+    "home_goal_count": "14",
+    "visiting_goal_count": "6",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "M2 University of California-Berkeley",
+    "visiting_team_city": "M2 Santa Clara University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "261"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=11135&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=11135",
+      "gameLink": "11135"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "10685",
+    "date_with_day": "Fri, Jan 27",
+    "home_goal_count": "3",
+    "visiting_goal_count": "6",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "webcast_url": "https://www.bdehockey.com/home.php",
+    "home_team_city": "M2 San Jose State University",
+    "visiting_team_city": "M2 University of California-Berkeley",
+    "venue_name": "Sharks Ice at San Jose",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "webcast_url": {
+      "webcastUrl": "https://www.bdehockey.com/home.php"
+     },
+     "home_team_city": {
+      "teamLink": "260"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=10685&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=10685",
+      "gameLink": "10685"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "10686",
+    "date_with_day": "Sat, Jan 28",
+    "home_goal_count": "6",
+    "visiting_goal_count": "7",
+    "schedule_notes": "",
+    "game_status": "Final OT",
+    "webcast_url": "https://www.bdehockey.com/home.php",
+    "home_team_city": "M2 San Jose State University",
+    "visiting_team_city": "M2 University of California-Berkeley",
+    "venue_name": "Sharks Ice at San Jose",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "webcast_url": {
+      "webcastUrl": "https://www.bdehockey.com/home.php"
+     },
+     "home_team_city": {
+      "teamLink": "260"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=10686&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=10686",
+      "gameLink": "10686"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "12265",
+    "date_with_day": "Fri, Feb 10",
+    "home_goal_count": "6",
+    "visiting_goal_count": "5",
+    "schedule_notes": "",
+    "game_status": "Final OT",
+    "home_team_city": "M2 Eastern Washington University",
+    "visiting_team_city": "M2 University of California-Berkeley",
+    "venue_name": "University Recreation Center-EWU",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "286"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=12265&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=12265",
+      "gameLink": "12265"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   }
+  ]
+ },
+ {
+  "seasonId": "34",
+  "seasonName": "2023-2024 Men's Divisions",
+  "teamId": "241",
+  "players": [
+   {
+    "section": "Forwards",
+    "id": "6965",
+    "name": "Thor Oase",
+    "number": "2",
+    "position": "F",
+    "shoots": "R",
+    "height": "5-9",
+    "weight": "160",
+    "hometown": "Berkeley, CA",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "6969",
+    "name": "Michael Shum",
+    "number": "8",
+    "position": "F",
+    "shoots": "L",
+    "height": "5-6",
+    "weight": "155",
+    "hometown": "Hong Kong",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "6972",
+    "name": "Zachary Tam",
+    "number": "9",
+    "position": "F",
+    "shoots": "R",
+    "height": "5-8",
+    "weight": "150",
+    "hometown": "Berkeley, CA",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "22010",
+    "name": "Brendan Baker",
+    "number": "12",
+    "position": "F",
+    "shoots": "R",
+    "height": "5-8",
+    "weight": "175",
+    "hometown": "New York, NY, United States",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "22011",
+    "name": "Ryan Lee",
+    "number": "13",
+    "position": "F",
+    "shoots": "R",
+    "height": "5-11",
+    "weight": "170",
+    "hometown": "Fullerton, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "22006",
+    "name": "Mark Rejna",
+    "number": "14",
+    "position": "F",
+    "shoots": "L",
+    "height": "6-0",
+    "weight": "176",
+    "hometown": "Prague, Czech Republic, Czechia",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "14205",
+    "name": "Tyson Storr",
+    "number": "18",
+    "position": "F",
+    "shoots": "L",
+    "height": "5-10",
+    "weight": "175",
+    "hometown": "El Segundo, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "22007",
+    "name": "Kayden Roloff",
+    "number": "19",
+    "position": "F",
+    "shoots": "L",
+    "height": "5-11",
+    "weight": "170",
+    "hometown": "Redlands, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "14197",
+    "name": "Lukas Balen",
+    "number": "21",
+    "position": "F",
+    "shoots": "L",
+    "height": "6-4",
+    "weight": "195",
+    "hometown": "Hermosa Beach, CA",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "22005",
+    "name": "Sean Mcavoy",
+    "number": "42",
+    "position": "F",
+    "shoots": "L",
+    "height": "5-7",
+    "weight": "150",
+    "hometown": "Charlotte, NC, United States",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "22003",
+    "name": "Lenni Korpinen",
+    "number": "44",
+    "position": "F",
+    "shoots": "L",
+    "height": "5-11\"",
+    "weight": "165",
+    "hometown": "Agoura Hills, CA",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "22002",
+    "name": "Joshua Gohres",
+    "number": "64",
+    "position": "F",
+    "shoots": "R",
+    "height": "6-0",
+    "weight": "172",
+    "hometown": "Lafayette, CA",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "6964",
+    "name": "John Nalder",
+    "number": "76",
+    "position": "F",
+    "shoots": "L",
+    "height": "5-7",
+    "weight": "175",
+    "hometown": "Oakdale, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "14202",
+    "name": "Tianshu Liu",
+    "number": "81",
+    "position": "F",
+    "shoots": "R",
+    "height": "5-10",
+    "weight": "160",
+    "hometown": "Beijing, China, China",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "22004",
+    "name": "Jason Lee",
+    "number": "4",
+    "position": "D",
+    "shoots": "R",
+    "height": "6-1",
+    "weight": "170",
+    "hometown": "Saratoga, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "6967",
+    "name": "Amir Sadikov",
+    "number": "7",
+    "position": "D",
+    "shoots": "L",
+    "height": "6-0",
+    "weight": "185",
+    "hometown": "Vienna, Va, United States",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "22000",
+    "name": "John Burbank",
+    "number": "16",
+    "position": "D",
+    "shoots": "L",
+    "height": "6-0",
+    "weight": "165",
+    "hometown": "Seattle, WA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "6960",
+    "name": "Nicholas Daal",
+    "number": "17",
+    "position": "D",
+    "shoots": "R",
+    "height": "6-1",
+    "weight": "175",
+    "hometown": "Berkeley, CA",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "22009",
+    "name": "Daichi Sasayama",
+    "number": "24",
+    "position": "D",
+    "shoots": "R",
+    "height": "5-11\"",
+    "weight": "183",
+    "hometown": "Berkeley, CA",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "6968",
+    "name": "Ethan Sheppy",
+    "number": "27",
+    "position": "D",
+    "shoots": "L",
+    "height": "6-1",
+    "weight": "165",
+    "hometown": "Redwood City, CA",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "14200",
+    "name": "Sean Dolim",
+    "number": "88",
+    "position": "D",
+    "shoots": "L",
+    "height": "6-2",
+    "weight": "210",
+    "hometown": "Manhattan Beach, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "14199",
+    "name": "Quinn Deshler",
+    "number": "92",
+    "position": "D",
+    "shoots": "L",
+    "height": "6-2",
+    "weight": "170",
+    "hometown": "Torrance, CA",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "22001",
+    "name": "Enzo Goebel",
+    "number": "95",
+    "position": "D",
+    "shoots": "R",
+    "height": "5-8",
+    "weight": "175",
+    "hometown": "Arcadia, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Goalies",
+    "id": "21997",
+    "name": "Yusuf Akbas",
+    "number": "1",
+    "position": "G",
+    "shoots": "R",
+    "height": "6-0",
+    "weight": "170",
+    "hometown": "Corona, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Goalies",
+    "id": "23208",
+    "name": "Jared Brunner",
+    "number": "32",
+    "position": "G",
+    "shoots": "R",
+    "height": "5-8",
+    "weight": "170",
+    "hometown": "Berkeley, CA",
+    "rookie": false
+   },
+   {
+    "section": "Goalies",
+    "id": "21998",
+    "name": "Allan Anaka",
+    "number": "35",
+    "position": "G",
+    "shoots": "L",
+    "height": "6-0",
+    "weight": "150",
+    "hometown": "Granite Bay, CA, United States",
+    "rookie": false
+   }
+  ],
+  "staff": [
+   {
+    "name": "Mark Arneson",
+    "role": "Coach"
+   },
+   {
+    "name": "Pravin Chandra",
+    "role": "Coach"
+   },
+   {
+    "name": "Devin Cox",
+    "role": "Coach"
+   },
+   {
+    "name": "Michele Cox",
+    "role": "Coach"
+   },
+   {
+    "name": "Bradley Martin",
+    "role": "Coach"
+   },
+   {
+    "name": "Darien Oliver",
+    "role": "Coach"
+   }
+  ],
+  "games": [
+   {
+    "game_id": "16263",
+    "date_with_day": "Sun, Sep 17",
+    "home_goal_count": "3",
+    "visiting_goal_count": "1",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 Eastern Washington University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "286"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=16263&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=16263",
+      "gameLink": "16263"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "16264",
+    "date_with_day": "Mon, Sep 18",
+    "home_goal_count": "10",
+    "visiting_goal_count": "0",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 Eastern Washington University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "286"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=16264&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=16264",
+      "gameLink": "16264"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "16878",
+    "date_with_day": "Fri, Sep 29",
+    "home_goal_count": "5",
+    "visiting_goal_count": "4",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 San Jose State University",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "Sharks Ice at San Jose",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "260"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=16878&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=16878",
+      "gameLink": "16878"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "16879",
+    "date_with_day": "Sat, Sep 30",
+    "home_goal_count": "4",
+    "visiting_goal_count": "6",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 San Jose State University",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "Sharks Ice at San Jose",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "260"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=16879&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=16879",
+      "gameLink": "16879"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "16265",
+    "date_with_day": "Fri, Oct 6",
+    "home_goal_count": "3",
+    "visiting_goal_count": "1",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 Washington State University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "373"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=16265&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=16265",
+      "gameLink": "16265"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "16266",
+    "date_with_day": "Sat, Oct 7",
+    "home_goal_count": "5",
+    "visiting_goal_count": "6",
+    "schedule_notes": "",
+    "game_status": "Final OT",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 Washington State University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "373"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=16266&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=16266",
+      "gameLink": "16266"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "16267",
+    "date_with_day": "Fri, Oct 13",
+    "home_goal_count": "4",
+    "visiting_goal_count": "7",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 University of Utah",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "474"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=16267&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=16267",
+      "gameLink": "16267"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "16268",
+    "date_with_day": "Sun, Oct 15",
+    "home_goal_count": "8",
+    "visiting_goal_count": "5",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 University of Utah",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "474"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=16268&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=16268",
+      "gameLink": "16268"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "16269",
+    "date_with_day": "Fri, Oct 27",
+    "home_goal_count": "7",
+    "visiting_goal_count": "1",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 University of Southern California",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "249"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=16269&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=16269",
+      "gameLink": "16269"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "16270",
+    "date_with_day": "Sun, Oct 29",
+    "home_goal_count": "8",
+    "visiting_goal_count": "0",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 University of Southern California",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "249"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=16270&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=16270",
+      "gameLink": "16270"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "16271",
+    "date_with_day": "Sat, Nov 4",
+    "home_goal_count": "16",
+    "visiting_goal_count": "4",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 University of California-San Diego",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "244"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=16271&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=16271",
+      "gameLink": "16271"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "16272",
+    "date_with_day": "Sun, Nov 5",
+    "home_goal_count": "13",
+    "visiting_goal_count": "2",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 University of California-San Diego",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "244"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=16272&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=16272",
+      "gameLink": "16272"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "16273",
+    "date_with_day": "Sat, Nov 11",
+    "home_goal_count": "6",
+    "visiting_goal_count": "7",
+    "schedule_notes": "",
+    "game_status": "Final SO",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 Boise State University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "217"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=16273&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=16273",
+      "gameLink": "16273"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "16274",
+    "date_with_day": "Sun, Nov 12",
+    "home_goal_count": "5",
+    "visiting_goal_count": "6",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 Boise State University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "217"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=16274&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=16274",
+      "gameLink": "16274"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "16275",
+    "date_with_day": "Fri, Nov 17",
+    "home_goal_count": "13",
+    "visiting_goal_count": "2",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 University of California-Santa Barbara",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "245"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=16275&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=16275",
+      "gameLink": "16275"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "13734",
+    "date_with_day": "Fri, Dec 1",
+    "home_goal_count": "7",
+    "visiting_goal_count": "4",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Los Angeles",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "The Cube in Santa Clarita",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "264"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=13734&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=13734",
+      "gameLink": "13734"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "14525",
+    "date_with_day": "Sat, Dec 2",
+    "home_goal_count": "12",
+    "visiting_goal_count": "3",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 Loyola Marymount University",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "Toyota SportsPlex",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "228"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=14525&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=14525",
+      "gameLink": "14525"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "17209",
+    "date_with_day": "Sun, Dec 3",
+    "home_goal_count": "3",
+    "visiting_goal_count": "2",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 California State University-Northridge",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "Iceoplex",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "221"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=17209&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=17209",
+      "gameLink": "17209"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "16276",
+    "date_with_day": "Fri, Jan 19",
+    "home_goal_count": "6",
+    "visiting_goal_count": "3",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 Santa Clara University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "261"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=16276&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=16276",
+      "gameLink": "16276"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "16887",
+    "date_with_day": "Sat, Jan 20",
+    "home_goal_count": "6",
+    "visiting_goal_count": "3",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 San Jose State University",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "Sharks Ice at San Jose",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "260"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=16887&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=16887",
+      "gameLink": "16887"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "16345",
+    "date_with_day": "Sun, Jan 21",
+    "home_goal_count": "4",
+    "visiting_goal_count": "7",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 Santa Clara University",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "Sharks Ice at San Jose",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "261"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=16345&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=16345",
+      "gameLink": "16345"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "16952",
+    "date_with_day": "Thu, Jan 25",
+    "home_goal_count": "5",
+    "visiting_goal_count": "13",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 Western Washington University",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "Bellingham Sportsplex",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "376"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=16952&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=16952",
+      "gameLink": "16952"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "14590",
+    "date_with_day": "Fri, Jan 26",
+    "home_goal_count": "9",
+    "visiting_goal_count": "2",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of Washington",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "Kraken Community Iceplex (WA)",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "367"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=14590&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=14590",
+      "gameLink": "14590"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "14591",
+    "date_with_day": "Sat, Jan 27",
+    "home_goal_count": "6",
+    "visiting_goal_count": "1",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of Washington",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "Kraken Community Iceplex (WA)",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "367"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=14591&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=14591",
+      "gameLink": "14591"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "16955",
+    "date_with_day": "Sun, Jan 28",
+    "home_goal_count": "3",
+    "visiting_goal_count": "9",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 Western Washington University",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "Bellingham Sportsplex",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "376"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=16955&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=16955",
+      "gameLink": "16955"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "18201",
+    "date_with_day": "Fri, Feb 9",
+    "home_goal_count": "9",
+    "visiting_goal_count": "3",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 Washington State University",
+    "venue_name": "University Recreation Center-EWU",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "373"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=18201&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=18201",
+      "gameLink": "18201"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "18304",
+    "date_with_day": "Sat, Feb 10",
+    "home_goal_count": "7",
+    "visiting_goal_count": "3",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 San Jose State University",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "University Recreation Center-EWU",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "260"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=18304&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=18304",
+      "gameLink": "18304"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   }
+  ]
+ },
+ {
+  "seasonId": "46",
+  "seasonName": "2024-2025 Men's Divisions",
+  "teamId": "241",
+  "players": [
+   {
+    "section": "Forwards",
+    "id": "6969",
+    "name": "Michael Shum",
+    "number": "8",
+    "position": "F",
+    "shoots": "L",
+    "height": "5-6",
+    "weight": "155",
+    "hometown": "Hong Kong",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "27930",
+    "name": "Kodai Mizuno",
+    "number": "9",
+    "position": "F",
+    "shoots": "R",
+    "height": "5-9",
+    "weight": "160",
+    "hometown": "Yokohama, Japan, United States",
+    "rookie": true
+   },
+   {
+    "section": "Forwards",
+    "id": "27931",
+    "name": "Arya Nahavandi",
+    "number": "10",
+    "position": "F",
+    "shoots": "L",
+    "height": "5-8",
+    "weight": "155",
+    "hometown": "San Diego, CA, United States",
+    "rookie": true
+   },
+   {
+    "section": "Forwards",
+    "id": "22010",
+    "name": "Brendan Baker",
+    "number": "12",
+    "position": "F",
+    "shoots": "R",
+    "height": "5-8",
+    "weight": "175",
+    "hometown": "New York, NY, United States",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "22011",
+    "name": "Ryan Lee",
+    "number": "13",
+    "position": "F",
+    "shoots": "R",
+    "height": "5-11",
+    "weight": "170",
+    "hometown": "Fullerton, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "22006",
+    "name": "Mark Rejna",
+    "number": "14",
+    "position": "F",
+    "shoots": "L",
+    "height": "6-0",
+    "weight": "176",
+    "hometown": "Prague, Czech Republic, Czechia",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "14205",
+    "name": "Tyson Storr",
+    "number": "18",
+    "position": "F",
+    "shoots": "L",
+    "height": "5-10",
+    "weight": "175",
+    "hometown": "El Segundo, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "22007",
+    "name": "Kayden Roloff",
+    "number": "19",
+    "position": "F",
+    "shoots": "L",
+    "height": "5-11",
+    "weight": "170",
+    "hometown": "Redlands, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "27928",
+    "name": "Henry Conlin",
+    "number": "20",
+    "position": "F",
+    "shoots": "R",
+    "height": "6-2",
+    "weight": "200",
+    "hometown": "Chicago, IL, United States",
+    "rookie": true
+   },
+   {
+    "section": "Forwards",
+    "id": "17403",
+    "name": "Roy Chebaclo",
+    "number": "25",
+    "position": "F",
+    "shoots": "R",
+    "height": "6-0",
+    "weight": "205",
+    "hometown": "Minneapolis, MN, United States",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "22005",
+    "name": "Sean Mcavoy",
+    "number": "42",
+    "position": "F",
+    "shoots": "L",
+    "height": "5-7",
+    "weight": "150",
+    "hometown": "Charlotte, NC, United States",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "6964",
+    "name": "John Nalder",
+    "number": "76",
+    "position": "F",
+    "shoots": "L",
+    "height": "5-7",
+    "weight": "175",
+    "hometown": "Oakdale, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "14202",
+    "name": "Tianshu Liu",
+    "number": "81",
+    "position": "F",
+    "shoots": "R",
+    "height": "5-10",
+    "weight": "160",
+    "hometown": "Beijing, China, China",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "22004",
+    "name": "Jason Lee",
+    "number": "4",
+    "position": "D",
+    "shoots": "R",
+    "height": "6-1",
+    "weight": "170",
+    "hometown": "Saratoga, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "6967",
+    "name": "Amir Sadikov",
+    "number": "7",
+    "position": "D",
+    "shoots": "L",
+    "height": "6-0",
+    "weight": "185",
+    "hometown": "Vienna, Va, United States",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "27932",
+    "name": "Patrick Nasta",
+    "number": "11",
+    "position": "D",
+    "shoots": "R",
+    "height": "6-0",
+    "weight": "185",
+    "hometown": "Crystal Lake, IL, United States",
+    "rookie": true
+   },
+   {
+    "section": "Defencemen",
+    "id": "22000",
+    "name": "John Burbank",
+    "number": "16",
+    "position": "D",
+    "shoots": "L",
+    "height": "6-0",
+    "weight": "165",
+    "hometown": "Seattle, WA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "27933",
+    "name": "Trent Teruya",
+    "number": "21",
+    "position": "D",
+    "shoots": "R",
+    "height": "5-9",
+    "weight": "180",
+    "hometown": "Redlands, CA, United States",
+    "rookie": true
+   },
+   {
+    "section": "Defencemen",
+    "id": "14200",
+    "name": "Sean Dolim",
+    "number": "88",
+    "position": "D",
+    "shoots": "L",
+    "height": "6-2",
+    "weight": "210",
+    "hometown": "Manhattan Beach, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "22001",
+    "name": "Enzo Goebel",
+    "number": "95",
+    "position": "D",
+    "shoots": "R",
+    "height": "5-8",
+    "weight": "175",
+    "hometown": "Arcadia, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "27929",
+    "name": "Eric Khodorenko",
+    "number": "96",
+    "position": "D",
+    "shoots": "L",
+    "height": "6-1",
+    "weight": "185",
+    "hometown": "Walnut Creek, CA, United States",
+    "rookie": true
+   },
+   {
+    "section": "Goalies",
+    "id": "21997",
+    "name": "Yusuf Akbas",
+    "number": "1",
+    "position": "G",
+    "shoots": "R",
+    "height": "6-0",
+    "weight": "170",
+    "hometown": "Corona, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Goalies",
+    "id": "21998",
+    "name": "Allan Anaka",
+    "number": "30",
+    "position": "G",
+    "shoots": "L",
+    "height": "6-0",
+    "weight": "150",
+    "hometown": "Granite Bay, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Goalies",
+    "id": "27927",
+    "name": "Aidan Comeau",
+    "number": "80",
+    "position": "G",
+    "shoots": "L",
+    "height": "5-10",
+    "weight": "155",
+    "hometown": "Newport Beach, CA, United States",
+    "rookie": true
+   }
+  ],
+  "staff": [
+   {
+    "name": "Devin Cox",
+    "role": "Head Coach"
+   },
+   {
+    "name": "Mark Arneson",
+    "role": "Assistant Coach"
+   },
+   {
+    "name": "Pravin Chandra",
+    "role": "Assistant Coach"
+   },
+   {
+    "name": "Darien Oliver",
+    "role": "Assistant Coach"
+   },
+   {
+    "name": "Bradley Martin",
+    "role": "Coach"
+   },
+   {
+    "name": "Everett Morton",
+    "role": "Coach"
+   },
+   {
+    "name": "Michele Cox",
+    "role": "General Manager"
+   }
+  ],
+  "games": [
+   {
+    "game_id": "22596",
+    "date_with_day": "Fri, Sep 20",
+    "home_goal_count": "6",
+    "visiting_goal_count": "0",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 San Jose State University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "260"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=22596&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=22596",
+      "gameLink": "22596"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "22597",
+    "date_with_day": "Sat, Sep 21",
+    "home_goal_count": "9",
+    "visiting_goal_count": "0",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 San Jose State University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "260"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=22597&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=22597",
+      "gameLink": "22597"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "22598",
+    "date_with_day": "Fri, Oct 4",
+    "home_goal_count": "4",
+    "visiting_goal_count": "2",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 University of California-Los Angeles",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "264"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=22598&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=22598",
+      "gameLink": "22598"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "22599",
+    "date_with_day": "Sat, Oct 5",
+    "home_goal_count": "9",
+    "visiting_goal_count": "1",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 University of California-Los Angeles",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "264"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=22599&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=22599",
+      "gameLink": "22599"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "22600",
+    "date_with_day": "Fri, Oct 11",
+    "home_goal_count": "16",
+    "visiting_goal_count": "2",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD3 University of California-Davis",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "242"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=22600&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=22600",
+      "gameLink": "22600"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "21432",
+    "date_with_day": "Sat, Oct 12",
+    "home_goal_count": "1",
+    "visiting_goal_count": "18",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD3 University of California-Davis",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "Vacaville Ice Sports",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "242"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=21432&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=21432",
+      "gameLink": "21432"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "20303",
+    "date_with_day": "Fri, Oct 18",
+    "home_goal_count": "1",
+    "visiting_goal_count": "4",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of Southern California",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "The Rinks Anaheim Ice (CA)",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "249"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=20303&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=20303",
+      "gameLink": "20303"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "20304",
+    "date_with_day": "Sat, Oct 19",
+    "home_goal_count": "1",
+    "visiting_goal_count": "5",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of Southern California",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "The Rinks Anaheim Ice (CA)",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "249"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=20304&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=20304",
+      "gameLink": "20304"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "22601",
+    "date_with_day": "Sat, Oct 26",
+    "home_goal_count": "5",
+    "visiting_goal_count": "1",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 University of Washington",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "367"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=22601&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=22601",
+      "gameLink": "22601"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "22602",
+    "date_with_day": "Sun, Oct 27",
+    "home_goal_count": "2",
+    "visiting_goal_count": "1",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 University of Washington",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "367"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=22602&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=22602",
+      "gameLink": "22602"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "22603",
+    "date_with_day": "Fri, Nov 1",
+    "home_goal_count": "6",
+    "visiting_goal_count": "0",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 Western Washington University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "376"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=22603&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=22603",
+      "gameLink": "22603"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "22604",
+    "date_with_day": "Sat, Nov 2",
+    "home_goal_count": "10",
+    "visiting_goal_count": "0",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 Western Washington University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "376"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=22604&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=22604",
+      "gameLink": "22604"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "21744",
+    "date_with_day": "Fri, Nov 8",
+    "home_goal_count": "0",
+    "visiting_goal_count": "7",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 Eastern Washington University",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "University Recreation Center-EWU",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "286"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=21744&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=21744",
+      "gameLink": "21744"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "23046",
+    "date_with_day": "Sat, Nov 9",
+    "home_goal_count": "4",
+    "visiting_goal_count": "7",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 Washington State University",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "University Recreation Center-EWU",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "373"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=23046&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=23046",
+      "gameLink": "23046"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "21746",
+    "date_with_day": "Sun, Nov 10",
+    "home_goal_count": "3",
+    "visiting_goal_count": "5",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 Eastern Washington University",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "University Recreation Center-EWU",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "286"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=21746&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=21746",
+      "gameLink": "21746"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "23048",
+    "date_with_day": "Mon, Nov 11",
+    "home_goal_count": "1",
+    "visiting_goal_count": "6",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 Washington State University",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "University Recreation Center-EWU",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "373"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=23048&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=23048",
+      "gameLink": "23048"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "24127",
+    "date_with_day": "Fri, Nov 15",
+    "home_goal_count": "17",
+    "visiting_goal_count": "5",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 Stanford University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "237"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=24127&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=24127",
+      "gameLink": "24127"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "22606",
+    "date_with_day": "Sat, Nov 16",
+    "home_goal_count": "4",
+    "visiting_goal_count": "1",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 California State University-Northridge",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "221"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=22606&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=22606",
+      "gameLink": "22606"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "22607",
+    "date_with_day": "Sun, Nov 17",
+    "home_goal_count": "9",
+    "visiting_goal_count": "4",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 California State University-Northridge",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "221"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=22607&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=22607",
+      "gameLink": "22607"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "23676",
+    "date_with_day": "Fri, Dec 6",
+    "home_goal_count": "5",
+    "visiting_goal_count": "7",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-San Diego",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "KHS Ice Arena",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "244"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=23676&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=23676",
+      "gameLink": "23676"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "23677",
+    "date_with_day": "Sat, Dec 7",
+    "home_goal_count": "4",
+    "visiting_goal_count": "10",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-San Diego",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "KHS Ice Arena",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "244"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=23677&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=23677",
+      "gameLink": "23677"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "22609",
+    "date_with_day": "Sat, Jan 25",
+    "home_goal_count": "7",
+    "visiting_goal_count": "5",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 San Jose State University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "260"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=22609&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=22609",
+      "gameLink": "22609"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "22610",
+    "date_with_day": "Sun, Jan 26",
+    "home_goal_count": "1",
+    "visiting_goal_count": "0",
+    "schedule_notes": "",
+    "game_status": "Visiting Forfeit",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 University of California-Santa Barbara",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "245"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=22610&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=22610",
+      "gameLink": "22610"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "23722",
+    "date_with_day": "Sat, Feb 1",
+    "home_goal_count": "5",
+    "visiting_goal_count": "6",
+    "schedule_notes": "",
+    "game_status": "Final SO",
+    "home_team_city": "MD1 University of Oregon",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "The Rink Exchange (OR)",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "358"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "venue_name": {
+      "venueUrl": "http://www.therinkexchange.com/"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=23722&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=23722",
+      "gameLink": "23722"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "23723",
+    "date_with_day": "Sun, Feb 2",
+    "home_goal_count": "2",
+    "visiting_goal_count": "3",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD1 University of Oregon",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "The Rink Exchange (OR)",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "358"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "venue_name": {
+      "venueUrl": "http://www.therinkexchange.com/"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=23723&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=23723",
+      "gameLink": "23723"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "24400",
+    "date_with_day": "Fri, Feb 7",
+    "home_goal_count": "7",
+    "visiting_goal_count": "2",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 University of California-San Diego",
+    "venue_name": "University Recreation Center-EWU",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "244"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=24400&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=24400",
+      "gameLink": "24400"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "24436",
+    "date_with_day": "Sat, Feb 8",
+    "home_goal_count": "3",
+    "visiting_goal_count": "2",
+    "schedule_notes": "",
+    "game_status": "Final OT",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 University of Southern California",
+    "venue_name": "University Recreation Center-EWU",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "249"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=24436&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=24436",
+      "gameLink": "24436"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "24406",
+    "date_with_day": "Sun, Feb 9",
+    "home_goal_count": "5",
+    "visiting_goal_count": "7",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 University of Washington",
+    "venue_name": "University Recreation Center-EWU",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "367"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=24406&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=24406",
+      "gameLink": "24406"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   }
+  ]
+ },
+ {
+  "seasonId": "60",
+  "seasonName": "2025-2026 Men's Divisions",
+  "teamId": "241",
+  "players": [
+   {
+    "section": "Forwards",
+    "id": "36841",
+    "name": "Dominik Sedlak-Braude",
+    "number": "3",
+    "position": "F",
+    "shoots": "R",
+    "height": "6-0",
+    "weight": "175",
+    "hometown": "Gaithersburg, MD",
+    "rookie": true
+   },
+   {
+    "section": "Forwards",
+    "id": "27930",
+    "name": "Kodai Mizuno",
+    "number": "9",
+    "position": "F",
+    "shoots": "R",
+    "height": "5-9",
+    "weight": "160",
+    "hometown": "Yokohama, Japan, United States",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "22010",
+    "name": "Brendan Baker",
+    "number": "12",
+    "position": "F",
+    "shoots": "R",
+    "height": "5-8",
+    "weight": "175",
+    "hometown": "New York, NY, United States",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "22011",
+    "name": "Ryan Lee",
+    "number": "13",
+    "position": "F",
+    "shoots": "R",
+    "height": "5-11",
+    "weight": "170",
+    "hometown": "Fullerton, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "22006",
+    "name": "Mark Rejna",
+    "number": "14",
+    "position": "F",
+    "shoots": "L",
+    "height": "6-0",
+    "weight": "176",
+    "hometown": "Prague, Czech Republic, Czechia",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "14205",
+    "name": "Tyson Storr",
+    "number": "18",
+    "position": "F",
+    "shoots": "L",
+    "height": "5-10",
+    "weight": "175",
+    "hometown": "El Segundo, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "22007",
+    "name": "Kayden Roloff",
+    "number": "19",
+    "position": "F",
+    "shoots": "L",
+    "height": "5-11",
+    "weight": "170",
+    "hometown": "Redlands, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "27928",
+    "name": "Henry Conlin",
+    "number": "20",
+    "position": "F",
+    "shoots": "R",
+    "height": "6-2",
+    "weight": "200",
+    "hometown": "Chicago, IL, United States",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "36837",
+    "name": "Lucas Fung",
+    "number": "23",
+    "position": "F",
+    "shoots": "R",
+    "height": "5-10",
+    "weight": "155",
+    "hometown": "Tarzana, CA",
+    "rookie": true
+   },
+   {
+    "section": "Forwards",
+    "id": "27931",
+    "name": "Arya Nahavandi",
+    "number": "24",
+    "position": "F",
+    "shoots": "L",
+    "height": "5-8",
+    "weight": "155",
+    "hometown": "San Diego, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "17403",
+    "name": "Roy Chebaclo",
+    "number": "25",
+    "position": "F",
+    "shoots": "R",
+    "height": "6-0",
+    "weight": "205",
+    "hometown": "Minneapolis, MN, United States",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "36835",
+    "name": "Liam Collins",
+    "number": "72",
+    "position": "F",
+    "shoots": "R",
+    "height": "6-1",
+    "weight": "175",
+    "hometown": "Thousand Oaks, CA",
+    "rookie": true
+   },
+   {
+    "section": "Forwards",
+    "id": "14202",
+    "name": "Tianshu Liu",
+    "number": "81",
+    "position": "F",
+    "shoots": "R",
+    "height": "5-10",
+    "weight": "160",
+    "hometown": "Beijing, China, China",
+    "rookie": false
+   },
+   {
+    "section": "Forwards",
+    "id": "36836",
+    "name": "Colten Fazio",
+    "number": "93",
+    "position": "F",
+    "shoots": "L",
+    "height": "6-4",
+    "weight": "205",
+    "hometown": "Rancho Santa Margarita, CA",
+    "rookie": true
+   },
+   {
+    "section": "Forwards",
+    "id": "38897",
+    "name": "Connor Kanas",
+    "number": "97",
+    "position": "F",
+    "shoots": "R",
+    "height": "",
+    "weight": "",
+    "hometown": "Chula Vista, CA",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "22004",
+    "name": "Jason Lee",
+    "number": "4",
+    "position": "D",
+    "shoots": "R",
+    "height": "6-1",
+    "weight": "170",
+    "hometown": "Saratoga, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "36838",
+    "name": "William Hagan",
+    "number": "6",
+    "position": "D",
+    "shoots": "L",
+    "height": "5-6",
+    "weight": "165",
+    "hometown": "Palo Alto, CA",
+    "rookie": true
+   },
+   {
+    "section": "Defencemen",
+    "id": "36840",
+    "name": "Ellis Odowd",
+    "number": "8",
+    "position": "D",
+    "shoots": "L",
+    "height": "5-7",
+    "weight": "165",
+    "hometown": "Reno, NV",
+    "rookie": true
+   },
+   {
+    "section": "Defencemen",
+    "id": "27932",
+    "name": "Patrick Nasta",
+    "number": "11",
+    "position": "D",
+    "shoots": "R",
+    "height": "6-0",
+    "weight": "185",
+    "hometown": "Crystal Lake, IL, United States",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "22000",
+    "name": "John Burbank",
+    "number": "16",
+    "position": "D",
+    "shoots": "L",
+    "height": "6-0",
+    "weight": "165",
+    "hometown": "Seattle, WA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "27933",
+    "name": "Trent Teruya",
+    "number": "21",
+    "position": "D",
+    "shoots": "R",
+    "height": "5-9",
+    "weight": "180",
+    "hometown": "Redlands, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "36839",
+    "name": "Simon Mantoani",
+    "number": "51",
+    "position": "D",
+    "shoots": "R",
+    "height": "6-1",
+    "weight": "185",
+    "hometown": "San Diego, CA",
+    "rookie": true
+   },
+   {
+    "section": "Defencemen",
+    "id": "14200",
+    "name": "Sean Dolim",
+    "number": "88",
+    "position": "D",
+    "shoots": "L",
+    "height": "6-2",
+    "weight": "210",
+    "hometown": "Manhattan Beach, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "22001",
+    "name": "Enzo Goebel",
+    "number": "95",
+    "position": "D",
+    "shoots": "R",
+    "height": "5-8",
+    "weight": "175",
+    "hometown": "Arcadia, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Defencemen",
+    "id": "27929",
+    "name": "Eric Khodorenko",
+    "number": "96",
+    "position": "D",
+    "shoots": "L",
+    "height": "6-1",
+    "weight": "185",
+    "hometown": "Walnut Creek, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Goalies",
+    "id": "21997",
+    "name": "Yusuf Akbas",
+    "number": "1",
+    "position": "G",
+    "shoots": "R",
+    "height": "6-0",
+    "weight": "170",
+    "hometown": "Corona, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Goalies",
+    "id": "21998",
+    "name": "Allan Anaka",
+    "number": "30",
+    "position": "G",
+    "shoots": "L",
+    "height": "6-0",
+    "weight": "150",
+    "hometown": "Granite Bay, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Goalies",
+    "id": "36842",
+    "name": "Nikola Tomic",
+    "number": "39",
+    "position": "G",
+    "shoots": "",
+    "height": "6-0",
+    "weight": "180",
+    "hometown": "Zeiselmauer, Austria",
+    "rookie": true
+   },
+   {
+    "section": "Goalies",
+    "id": "27927",
+    "name": "Aidan Comeau",
+    "number": "80",
+    "position": "G",
+    "shoots": "L",
+    "height": "5-10",
+    "weight": "155",
+    "hometown": "Newport Beach, CA, United States",
+    "rookie": false
+   },
+   {
+    "section": "Goalies",
+    "id": "40847",
+    "name": "Everett Morton",
+    "number": "98",
+    "position": "G",
+    "shoots": "R",
+    "height": "",
+    "weight": "",
+    "hometown": "San Francisco, CA",
+    "rookie": false
+   }
+  ],
+  "staff": [
+   {
+    "name": "Devin Cox",
+    "role": "Head Coach"
+   },
+   {
+    "name": "Pravin Chandra",
+    "role": "Assistant Coach"
+   },
+   {
+    "name": "Michele Cox",
+    "role": "Assistant Coach"
+   },
+   {
+    "name": "Everett Morton",
+    "role": "Assistant Coach"
+   },
+   {
+    "name": "Thor Oase",
+    "role": "Assistant Coach"
+   },
+   {
+    "name": "Darien Oliver",
+    "role": "Assistant Coach"
+   },
+   {
+    "name": "Mark Arneson",
+    "role": "Coach"
+   }
+  ],
+  "games": [
+   {
+    "game_id": "30001",
+    "date_with_day": "Fri, Sep 26",
+    "home_goal_count": "3",
+    "visiting_goal_count": "7",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 San Jose State University",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "Sharks Ice at San Jose",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "260"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=30001&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=30001",
+      "gameLink": "30001"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "30028",
+    "date_with_day": "Sat, Sep 27",
+    "home_goal_count": "3",
+    "visiting_goal_count": "15",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 San Jose State University",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "Sharks Ice at San Jose",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "260"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=30028&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=30028",
+      "gameLink": "30028"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "28120",
+    "date_with_day": "Fri, Oct 3",
+    "home_goal_count": "4",
+    "visiting_goal_count": "1",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 Grand Canyon University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "43"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=28120&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=28120",
+      "gameLink": "28120"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "28121",
+    "date_with_day": "Sat, Oct 4",
+    "home_goal_count": "2",
+    "visiting_goal_count": "4",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 Grand Canyon University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "43"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=28121&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=28121",
+      "gameLink": "28121"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "28122",
+    "date_with_day": "Fri, Oct 10",
+    "home_goal_count": "6",
+    "visiting_goal_count": "0",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 Washington State University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "373"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=28122&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=28122",
+      "gameLink": "28122"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "28123",
+    "date_with_day": "Sat, Oct 11",
+    "home_goal_count": "6",
+    "visiting_goal_count": "2",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 Washington State University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "373"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=28123&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=28123",
+      "gameLink": "28123"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "28124",
+    "date_with_day": "Sat, Oct 25",
+    "home_goal_count": "8",
+    "visiting_goal_count": "1",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 University of California-San Diego",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "244"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=28124&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=28124",
+      "gameLink": "28124"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "28125",
+    "date_with_day": "Sun, Oct 26",
+    "home_goal_count": "13",
+    "visiting_goal_count": "0",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 University of California-San Diego",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "244"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=28125&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=28125",
+      "gameLink": "28125"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "28126",
+    "date_with_day": "Fri, Oct 31",
+    "home_goal_count": "10",
+    "visiting_goal_count": "0",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 Eastern Washington University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "286"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=28126&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=28126",
+      "gameLink": "28126"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "28127",
+    "date_with_day": "Sat, Nov 1",
+    "home_goal_count": "14",
+    "visiting_goal_count": "3",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 Eastern Washington University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "286"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=28127&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=28127",
+      "gameLink": "28127"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "27800",
+    "date_with_day": "Fri, Nov 7",
+    "home_goal_count": "2",
+    "visiting_goal_count": "6",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of Washington",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "Kraken Community Iceplex",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "367"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=27800&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=27800",
+      "gameLink": "27800"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "27801",
+    "date_with_day": "Sat, Nov 8",
+    "home_goal_count": "1",
+    "visiting_goal_count": "3",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of Washington",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "Kraken Community Iceplex",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "367"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=27801&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=27801",
+      "gameLink": "27801"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "29948",
+    "date_with_day": "Sun, Nov 9",
+    "home_goal_count": "4",
+    "visiting_goal_count": "9",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 Western Washington University",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "Bellingham Sportsplex",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "376"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=29948&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=29948",
+      "gameLink": "29948"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "29949",
+    "date_with_day": "Mon, Nov 10",
+    "home_goal_count": "5",
+    "visiting_goal_count": "11",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 Western Washington University",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "Bellingham Sportsplex",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "376"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=29949&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=29949",
+      "gameLink": "29949"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "28128",
+    "date_with_day": "Sat, Nov 15",
+    "home_goal_count": "2",
+    "visiting_goal_count": "6",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 Loyola Marymount University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "228"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=28128&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=28128",
+      "gameLink": "28128"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "28129",
+    "date_with_day": "Sun, Nov 16",
+    "home_goal_count": "5",
+    "visiting_goal_count": "0",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 Loyola Marymount University",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "228"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=28129&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=28129",
+      "gameLink": "28129"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "29508",
+    "date_with_day": "Thu, Nov 20",
+    "home_goal_count": "8",
+    "visiting_goal_count": "1",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 Utah State University ",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "Eccles Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "59"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=29508&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=29508",
+      "gameLink": "29508"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "25097",
+    "date_with_day": "Fri, Nov 21",
+    "home_goal_count": "6",
+    "visiting_goal_count": "3",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of Utah",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "Salt Lake City Sports Complex (UT)",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "474"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "venue_name": {
+      "venueUrl": "https://slco.org/sports-complex/ice/"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=25097&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=25097",
+      "gameLink": "25097"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "29490",
+    "date_with_day": "Sat, Nov 22",
+    "home_goal_count": "2",
+    "visiting_goal_count": "3",
+    "schedule_notes": "",
+    "game_status": "Final SO",
+    "home_team_city": "MD2 Weber State University",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "Weber County Ice Sheet",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "374"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=29490&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=29490",
+      "gameLink": "29490"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "30908",
+    "date_with_day": "Sun, Nov 23",
+    "home_goal_count": "4",
+    "visiting_goal_count": "8",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 Montana State University",
+    "venue_name": "Weber County Ice Sheet",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "51"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=30908&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=30908",
+      "gameLink": "30908"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "27728",
+    "date_with_day": "Fri, Jan 16",
+    "home_goal_count": "5",
+    "visiting_goal_count": "2",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 Metropolitan State University-Denver",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "Promenade Ice Centre",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "303"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "venue_name": {
+      "venueUrl": "https://www.icecentre.com/"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=27728&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=27728",
+      "gameLink": "27728"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "29706",
+    "date_with_day": "Sat, Jan 17",
+    "home_goal_count": "8",
+    "visiting_goal_count": "4",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 Dakota College-Bottineau",
+    "venue_name": "Promenade Ice Centre",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "46"
+     },
+     "venue_name": {
+      "venueUrl": "https://www.icecentre.com/"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=29706&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=29706",
+      "gameLink": "29706"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "29711",
+    "date_with_day": "Sun, Jan 18",
+    "home_goal_count": "6",
+    "visiting_goal_count": "3",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 Northeastern University",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "Greeley Ice Haus",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "311"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "venue_name": {
+      "venueUrl": "https://greeleyrec.com/greeley-ice-haus/?utm_source=greeleyicehaus.com"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=29711&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=29711",
+      "gameLink": "29711"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "28093",
+    "date_with_day": "Mon, Jan 19",
+    "home_goal_count": "2",
+    "visiting_goal_count": "1",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of Colorado",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "CU Boulder Rec Center Ice Rink (CO)",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "339"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "venue_name": {
+      "venueUrl": "https://www.colorado.edu/recreation/facilities/student-recreation-center/ice-rink"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=28093&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=28093",
+      "gameLink": "28093"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "28130",
+    "date_with_day": "Fri, Jan 23",
+    "home_goal_count": "3",
+    "visiting_goal_count": "7",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 University of Southern California",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "249"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=28130&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=28130",
+      "gameLink": "28130"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "28131",
+    "date_with_day": "Sat, Jan 24",
+    "home_goal_count": "4",
+    "visiting_goal_count": "1",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 University of Southern California",
+    "venue_name": "Oakland Ice Center",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "249"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=28131&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=28131",
+      "gameLink": "28131"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "30016",
+    "date_with_day": "Fri, Jan 30",
+    "home_goal_count": "3",
+    "visiting_goal_count": "4",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 San Jose State University",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "Sharks Ice at San Jose",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "260"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=30016&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=30016",
+      "gameLink": "30016"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "31233",
+    "date_with_day": "Fri, Feb 6",
+    "home_goal_count": "1",
+    "visiting_goal_count": "14",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 Eastern Washington University",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "University Recreation Center-EWU",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "286"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=31233&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=31233",
+      "gameLink": "31233"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "31280",
+    "date_with_day": "Sat, Feb 7",
+    "home_goal_count": "6",
+    "visiting_goal_count": "5",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 University of Southern California",
+    "venue_name": "University Recreation Center-EWU",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "249"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=31280&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=31280",
+      "gameLink": "31280"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   },
+   {
+    "game_id": "31305",
+    "date_with_day": "Sun, Feb 8",
+    "home_goal_count": "3",
+    "visiting_goal_count": "6",
+    "schedule_notes": "",
+    "game_status": "Final",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 University of Washington",
+    "venue_name": "University Recreation Center-EWU",
+    "game_report": "Game Report",
+    "game_summary": "GAME SUMMARY",
+    "flohockey_url": "Watch on FloHockey",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "367"
+     },
+     "game_report": {
+      "link": "https://lscluster.hockeytech.com/game_reports/text-game-report.php?client_code=acha&game_id=31305&lang_id=1"
+     },
+     "game_summary": {
+      "link": "/game-summary/?game_id=31305",
+      "gameLink": "31305"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     }
+    }
+   }
+  ]
+ },
+ {
+  "seasonId": "73",
+  "seasonName": "2026-27 Men's Divisions",
+  "teamId": "241",
+  "players": [],
+  "staff": [],
+  "games": [
+   {
+    "game_id": "34104",
+    "date_with_day": "Fri, Sep 25",
+    "home_goal_count": "-",
+    "visiting_goal_count": "-",
+    "schedule_notes": "",
+    "game_status": "8:00 pm PDT",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 University of Texas",
+    "venue_name": "Oakland Ice Center",
+    "flohockey_url": "Watch on FloHockey",
+    "mobile_calendar": "Add to Calendar",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "364"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     },
+     "mobile_calendar": {
+      "link": "https://lscluster.hockeytech.com/components/calendar/ical_add_games.php?client_code=acha&game_ids=34104"
+     }
+    }
+   },
+   {
+    "game_id": "34105",
+    "date_with_day": "Sat, Sep 26",
+    "home_goal_count": "-",
+    "visiting_goal_count": "-",
+    "schedule_notes": "",
+    "game_status": "7:30 pm PDT",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 University of Texas",
+    "venue_name": "Oakland Ice Center",
+    "flohockey_url": "Watch on FloHockey",
+    "mobile_calendar": "Add to Calendar",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "364"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     },
+     "mobile_calendar": {
+      "link": "https://lscluster.hockeytech.com/components/calendar/ical_add_games.php?client_code=acha&game_ids=34105"
+     }
+    }
+   },
+   {
+    "game_id": "34106",
+    "date_with_day": "Fri, Oct 9",
+    "home_goal_count": "-",
+    "visiting_goal_count": "-",
+    "schedule_notes": "",
+    "game_status": "8:00 pm PDT",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 University of Washington",
+    "venue_name": "Oakland Ice Center",
+    "flohockey_url": "Watch on FloHockey",
+    "mobile_calendar": "Add to Calendar",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "367"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     },
+     "mobile_calendar": {
+      "link": "https://lscluster.hockeytech.com/components/calendar/ical_add_games.php?client_code=acha&game_ids=34106"
+     }
+    }
+   },
+   {
+    "game_id": "34107",
+    "date_with_day": "Sat, Oct 10",
+    "home_goal_count": "-",
+    "visiting_goal_count": "-",
+    "schedule_notes": "",
+    "game_status": "7:30 pm PDT",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 University of Washington",
+    "venue_name": "Oakland Ice Center",
+    "flohockey_url": "Watch on FloHockey",
+    "mobile_calendar": "Add to Calendar",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "367"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     },
+     "mobile_calendar": {
+      "link": "https://lscluster.hockeytech.com/components/calendar/ical_add_games.php?client_code=acha&game_ids=34107"
+     }
+    }
+   },
+   {
+    "game_id": "34744",
+    "date_with_day": "Fri, Oct 16",
+    "home_goal_count": "-",
+    "visiting_goal_count": "-",
+    "schedule_notes": "",
+    "game_status": "8:30 pm PDT",
+    "home_team_city": "MD2 University of Southern California",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "The Rinks Anaheim Ice (CA)",
+    "flohockey_url": "Watch on FloHockey",
+    "mobile_calendar": "Add to Calendar",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "249"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     },
+     "mobile_calendar": {
+      "link": "https://lscluster.hockeytech.com/components/calendar/ical_add_games.php?client_code=acha&game_ids=34744"
+     }
+    }
+   },
+   {
+    "game_id": "34745",
+    "date_with_day": "Sat, Oct 17",
+    "home_goal_count": "-",
+    "visiting_goal_count": "-",
+    "schedule_notes": "",
+    "game_status": "5:45 pm PDT",
+    "home_team_city": "MD2 University of Southern California",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "The Rinks Anaheim Ice (CA)",
+    "flohockey_url": "Watch on FloHockey",
+    "mobile_calendar": "Add to Calendar",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "249"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     },
+     "mobile_calendar": {
+      "link": "https://lscluster.hockeytech.com/components/calendar/ical_add_games.php?client_code=acha&game_ids=34745"
+     }
+    }
+   },
+   {
+    "game_id": "34108",
+    "date_with_day": "Fri, Oct 23",
+    "home_goal_count": "-",
+    "visiting_goal_count": "-",
+    "schedule_notes": "",
+    "game_status": "8:00 pm PDT",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 San Jose State University",
+    "venue_name": "Oakland Ice Center",
+    "flohockey_url": "Watch on FloHockey",
+    "mobile_calendar": "Add to Calendar",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "260"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     },
+     "mobile_calendar": {
+      "link": "https://lscluster.hockeytech.com/components/calendar/ical_add_games.php?client_code=acha&game_ids=34108"
+     }
+    }
+   },
+   {
+    "game_id": "34109",
+    "date_with_day": "Sat, Oct 24",
+    "home_goal_count": "-",
+    "visiting_goal_count": "-",
+    "schedule_notes": "",
+    "game_status": "7:30 pm PDT",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 San Jose State University",
+    "venue_name": "Oakland Ice Center",
+    "flohockey_url": "Watch on FloHockey",
+    "mobile_calendar": "Add to Calendar",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "260"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     },
+     "mobile_calendar": {
+      "link": "https://lscluster.hockeytech.com/components/calendar/ical_add_games.php?client_code=acha&game_ids=34109"
+     }
+    }
+   },
+   {
+    "game_id": "34000",
+    "date_with_day": "Fri, Oct 30",
+    "home_goal_count": "-",
+    "visiting_goal_count": "-",
+    "schedule_notes": "",
+    "game_status": "7:45 pm PDT",
+    "home_team_city": "MD2 Arizona State University",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "Mountain America Community Iceplex (AZ)",
+    "flohockey_url": "Watch on FloHockey",
+    "mobile_calendar": "Add to Calendar",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "216"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "venue_name": {
+      "venueUrl": "https://www.mullettarena.com/macuiceplex/"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     },
+     "mobile_calendar": {
+      "link": "https://lscluster.hockeytech.com/components/calendar/ical_add_games.php?client_code=acha&game_ids=34000"
+     }
+    }
+   },
+   {
+    "game_id": "34642",
+    "date_with_day": "Sat, Oct 31",
+    "home_goal_count": "-",
+    "visiting_goal_count": "-",
+    "schedule_notes": "",
+    "game_status": "4:00 pm MST",
+    "home_team_city": "MD2 Grand Canyon University",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "Fire 'n' Ice Sports Arena (AZ)",
+    "flohockey_url": "Watch on FloHockey",
+    "mobile_calendar": "Add to Calendar",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "43"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "venue_name": {
+      "venueUrl": "https://firenicearena.com/index.html"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     },
+     "mobile_calendar": {
+      "link": "https://lscluster.hockeytech.com/components/calendar/ical_add_games.php?client_code=acha&game_ids=34642"
+     }
+    }
+   },
+   {
+    "game_id": "34643",
+    "date_with_day": "Sun, Nov 1",
+    "home_goal_count": "-",
+    "visiting_goal_count": "-",
+    "schedule_notes": "",
+    "game_status": "12:00 pm MST",
+    "home_team_city": "MD2 Grand Canyon University",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "Fire 'n' Ice Sports Arena (AZ)",
+    "flohockey_url": "Watch on FloHockey",
+    "mobile_calendar": "Add to Calendar",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "43"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "venue_name": {
+      "venueUrl": "https://firenicearena.com/index.html"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     },
+     "mobile_calendar": {
+      "link": "https://lscluster.hockeytech.com/components/calendar/ical_add_games.php?client_code=acha&game_ids=34643"
+     }
+    }
+   },
+   {
+    "game_id": "34110",
+    "date_with_day": "Fri, Nov 6",
+    "home_goal_count": "-",
+    "visiting_goal_count": "-",
+    "schedule_notes": "",
+    "game_status": "8:00 pm PDT",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 University of California-San Diego",
+    "venue_name": "Oakland Ice Center",
+    "flohockey_url": "Watch on FloHockey",
+    "mobile_calendar": "Add to Calendar",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "244"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     },
+     "mobile_calendar": {
+      "link": "https://lscluster.hockeytech.com/components/calendar/ical_add_games.php?client_code=acha&game_ids=34110"
+     }
+    }
+   },
+   {
+    "game_id": "34111",
+    "date_with_day": "Sat, Nov 7",
+    "home_goal_count": "-",
+    "visiting_goal_count": "-",
+    "schedule_notes": "",
+    "game_status": "7:30 pm PDT",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 University of California-San Diego",
+    "venue_name": "Oakland Ice Center",
+    "flohockey_url": "Watch on FloHockey",
+    "mobile_calendar": "Add to Calendar",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "244"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     },
+     "mobile_calendar": {
+      "link": "https://lscluster.hockeytech.com/components/calendar/ical_add_games.php?client_code=acha&game_ids=34111"
+     }
+    }
+   },
+   {
+    "game_id": "34112",
+    "date_with_day": "Sat, Nov 14",
+    "home_goal_count": "-",
+    "visiting_goal_count": "-",
+    "schedule_notes": "",
+    "game_status": "7:30 pm PDT",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 University of California-Los Angeles",
+    "venue_name": "Oakland Ice Center",
+    "flohockey_url": "Watch on FloHockey",
+    "mobile_calendar": "Add to Calendar",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "264"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     },
+     "mobile_calendar": {
+      "link": "https://lscluster.hockeytech.com/components/calendar/ical_add_games.php?client_code=acha&game_ids=34112"
+     }
+    }
+   },
+   {
+    "game_id": "34469",
+    "date_with_day": "Sat, Dec 5",
+    "home_goal_count": "-",
+    "visiting_goal_count": "-",
+    "schedule_notes": "",
+    "game_status": "6:00 pm PST",
+    "home_team_city": "MD2 Washington State University",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "University Recreation Center-EWU",
+    "flohockey_url": "Watch on FloHockey",
+    "mobile_calendar": "Add to Calendar",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "373"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     },
+     "mobile_calendar": {
+      "link": "https://lscluster.hockeytech.com/components/calendar/ical_add_games.php?client_code=acha&game_ids=34469"
+     }
+    }
+   },
+   {
+    "game_id": "34470",
+    "date_with_day": "Mon, Dec 7",
+    "home_goal_count": "-",
+    "visiting_goal_count": "-",
+    "schedule_notes": "",
+    "game_status": "8:30 am PST",
+    "home_team_city": "MD2 Washington State University",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "University Recreation Center-EWU",
+    "flohockey_url": "Watch on FloHockey",
+    "mobile_calendar": "Add to Calendar",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "373"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     },
+     "mobile_calendar": {
+      "link": "https://lscluster.hockeytech.com/components/calendar/ical_add_games.php?client_code=acha&game_ids=34470"
+     }
+    }
+   },
+   {
+    "game_id": "33954",
+    "date_with_day": "Fri, Jan 15",
+    "home_goal_count": "-",
+    "visiting_goal_count": "-",
+    "schedule_notes": "",
+    "game_status": "8:30 pm MDT",
+    "home_team_city": "MD2 University of Wyoming",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "Greeley Ice Haus",
+    "flohockey_url": "Watch on FloHockey",
+    "mobile_calendar": "Add to Calendar",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "251"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "venue_name": {
+      "venueUrl": "https://greeleyrec.com/greeley-ice-haus/?utm_source=greeleyicehaus.com"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     },
+     "mobile_calendar": {
+      "link": "https://lscluster.hockeytech.com/components/calendar/ical_add_games.php?client_code=acha&game_ids=33954"
+     }
+    }
+   },
+   {
+    "game_id": "33983",
+    "date_with_day": "Sat, Jan 16",
+    "home_goal_count": "-",
+    "visiting_goal_count": "-",
+    "schedule_notes": "",
+    "game_status": "8:00 pm MDT",
+    "home_team_city": "MD2 Colorado State University",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "Edora Pool Ice Center (CO)",
+    "flohockey_url": "Watch on FloHockey",
+    "mobile_calendar": "Add to Calendar",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "281"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "venue_name": {
+      "venueUrl": "https://www.fcgov.com/recreation/epic"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     },
+     "mobile_calendar": {
+      "link": "https://lscluster.hockeytech.com/components/calendar/ical_add_games.php?client_code=acha&game_ids=33983"
+     }
+    }
+   },
+   {
+    "game_id": "33822",
+    "date_with_day": "Sun, Jan 17",
+    "home_goal_count": "-",
+    "visiting_goal_count": "-",
+    "schedule_notes": "",
+    "game_status": "12:45 pm MDT",
+    "home_team_city": "MD2 University of New Mexico",
+    "visiting_team_city": "MD2 University of California-Berkeley",
+    "venue_name": "Promenade Ice Centre",
+    "flohockey_url": "Watch on FloHockey",
+    "mobile_calendar": "Add to Calendar",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "206"
+     },
+     "visiting_team_city": {
+      "teamLink": "241"
+     },
+     "venue_name": {
+      "venueUrl": "https://www.icecentre.com/"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     },
+     "mobile_calendar": {
+      "link": "https://lscluster.hockeytech.com/components/calendar/ical_add_games.php?client_code=acha&game_ids=33822"
+     }
+    }
+   },
+   {
+    "game_id": "34393",
+    "date_with_day": "Mon, Jan 18",
+    "home_goal_count": "-",
+    "visiting_goal_count": "-",
+    "schedule_notes": "",
+    "game_status": "8:45 am MST",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 University of Utah",
+    "venue_name": "Edora Pool Ice Center (CO)",
+    "flohockey_url": "Watch on FloHockey",
+    "mobile_calendar": "Add to Calendar",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "474"
+     },
+     "venue_name": {
+      "venueUrl": "https://www.fcgov.com/recreation/epic"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     },
+     "mobile_calendar": {
+      "link": "https://lscluster.hockeytech.com/components/calendar/ical_add_games.php?client_code=acha&game_ids=34393"
+     }
+    }
+   },
+   {
+    "game_id": "34113",
+    "date_with_day": "Sat, Jan 30",
+    "home_goal_count": "-",
+    "visiting_goal_count": "-",
+    "schedule_notes": "",
+    "game_status": "7:30 pm PDT",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 Western Washington University",
+    "venue_name": "Oakland Ice Center",
+    "flohockey_url": "Watch on FloHockey",
+    "mobile_calendar": "Add to Calendar",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "376"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     },
+     "mobile_calendar": {
+      "link": "https://lscluster.hockeytech.com/components/calendar/ical_add_games.php?client_code=acha&game_ids=34113"
+     }
+    }
+   },
+   {
+    "game_id": "34114",
+    "date_with_day": "Sun, Jan 31",
+    "home_goal_count": "-",
+    "visiting_goal_count": "-",
+    "schedule_notes": "",
+    "game_status": "10:45 am PDT",
+    "home_team_city": "MD2 University of California-Berkeley",
+    "visiting_team_city": "MD2 Western Washington University",
+    "venue_name": "Oakland Ice Center",
+    "flohockey_url": "Watch on FloHockey",
+    "mobile_calendar": "Add to Calendar",
+    "_prop": {
+     "schedule_notes": {
+      "notes": ""
+     },
+     "home_team_city": {
+      "teamLink": "241"
+     },
+     "visiting_team_city": {
+      "teamLink": "376"
+     },
+     "flohockey_url": {
+      "link": "",
+      "class": "ht-table-game-flohockey"
+     },
+     "mobile_calendar": {
+      "link": "https://lscluster.hockeytech.com/components/calendar/ical_add_games.php?client_code=acha&game_ids=34114"
+     }
+    }
+   }
+  ]
+ }
+]
