@@ -835,6 +835,15 @@ table.stats.sortable .gcbtgroup th { padding: 9px 16px; font-size: 11.5px;
 .gcrecapby { margin: 14px 0 0; font-size: 12.5px; font-weight: 700; color: var(--muted); }
 .gcrecaplede { margin: 10px 0 16px; font-size: 15.5px; line-height: 1.65; color: var(--ink); }
 
+/* Leading the page rather than sitting in the margin of it. The one thing
+   here that is meant to be read, set to be read. */
+.gcrecap.lead .gcrecaptitle { font-size: clamp(1.75rem, 3.4vw, 2.6rem); margin-top: 10px; }
+.gcrecap.lead .gcrecapsub { font-size: 17px; margin-top: 12px; }
+.gcrecap.lead .gcrecapart { margin-top: 20px; border-radius: 14px; }
+.gcrecap.lead .gcrecaplede { font-size: 17px; line-height: 1.7; margin: 14px 0 20px;
+  max-width: 62ch; }
+.gcrecap.lead .btn { padding: 11px 20px; font-size: 13.5px; }
+
 /* Three stars */
 .gcstars { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; }
 /* Photo on the left with the placing on it, three lines of detail beside it —
@@ -6690,10 +6699,10 @@ function Scoresheet({ site, season, game, onClose }) {
   );
 }
 
-function GameStory({ story, label, openPost }) {
+function GameStory({ story, label, openPost, lead }) {
   if (!story) return null;
   return (
-    <section className="statcard gcpad gcrecap">
+    <section className={"statcard gcpad gcrecap" + (lead ? " lead" : "")}>
       <p className="eyebrow" style={{ color: "var(--blue)" }}>{story.tag || label.toUpperCase()}</p>
       <h2 className="gcrecaptitle">{story.title}</h2>
       {story.blurb && <p className="gcrecapsub">{story.blurb}</p>}
@@ -7611,6 +7620,7 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
       )}
     <div className="gcgrid">
       <div className="gccol">
+      <GameStory story={story} label="Preview" openPost={openPost} lead />
       {!!H2H.length && (
       <section className="statcard gcpad">
         <div className="gcstatshead">
@@ -7824,7 +7834,6 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
       </div>
 
       <div className="gccol">
-        <GameStory story={story} label="Preview" openPost={openPost} />
         {opp.data && (
           <section className="statcard gcpad">
             <div className="gcstatshead">
