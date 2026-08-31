@@ -183,7 +183,7 @@ const SEED_SITE = {
      * multi-tenant note before rolling out to more schools. */
     /* Only the networks with a URL are shown, so a program is not forced to
      * have an account everywhere. */
-    socials: { instagram: "", x: "", youtube: "", facebook: "" },
+    socials: { instagram: "", x: "", tiktok: "", youtube: "", facebook: "" },
     org: {
       name: "Cal Ice Hockey",
       /* The formal name, used where the program is named officially:
@@ -2383,6 +2383,10 @@ button.gtrow:hover { background: var(--page); }
 .glossitem strong { color: var(--ink); font-weight: 700; }
 /* A footnote under a table, for a figure the source could not fully support. */
 .statnote { margin: 10px 2px 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
+/* The fraction a rate came from, under the rate. */
+.recsub { margin: 4px 0 0; font-size: 12px; font-weight: 700; color: var(--muted);
+  font-variant-numeric: tabular-nums; }
+.recof { font-size: 0.62em; font-weight: 700; color: var(--muted); }
 
 table.stats { width: 100%; border-collapse: collapse; min-width: 620px; background: #fff; }
 table.stats th { background: #F4F7F9; color: var(--blue); font-family: var(--body);
@@ -3872,6 +3876,9 @@ const IcInstagram = (p) => <Ic {...p} d={<><rect x="3.5" y="3.5" width="17" heig
 const IcX = (p) => <Ic {...p} d={<path d="M4 4l16 16M20 4L4 20" />} />;
 const IcYouTube = (p) => <Ic {...p} d={<><rect x="2.5" y="5.5" width="19" height="13" rx="4" /><path d="M10.5 9.5l5 2.5-5 2.5z" /></>} />;
 const IcFacebook = (p) => <Ic {...p} d={<path d="M14.5 8.5h2.5M14.5 21V8.6c0-1.7 1-2.6 2.6-2.6H18M10.5 12.5h6" />} />;
+/* A quaver with a tail curling back to the note, drawn on the same 24 grid
+   and stroked like the rest of the set rather than lifted from the brand. */
+const IcTikTok = (p) => <Ic {...p} d={<><path d="M14 3.5v11.2a4.3 4.3 0 1 1-3.3-4.2" /><path d="M14 3.5c.4 2.6 2.1 4.2 4.7 4.4" /></>} />;
 
 /* The Team submenu, in one place: the desktop dropdown and the mobile
    accordion read the same list so they cannot drift apart. */
@@ -3901,6 +3908,7 @@ const AFFILIATES = [
 const SOCIALS = [
   ["instagram", "Instagram", IcInstagram],
   ["x", "X", IcX],
+  ["tiktok", "TikTok", IcTikTok],
   ["youtube", "YouTube", IcYouTube],
   ["facebook", "Facebook", IcFacebook],
 ];
@@ -4877,6 +4885,28 @@ function fmtDateParen(iso) {
   const md = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   const wd = d.toLocaleDateString("en-US", { weekday: "short" });
   return `${md} (${wd})`;
+}
+
+/**
+ * Power play and penalty kill for a season, and the games they cover.
+ *
+ * `g.pp` is the league's own per-game count; null means the scorekeeper
+ * recorded no opportunities for either side that night, which is not the
+ * same as neither team having had one. Those games stay out of both halves
+ * of the fraction rather than being counted as nought for nought.
+ */
+function specialTeams(schedule) {
+  const rows = (schedule || []).filter((g) => g.result && g.pp);
+  const played = (schedule || []).filter((g) => g.result).length;
+  if (!rows.length) return null;
+  const sum = (f) => rows.reduce((n, g) => n + f(g), 0);
+  const ppg = sum((g) => g.pp.us.g), ppo = sum((g) => g.pp.us.opp);
+  const ppga = sum((g) => g.pp.them.g), pko = sum((g) => g.pp.them.opp);
+  return {
+    games: rows.length, played,
+    ppg, ppo, pp: ppo ? (100 * ppg / ppo) : null,
+    ppga, pko, killed: pko - ppga, pk: pko ? (100 * (1 - ppga / pko)) : null,
+  };
 }
 
 function schedStats(schedule, override) {
@@ -9447,6 +9477,45 @@ function StatsPage({ site, onPlayer, onGame }) {
                   <div className="reccell"><p className="reclab">Goal Diff</p><p className="recnum">{s.gf - s.ga > 0 ? "+" : ""}{s.gf - s.ga}</p></div>
                   <div className="reccell"><p className="reclab">Streak</p><p className="recnum">{s.streak}</p></div>
                 </div>
+                {(() => {
+                  const st = specialTeams(season.schedule);
+                  if (!st) return null;
+                  return (
+                    <>
+                      <h2 className="statsec" style={{ marginTop: 34 }}>Special Teams</h2>
+                      <div className="recgrid">
+                        <div className="reccell">
+                          <p className="reclab">Power play</p>
+                          <p className="recnum">{st.pp == null ? "\u2014" : st.pp.toFixed(1) + "%"}</p>
+                          <p className="recsub">{st.ppg} for {st.ppo}</p>
+                        </div>
+                        <div className="reccell">
+                          <p className="reclab">Penalty kill</p>
+                          <p className="recnum">{st.pk == null ? "\u2014" : st.pk.toFixed(1) + "%"}</p>
+                          <p className="recsub">{st.killed} of {st.pko}</p>
+                        </div>
+                        <div className="reccell">
+                          <p className="reclab">PP goals against</p>
+                          <p className="recnum">{st.ppga}</p>
+                        </div>
+                        <div className="reccell">
+                          <p className="reclab">Games covered</p>
+                          <p className="recnum">{st.games}<span className="recof">/{st.played}</span></p>
+                        </div>
+                      </div>
+                      <p className="statnote">
+                        Special teams come from the ACHA's game summaries. Where a
+                        scorekeeper recorded no opportunities for either side, the game is
+                        left out of both figures rather than counted as none
+                        {st.games < st.played
+                          ? " \u2014 " + (st.played - st.games) + " of " + st.played + " this season."
+                          : "."}
+                        {" "}Face-off percentage is not shown because the league publishes no
+                        face-off counts.
+                      </p>
+                    </>
+                  );
+                })()}
               </>
             )}
 
