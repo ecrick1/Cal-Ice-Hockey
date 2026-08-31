@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -179,10 +179,46 @@ async function teamSeason(req, res) {
   }
 }
 
+/**
+ * Write a file into the working tree, so the prototype's state can be got
+ * out of one browser profile and into the repository.
+ *
+ * Development only, and deliberately narrow: the path has to resolve inside
+ * this checkout, and only the two directories the exporter writes to are
+ * allowed. It is here because the alternative - a browser download - lands
+ * in Downloads under whatever name the browser picks.
+ */
+async function saveFile(req, res) {
+  if (req.method !== 'POST') {
+    res.writeHead(405, { 'Content-Type': 'text/plain' });
+    res.end('POST only');
+    return;
+  }
+  const q = new URLSearchParams(req.url.split('?')[1] || '');
+  const rel = q.get('to') || '';
+  const root = path.resolve(dir, '..');
+  const full = path.resolve(root, path.posix.normalize(rel).replace(/^\/+/, ''));
+  const allowed = [path.join(root, 'data'), path.join(dir, 'articles')];
+  if (!allowed.some((a) => full === a || full.startsWith(a + path.sep))) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    res.end('Not a writable path: ' + rel);
+    return;
+  }
+  const chunks = [];
+  for await (const c of req) chunks.push(c);
+  const body = Buffer.concat(chunks);
+  await mkdir(path.dirname(full), { recursive: true });
+  const isB64 = q.get('base64') === '1';
+  await writeFile(full, isB64 ? Buffer.from(body.toString('utf8'), 'base64') : body);
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ ok: true, path: path.relative(root, full), bytes: body.length }));
+}
+
 createServer(async (req, res) => {
   const url = (req.url ?? '/').split('?')[0];
   if (url === '/acha') return achaProxy(req, res);
   if (url === '/acha/team-season') return teamSeason(req, res);
+  if (url === '/save') return saveFile(req, res);
   const file = url === '/' ? 'index.html' : decodeURIComponent(url);
   const full = path.resolve(dir, '.' + path.posix.normalize('/' + file));
 
