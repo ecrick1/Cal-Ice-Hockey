@@ -3232,6 +3232,22 @@ a.faffil:hover { filter: grayscale(0); }
    rather than borrowing one of the other two. */
 /* Parked work. Gold rather than red: nothing is wrong, it is simply not
    public yet. */
+.auundo { display: inline-flex; align-items: center; gap: 2px; margin-right: 4px; }
+.auundo .iconbtn { width: 30px; height: 30px; border-radius: 7px; border: 0; background: none;
+  color: var(--au-dim); cursor: pointer; display: inline-flex; align-items: center;
+  justify-content: center; }
+.auundo .iconbtn:hover:not(:disabled) { background: rgba(127,127,127,0.16); color: var(--au-text); }
+.auundo .iconbtn:disabled { opacity: 0.3; cursor: default; }
+
+/* What a publish is about to change, in the dialog that asks. */
+.aumodallist { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 1px;
+  max-height: 260px; overflow-y: auto; border-top: 1px solid var(--au-line); }
+.aumodallist li { display: flex; align-items: baseline; gap: 12px; padding: 8px 2px;
+  border-bottom: 1px solid var(--au-line-soft); }
+.aumodallabel { font-size: 13px; font-weight: 650; color: var(--au-text); }
+.aumodalnote { margin-left: auto; font-family: var(--au-mono); font-size: 11.5px;
+  color: var(--au-dim); white-space: nowrap; }
+
 .aupending { display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
   padding: 12px 22px; background: rgba(245,181,68,0.09);
   border-bottom: 1px solid var(--au-line); }
@@ -3943,6 +3959,10 @@ const IcShare = (p) => <Ic {...p} d={<><path d="M12 15V3.5" /><path d="m8 7 4-4 
 const IcCalendar = (p) => <Ic {...p} d={<><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></>} />;
 const IcPrint = (p) => <Ic {...p} size={18} d={<path d="M6 9V3h12v6M6 18h12v3H6zM4 9h16a2 2 0 0 1 2 2v5h-4M2 16h4v-5a2 2 0 0 1 2-2" />} />;
 const IcBars = (p) => <Ic {...p} d={<path d="M5 20V12M12 20V4M19 20v-6" />} />;
+/* An arrow curling back on itself, and its mirror. Stroked on the same 24
+   grid as the rest of the set. */
+const IcUndo = (p) => <Ic {...p} d={<><path d="M9 14l-4-4 4-4" /><path d="M5 10h9a5 5 0 0 1 0 10h-4" /></>} />;
+const IcRedo = (p) => <Ic {...p} d={<><path d="M15 14l4-4-4-4" /><path d="M19 10h-9a5 5 0 0 0 0 10h4" /></>} />;
 /* Play, in a filled circle. Solid rather than stroked, to sit beside the
    filled game-centre mark without one looking lighter than the other. */
 const IcPlayCircle = ({ size = 20 }) => (
@@ -12514,6 +12534,16 @@ function AskDialog({ state, onResolve }) {
         {state.message && <p className="aumodalmsg">{state.message}</p>}
         {state.detail && <p className="aumodaldetail">{state.detail}</p>}
 
+        {!!(state.list || []).length && (
+          <ul className="aumodallist">
+            {state.list.map((c) => (
+              <li key={c.label}>
+                <span className="aumodallabel">{c.label}</span>
+                {c.note && <span className="aumodalnote">{c.note}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
         {needsText && (
           <div className="field" style={{ marginTop: 16 }}>
             <label className="h6" style={{ marginBottom: 6, display: "block" }}>
@@ -12600,6 +12630,14 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
      was left. The published site is still what everyone else sees. */
   const [draft, setDraftState] = useState((pending && pending.site) || site);
   const draftRef = useRef((pending && pending.site) || site);
+  /* Held in refs so an edit and the step count cannot disagree; the count
+     is mirrored into state only so the two buttons re-render. */
+  const undoRef = useRef([]);
+  const redoRef = useRef([]);
+  const [steps, setSteps] = useState({ undo: 0, redo: 0 });
+  const clearHistory = useCallback(() => {
+    undoRef.current = []; redoRef.current = []; setSteps({ undo: 0, redo: 0 });
+  }, []);
   const setDraft = useCallback((updater) => {
     /* Computed here rather than inside the state updater: React runs an
      * updater when it processes the batch, which is after the calling code
@@ -12607,10 +12645,38 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
      * ref has to be right the moment this returns. Successive calls still
      * chain correctly because each one reads the ref it just wrote. */
     const next = typeof updater === "function" ? updater(draftRef.current) : updater;
+    /* Each edit produces a new object that shares everything it did not
+       touch, so holding the last fifty costs a few pointers rather than
+       fifty copies of the site. */
+    undoRef.current = [...undoRef.current, draftRef.current].slice(-50);
+    redoRef.current = [];
+    setSteps({ undo: undoRef.current.length, redo: 0 });
     draftRef.current = next;
     setDraftState(next);
   }, []);
-  useEffect(() => { draftRef.current = site; setDraftState(site); }, [site]);
+
+  const undo = useCallback(() => {
+    const stack = undoRef.current;
+    if (!stack.length) return;
+    const prev = stack[stack.length - 1];
+    undoRef.current = stack.slice(0, -1);
+    redoRef.current = [...redoRef.current, draftRef.current].slice(-50);
+    draftRef.current = prev;
+    setDraftState(prev);
+    setSteps({ undo: undoRef.current.length, redo: redoRef.current.length });
+  }, []);
+
+  const redo = useCallback(() => {
+    const stack = redoRef.current;
+    if (!stack.length) return;
+    const next = stack[stack.length - 1];
+    redoRef.current = stack.slice(0, -1);
+    undoRef.current = [...undoRef.current, draftRef.current].slice(-50);
+    draftRef.current = next;
+    setDraftState(next);
+    setSteps({ undo: undoRef.current.length, redo: redoRef.current.length });
+  }, []);
+  useEffect(() => { draftRef.current = site; setDraftState(site); clearHistory(); }, [site]);
   /* A draft parked in another tab, or one that just went live, replaces
      what is on screen - otherwise this console would keep editing a copy
      that no longer exists anywhere. */
@@ -12619,6 +12685,7 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
     if (!pending || !pending.site) return;
     draftRef.current = pending.site;
     setDraftState(pending.site);
+    clearHistory();
   }, [pendingId]);
 
   /* One dialog for the whole console; ask() resolves when the user answers. */
@@ -12633,7 +12700,12 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
 
   const baseline = (pending && pending.site) || site;
   const changed = useMemo(() => diffSections(baseline, draft), [baseline, draft]);
+  const changedLabels = changed.map((c) => c.label);
   const dirty = changed.length > 0;
+  /* What publishing would put on the public site. Not the same list as
+     `changed` once a draft is parked: that compares against the draft, and
+     this has to compare against what people can actually see. */
+  const goingPublic = useMemo(() => diffSections(site, draft), [site, draft]);
 
   /* Don't let a closed tab silently throw away an afternoon of roster entry. */
   useEffect(() => {
@@ -12725,6 +12797,15 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
      the save actually happened. Declining the conflict prompt used to clear
      the draft anyway, which threw it away without ever putting it up. */
   const publish = async () => {
+    if (!goingPublic.length) return;
+    const ok = await ask({
+      title: "Publish to the public site?",
+      message: goingPublic.length + " " + (goingPublic.length === 1 ? "part" : "parts")
+        + " of the site will change for everyone.",
+      list: goingPublic,
+      confirmLabel: "Publish",
+    });
+    if (!ok) return;
     const wrote = await save();
     if (wrote && pending) setPending(null);
   };
@@ -12735,7 +12816,7 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
       message: pending
         ? "Reverts everything back to the saved draft."
         : "Reverts everything back to the last save.",
-      detail: changed.join(", "),
+      detail: changedLabels.join(", "),
       confirmLabel: "Discard",
       danger: true,
     });
@@ -12747,7 +12828,7 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
       const ok = await ask({
         title: "Leave with unsaved changes?",
         message: "Your edits stay in this tab, but they are not saved yet.",
-        detail: changed.join(", "),
+        detail: changedLabels.join(", "),
         confirmLabel: "Leave anyway",
         danger: true,
       });
@@ -12814,11 +12895,19 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
                 <span className="aupulse" />
                 <span className="austatetext">
                   {dirty
-                    ? "Unsaved · " + changed.join(", ")
+                    ? "Unsaved · " + changedLabels.join(", ")
                     : pending
                       ? "Draft saved · not published"
                       : "All changes saved"}
                 </span>
+              </span>
+              <span className="auundo">
+                <button className="iconbtn" onClick={undo} disabled={!steps.undo}
+                  title={steps.undo ? "Undo the last change" : "Nothing to undo"}
+                  aria-label="Undo"><IcUndo /></button>
+                <button className="iconbtn" onClick={redo} disabled={!steps.redo}
+                  title={steps.redo ? "Redo" : "Nothing to redo"}
+                  aria-label="Redo"><IcRedo /></button>
               </span>
               <button className="btn bGhost bSm" onClick={discard} disabled={!dirty}>Discard</button>
               <button className="btn bGhost bSm" onClick={() => saveDraft(pending && pending.publishAt)}
@@ -12889,29 +12978,72 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
 }
 
 /* Which areas differ between saved and working copy — drives the save bar. */
+/* How a list of records changed, by id. Rows without one - the odd shape
+   that predates ids - fall back to their position, which is right often
+   enough to be worth more than saying nothing. */
+function countRows(before, after) {
+  const key = (x, i) => (x && x.id != null ? "id:" + x.id : "at:" + i);
+  const A = new Map((before || []).map((x, i) => [key(x, i), x]));
+  const B = new Map((after || []).map((x, i) => [key(x, i), x]));
+  let added = 0, removed = 0, edited = 0;
+  for (const [k, x] of B) {
+    const y = A.get(k);
+    if (!y) added++;
+    else if (JSON.stringify(x) !== JSON.stringify(y)) edited++;
+  }
+  for (const k of A.keys()) if (!B.has(k)) removed++;
+  return { added, edited, removed };
+}
+
+function rowNote(before, after) {
+  const c = countRows(before, after);
+  const bits = [];
+  if (c.added) bits.push(c.added + " added");
+  if (c.edited) bits.push(c.edited + " changed");
+  if (c.removed) bits.push(c.removed + " removed");
+  return bits.join(", ");
+}
+
+/**
+ * Which parts of the site differ, and by how much.
+ *
+ * Returns `{ label, note }`. `note` is empty for things that are not lists -
+ * settings either changed or it did not, and there is nothing to count.
+ */
 function diffSections(saved, draft) {
   if (!saved || !draft) return [];
   const out = [];
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-  if (!same(saved.news, draft.news)) out.push("News");
-  if (!same(saved.opponents, draft.opponents)) out.push("Opponents");
-  if (!same(saved.settings, draft.settings)) out.push("Settings");
-  if (!same(saved.account, draft.account)) out.push("Account");
-  if (!same(saved.recruiting, draft.recruiting)) out.push("Recruits page");
-  if (!same(saved.volunteerRoles, draft.volunteerRoles)) out.push("Volunteer roles");
-  if (!same(saved.staff, draft.staff)) out.push("Staff");
-  if (!same(saved.gameStats, draft.gameStats)) out.push("Game stats");
-  if (saved.currentSeason !== draft.currentSeason) out.push("Current season");
+  const list = (label, a, b) => { if (!same(a, b)) out.push({ label, note: rowNote(a, b) }); };
+  const flat = (label, a, b) => { if (!same(a, b)) out.push({ label, note: "" }); };
+
+  list("News", saved.news, draft.news);
+  list("Opponents", saved.opponents, draft.opponents);
+  flat("Settings", saved.settings, draft.settings);
+  flat("Account", saved.account, draft.account);
+  flat("Recruits page", saved.recruiting, draft.recruiting);
+  list("Volunteer roles", saved.volunteerRoles, draft.volunteerRoles);
+  list("Staff", saved.staff, draft.staff);
+  if (!same(saved.gameStats, draft.gameStats)) {
+    const a = Object.keys(saved.gameStats || {}), b = Object.keys(draft.gameStats || {});
+    const touched = b.filter((k) => JSON.stringify((saved.gameStats || {})[k])
+      !== JSON.stringify((draft.gameStats || {})[k])).length;
+    out.push({ label: "Game stats", note: touched ? touched + " game" + (touched === 1 ? "" : "s") : "" });
+    void a;
+  }
+  if (saved.currentSeason !== draft.currentSeason) {
+    out.push({ label: "Current season", note: saved.currentSeason + " \u2192 " + draft.currentSeason });
+  }
 
   const names = new Set([...Object.keys(saved.seasons || {}), ...Object.keys(draft.seasons || {})]);
-  for (const n of names) {
+  for (const n of [...names].sort().reverse()) {
     const a = (saved.seasons || {})[n];
     const b = (draft.seasons || {})[n];
-    if (!a || !b) { out.push(`Season ${n}`); continue; }
-    if (!same(a.schedule, b.schedule)) out.push(`${n} schedule`);
-    if (!same(a.roster, b.roster)) out.push(`${n} roster`);
-    if (!same(a.coaches, b.coaches)) out.push(`${n} coaches`);
-    if (!same(a.record, b.record)) out.push(`${n} record`);
+    if (!a || !b) { out.push({ label: "Season " + n, note: b ? "added" : "removed" }); continue; }
+    list(n + " schedule", a.schedule, b.schedule);
+    list(n + " roster", a.roster, b.roster);
+    list(n + " coaches", a.coaches, b.coaches);
+    flat(n + " record", a.record, b.record);
   }
   return out;
 }
