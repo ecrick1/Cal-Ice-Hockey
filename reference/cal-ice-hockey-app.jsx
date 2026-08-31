@@ -14434,6 +14434,9 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
      every line. One badge at a time, so the original width is enough. */
   const cols = "104px 1fr 88px 50px 1fr 118px 46px 46px 64px 56px 54px 62px 66px 28px";
 
+  /* By date, but a row that has none yet goes last rather than first. */
+  const cmpRow = (a, b) => (a.date ? 0 : 1) - (b.date ? 0 : 1) || cmpDate(a, b);
+
   return (
     <>
       <SeasonPicker site={site} sel={sel} setSel={setSel} />
@@ -14451,7 +14454,7 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
         <span>Us</span><span>Them</span><span>Ended</span><span>Final?</span><span>Live</span><span>Box</span><span>More</span><span />
       </div>
 
-      {[...games].sort(cmpDate).map((g) => {
+      {[...games].sort(cmpRow).map((g) => {
         /* This used to count lines in the box score, which the importer
            writes for every player on the roster including the scratches - so
            it read "31" on every game and meant nothing. What is worth knowing
