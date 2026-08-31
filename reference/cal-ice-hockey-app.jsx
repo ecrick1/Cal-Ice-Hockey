@@ -12597,7 +12597,28 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni, authed
   const updateSeason = (name, patch) =>
     setDraft((s) => ({ ...s, seasons: { ...s.seasons, [name]: { ...s.seasons[name], ...patch } } }));
 
-  const save = () => setSite(draftRef.current);
+  /* The console edits a copy, and Save writes the whole copy back. If
+     storage moved on while this screen was open - a second tab, an import
+     script - that write would replace those changes with a draft that never
+     knew about them, and nothing would say so. The site carries a revision;
+     a save whose draft was not built on the current one asks first. */
+  const save = async () => {
+    const next = draftRef.current;
+    const stored = await loadKey(SITE_KEY, null);
+    const mine = Number(next.rev || 0);
+    const theirs = Number((stored || {}).rev || 0);
+    if (stored && theirs !== mine) {
+      const ok = await ask({
+        title: "Saved somewhere else since you opened this",
+        message: "The site has been written to by another tab or an import while this screen was open.",
+        detail: "Saving now replaces those changes with what is on this screen. Reload the page instead to pick them up first.",
+        confirmLabel: "Overwrite anyway",
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    setSite({ ...next, rev: mine + 1 });
+  };
 
   const discard = async () => {
     const ok = await ask({
