@@ -5228,9 +5228,15 @@ const SHEET_POSITIONS = ["LW", "C", "RW", "D", "G"];
 
 /* Absent means dressed: every sheet written before scratches existed. */
 const oppDressed = (row) => (row && row.dressed) !== false;
-const isOppGoalie = (row) => !!row
-  && (row.isGoalie === true || oppRowPos(row) === "G"
-    || row.saves !== undefined || row.ga !== undefined);
+const isOppGoalie = (row) => {
+  if (!row) return false;
+  const pos = oppRowPos(row);
+  /* Somebody has said what this player is. That is the answer. */
+  if (pos) return pos === "G";
+  /* No position on the row at all - an old sheet, or one built from a box
+     score. A save or a goal against is the only evidence left. */
+  return row.isGoalie === true || row.saves !== undefined || row.ga !== undefined;
+};
 
 /* Clock text as seconds remaining, for sorting. */
 const clockSecs = (c) => {
@@ -15704,6 +15710,9 @@ function LiveTab({ site, setDraft, updateSeason, onSave, dirty, setupSeed, onSee
         const rows = theirs.filter((p) => awayLu.dressed.has(p.id)).map((p) => ({
           ...(had.get(p.id) || { g: 0, a: 0, pim: 0 }),
           id: p.id, name: p.name, number: p.number,
+          /* Carried, not recomputed: without this every defenceman and every
+             wing arrived on the sheet as a forward. */
+          position: p.position || "F",
           isGoalie: p.position === "G",
           ...(p.position === "G"
             ? { saves: (had.get(p.id) || {}).saves || 0, ga: (had.get(p.id) || {}).ga || 0 }
@@ -18638,30 +18647,38 @@ function GameSheet({ game, oppName, site, setDraft, library, live, setLive }) {
     ...(p.position === "G" ? { saves: 0, ga: 0 } : {}),
   })));
 
+  /* Sheets built before positions were carried across have none on the row.
+     The club roster this game was dressed from still knows, so it is read
+     from there rather than shown as a forward. */
+  const posOfRow = (r) => r.position
+    || ((library || []).find((x) => x.id === r.id) || {}).position
+    || "F";
+
   const dressed = rows.filter(oppDressed);
-  const skaters = dressed.filter((r) => !isOppGoalie(r));
-  const keepers = dressed.filter(isOppGoalie);
+  const isKeeper = (r) => (r.position ? r.position === "G" : isOppGoalie(r));
+  const skaters = dressed.filter((r) => !isKeeper(r));
+  const keepers = dressed.filter(isKeeper);
   const scratched = rows.filter((r) => !oppDressed(r));
 
   /* The same row as ours, and the same last column: who is on the bench
      tonight, and which of them is in net. */
   const line = (r) => {
     const out = !oppDressed(r);
-    const keeper = isOppGoalie(r);
+    const keeper = isKeeper(r);
     return (
       <div className={"opprow oppsheetrow" + (out ? " ausheetout" : "")} key={r.id}>
         <input value={r.number || ""} placeholder="—"
           onChange={(e) => setRow(r.id, { number: e.target.value })} />
         <input value={r.name || ""} placeholder="Player name"
           onChange={(e) => setRow(r.id, { name: e.target.value })} />
-        <select value={keeper ? "G" : (r.position || "F")}
+        <select value={keeper ? "G" : posOfRow(r)}
           onChange={(e) => setRow(r.id, {
             position: e.target.value, isGoalie: e.target.value === "G",
             ...(e.target.value === "G" && r.saves === undefined ? { saves: 0, ga: 0 } : {}),
           })}>
-          {(SHEET_POSITIONS.includes(keeper ? "G" : (r.position || "F"))
+          {(SHEET_POSITIONS.includes(keeper ? "G" : posOfRow(r))
             ? SHEET_POSITIONS
-            : [r.position || "F", ...SHEET_POSITIONS]
+            : [posOfRow(r), ...SHEET_POSITIONS]
           ).map((x) => <option key={x} value={x}>{x}</option>)}
         </select>
         {keeper && !out ? (
