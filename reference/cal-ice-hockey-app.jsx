@@ -3120,7 +3120,7 @@ a.faffil:hover { filter: grayscale(0); }
 /* --- Compact density: same information, about a third more rows on screen --- */
 .adminui.compact .arow { padding: 3px 0; }
 .adminui.compact .arow input, .adminui.compact .arow select { padding: 3px 6px; font-size: 12.5px; }
-.adminui.compact .aubody { padding: 18px 20px; }
+.adminui.compact .aubody { padding: 18px 20px 56px; }
 .adminui.compact .auswatch { height: 32px; width: 38px; }
 .adminui.compact .boxrow { padding: 2px 0; }
 
@@ -3144,7 +3144,11 @@ a.faffil:hover { filter: grayscale(0); }
 .austate.dirty .aupulse { background: var(--au-warn); box-shadow: 0 0 0 3px rgba(245,165,36,0.18); }
 
 /* --- Body --- */
-.aubody { padding: 26px; max-width: 1500px; width: 100%; overflow-x: auto; }
+/* Room under the last thing on the screen. Twenty-six pixels is right as a
+   margin between the panel and its frame and wrong as the end of a page that
+   scrolls - the last card, or worse the row of buttons that ends the page
+   builder, sat against the bottom of the window with nothing beneath it. */
+.aubody { padding: 26px 26px 72px; max-width: 1500px; width: 100%; overflow-x: auto; }
 /* Keep data columns legible on narrow windows by scrolling instead of shrinking. */
 .adminui .arow, .adminui .ahead { min-width: 1300px; }
 .adminui .ahead span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -4038,7 +4042,7 @@ a.faffil:hover { filter: grayscale(0); }
   .aunavgroup + .aunavgroup { margin-top: 0; }
   .augroup { display: none; }
   .ausidefoot { display: none; }
-  .aubody { padding: 18px 14px; }
+  .aubody { padding: 18px 14px 56px; }
   .autop { padding: 12px 14px; }
 }
 
