@@ -3546,12 +3546,14 @@ a.faffil:hover { filter: grayscale(0); }
 /* Waiting on a penalty: the whistle has gone and the sheet is deliberately
    still empty, so the bar says so rather than leaving a gap. */
 .adminui .aupenwait { border-left: 3px solid var(--au-warn, #F5B544); }
-/* Read-only fields: the same box as an editable one, without the invitation
-   to type in it. No focus ring, no caret, and the cursor says so. */
-.adminui .oppsheetrow input[readonly] { cursor: default; color: var(--au-dim); }
+/* Read-only fields: the same box, and the same ink. Dimming them was what
+   made the two halves of this tab look like different tables - the cursor
+   is what says a field will not take typing, not the colour of the name in
+   it. */
+.adminui .oppsheetrow input[readonly] { cursor: default; }
 .adminui .oppsheetrow input[readonly]:focus { outline: none; border-color: var(--au-line); }
 /* Scratched: still legible, plainly not on the bench. */
-.adminui .ausheetout input[readonly] { opacity: 0.55; }
+.adminui .ausheetout input[readonly], .adminui .ausheetout select { opacity: 0.55; }
 .adminui .audelayed { display: flex; align-items: center; gap: 6px; margin-top: 8px;
   justify-content: center; flex-wrap: wrap; }
 .adminui .audelayed .h6 { margin: 0; }
@@ -17656,8 +17658,11 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
                       <div className={"opprow oppsheetrow" + (out ? " ausheetout" : "")} key={p.id}>
                         <input value={p.number || ""} readOnly tabIndex={-1} placeholder="\u2014" />
                         <input value={p.name || ""} readOnly tabIndex={-1} />
-                        <input value={p.position === "D" || keeper ? p.position : p.spot || "F"}
-                          readOnly tabIndex={-1} />
+                        <select value="x" tabIndex={-1} onChange={() => {}}>
+                          <option value="x">
+                            {p.position === "D" || keeper ? p.position : p.spot || "F"}
+                          </option>
+                        </select>
                         {keeper && !out ? (
                           <button className={"btn bSm " + (live.goalieUs === p.id ? "bLive" : "bGhost")}
                             title={live.goalieUs === p.id ? "In net" : "Put them in net"}
