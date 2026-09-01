@@ -1241,6 +1241,14 @@ table.stats.gcpen th:first-child, table.stats.gcpen td:first-child { padding-lef
 .pbdetail { font-size: 13px; font-weight: 600; color: var(--muted); }
 .pbstr { margin-left: 8px; font-size: 10.5px; font-weight: 800; letter-spacing: 0.06em;
   border: 1px solid currentColor; border-radius: 4px; padding: 1px 5px; vertical-align: middle; }
+/* The whistle: the width of the sheet, a shade darker than the plays either
+   side, and stacked so the icon reads before the word. It is the gap between
+   plays rather than one of them, so it carries no time and no crest. */
+.pbstop { display: grid; justify-items: center; gap: 4px; padding: 14px 16px;
+  background: var(--ice); border-top: 1px solid var(--border); }
+.gcplays > .pbstop:first-child { border-top: 0; }
+.pbstopicon { display: grid; place-items: center; color: var(--muted); }
+.pbstoplab { font-size: 13px; font-weight: 700; color: var(--muted); }
 /* A goal is announced, not listed: the band carries the score at that moment
    in the colours of whoever scored. */
 .pbgoal { border-top: 1px solid var(--border); }
@@ -6345,6 +6353,18 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
                     );
                   }
 
+                  /* A whistle is not a play. It gets the width of the sheet
+                     and nothing but the reason, because everything that stops
+                     play already says what it was in two words. */
+                  if (x.kind === "stoppage") {
+                    return (
+                      <div className="pbstop" key={x.id}>
+                        <span className="pbstopicon" aria-hidden="true"><IcWhistle size={20} /></span>
+                        <span className="pbstoplab">{x.reason || "Play stopped"}</span>
+                      </div>
+                    );
+                  }
+
                   const title = x.kind === "penalty" ? "Penalty"
                     : x.kind === "shootout" ? shotResultLabel(x)
                     : x.kind === "game" ? "Game End"
@@ -6388,9 +6408,7 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
                         ? withNumber(x.winner, x.winnerId, mine) + " won it for " + abbr
                         : abbr + " won the face-off")
                     : x.kind === "timeout" ? abbr + " timeout"
-                    : x.kind === "stoppage"
-                      ? (x.reason || "Play stopped") + (x.by ? " — " + x.by : "")
-                      : "Play stopped";
+                    : "Play stopped";
 
                   /* Anything a team did carries that team's mark; a whistle
                      belongs to neither bench. A shootout attempt is a player
