@@ -11809,6 +11809,12 @@ const SETTINGS_SECTIONS = [
   ["account", "Account", "Only affects you"],
 ];
 
+/* Sections of this editor that are reached from the sidebar as pages in their
+   own right. They render the one card they are about and no sub-nav: a page
+   opened directly does not need a row of tabs saying where else it could
+   have been. */
+const PAGE_SECTIONS = ["venue", "legal", "form"];
+
 function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
   const ask = useAsk();
   const st = site.settings || {};
@@ -11871,15 +11877,17 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
 
   return (
     <div className="ausettings">
-      <nav className="ausubnav" aria-label="Settings sections">
-        {SETTINGS_SECTIONS.map(([k, label, hint]) => (
-          <button key={k} className={"ausubitem " + (section === k ? "on" : "")}
-            onClick={() => setSection(k)}>
-            <span className="ausubname">{label}</span>
-            <span className="ausubhint">{hint}</span>
-          </button>
-        ))}
-      </nav>
+      {!PAGE_SECTIONS.includes(section) && (
+        <nav className="ausubnav" aria-label="Settings sections">
+          {SETTINGS_SECTIONS.map(([k, label, hint]) => (
+            <button key={k} className={"ausubitem " + (section === k ? "on" : "")}
+              onClick={() => setSection(k)}>
+              <span className="ausubname">{label}</span>
+              <span className="ausubhint">{hint}</span>
+            </button>
+          ))}
+        </nav>
+      )}
 
       <div className="ausettingsbody">
         {/* ================= ORGANISATION ================= */}
@@ -12046,7 +12054,12 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
                 Prefilled on new home games. Away games take the opponent's rink and city.
               </p>
             </section>
+          </div>
+        )}
 
+        {/* ================= FOOTER PAGES ================= */}
+        {section === "legal" && (
+          <div style={{ display: "grid", gap: 18, maxWidth: 620 }}>
             <section className="card">
               <p className="h6" style={{ marginBottom: 4 }}>Footer pages</p>
               <p className="bsm" style={{ marginBottom: 6 }}>
@@ -12066,6 +12079,12 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
               ))}
             </section>
 
+          </div>
+        )}
+
+        {/* ================= VENUE PAGE ================= */}
+        {section === "venue" && (
+          <div style={{ display: "grid", gap: 18, maxWidth: 620 }}>
             <section className="card">
               <p className="h6" style={{ marginBottom: 4 }}>Venue page</p>
               <p className="bsm" style={{ marginBottom: 14 }}>
@@ -12105,6 +12124,12 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
               ))}
             </section>
 
+          </div>
+        )}
+
+        {/* ================= INTEREST FORM ================= */}
+        {section === "form" && (
+          <div style={{ display: "grid", gap: 18, maxWidth: 620 }}>
             <section className="card">
               <p className="h6" style={{ marginBottom: 4 }}>Interest form</p>
               <p className="bsm" style={{ marginBottom: 14 }}>
@@ -13359,6 +13384,10 @@ const ADMIN_NAV = [
   ["Season", [["live", "Live scoring"], ["schedule", "Schedule"], ["roster", "Roster"], ["stats", "Stats"]]],
   ["Team", [["coaches", "Staff"], ["prospects", "Recruits page"], ["volunteers", "Volunteer roles"]]],
   ["Library", [["opponents", "Opponents"], ["news", "News"], ["sponsors", "Sponsors"]]],
+  /* Pages that put words on the public site. They were cards inside Settings
+     until each grew past the field or two a settings screen is for. */
+  ["Pages", [["venue", "Venue page"], ["legal", "Footer pages"],
+    ["form", "Interest form"]]],
   ["Inbox", [["inbox", "Interest forms"], ["alumni", "Alumni list"]]],
   ["System", [["seasons", "Seasons"], ["import", "Import"], ["settings", "Settings"]]],
 ];
@@ -13379,6 +13408,9 @@ const ADMIN_TITLES = {
   seasons: "Seasons",
   settings: "Settings",
   import: "Bulk import",
+  venue: "Venue page",
+  legal: "Footer pages",
+  form: "Interest form",
 };
 
 function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
@@ -13747,9 +13779,13 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
             {tab === "volunteers" && <VolunteerRolesEditor site={draft} setDraft={setDraft} />}
             {tab === "news" && <NewsEditor site={draft} setSite={setDraft} />}
             {tab === "seasons" && <SeasonManager site={draft} setSite={setDraft} />}
-            {tab === "settings" && (
+            {/* Settings and the three pages lifted out of it are one editor.
+                The tab picks the section: Settings keeps its own sub-nav, and
+                a page opened from the sidebar renders only itself. */}
+            {(tab === "settings" || PAGE_SECTIONS.includes(tab)) && (
               <SettingsEditor site={draft} setDraft={setDraft}
-                section={settingsSection} setSection={setSettingsSection}
+                section={tab === "settings" ? settingsSection : tab}
+                setSection={setSettingsSection}
                 onSignOut={() => setAuthed(false)} />
             )}
             {tab === "import" && (
