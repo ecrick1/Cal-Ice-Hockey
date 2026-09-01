@@ -1912,8 +1912,6 @@ table.stats.gpstats th:not(:first-child), table.stats.gpstats td:not(:first-chil
 .h2hnum.right { text-align: left; }
 /* Nothing to divide, so no rail under it. */
 .gcbar.norail { padding-bottom: 12px; }
-/* The footnote that keeps the one estimated line honest. */
-.gcoddsnote { margin-top: 16px; }
 .h2hpic { display: flex; align-items: center; background: none; border: 0; padding: 0;
   cursor: pointer; }
 .h2hpic.right { cursor: default; }
@@ -2269,6 +2267,10 @@ button.gtrow:hover { background: var(--page); }
 /* Scoreboard — white strip above the nav */
 .sboard { background: #fff; border-bottom: 1px solid var(--border); padding: 14px 0; }
 .sboard-inner { display: flex; align-items: center; gap: 10px; padding: 0 16px; }
+/* Measured by fit(): the room the first upcoming game needs to reach the
+   left edge when the games after it do not fill the band. */
+.sboard-tail { flex: 0 0 auto; width: 0; align-self: stretch; }
+.chev:disabled { opacity: 0.25; cursor: default; }
 .sboard-row { display: flex; gap: 12px; overflow-x: auto; scroll-behavior: smooth;
   scrollbar-width: none; -ms-overflow-style: none; flex: 1 1 auto; padding: 4px 2px; }
 .sboard-row::-webkit-scrollbar { display: none; }
@@ -4667,14 +4669,55 @@ function Scoreboard({ schedule, goto, onGame }) {
     return (next || games[games.length - 1] || {}).id;
   }, [games]);
   const anchorRef = useRef(null);
+  const tailRef = useRef(null);
+  const [ends, setEnds] = useState({ start: true, end: false });
 
-  useEffect(() => {
+  const readEnds = useCallback(() => {
+    const row = rowRef.current;
+    if (!row) return;
+    const max = row.scrollWidth - row.clientWidth;
+    /* Twelve pixels of slack, because the strip parks eight short of the
+       edge to keep a gutter beside the first card - and eight pixels is not
+       somewhere left to go. */
+    setEnds({ start: row.scrollLeft <= 12, end: row.scrollLeft >= max - 12 });
+  }, []);
+
+  /* Put the anchor at the left edge, and give the strip enough tail to get
+     there. Late in a season the games still to come do not fill the band, so
+     without this the scroll clamps and the strip opens on finals - which is
+     the one thing it is not for. */
+  const fit = useCallback(() => {
     const row = rowRef.current;
     const anchor = anchorRef.current;
+    const tail = tailRef.current;
     if (!row || !anchor) return;
-    const delta = anchor.getBoundingClientRect().left - row.getBoundingClientRect().left;
-    row.scrollLeft += delta - 8;
-  }, [anchorId]);
+    if (tail) tail.style.width = "0px";
+    const at = anchor.getBoundingClientRect().left - row.getBoundingClientRect().left
+      + row.scrollLeft;
+    if (tail) {
+      const after = row.scrollWidth - at;
+      tail.style.width = Math.max(0, Math.ceil(row.clientWidth - after)) + "px";
+    }
+    /* Placed, not animated. The row scrolls smoothly when someone presses an
+       arrow; sliding into position on load is just the page moving by itself,
+       and it also meant the arrows read their state mid-animation. */
+    row.scrollTo({ left: Math.max(0, at - 8), behavior: "instant" });
+    readEnds();
+  }, [readEnds]);
+
+  useEffect(() => {
+    fit();
+    /* The crests arrive after the first paint and change every width this
+       was measured from. */
+    const row = rowRef.current;
+    const imgs = row ? [...row.querySelectorAll("img")].filter((i) => !i.complete) : [];
+    imgs.forEach((i) => i.addEventListener("load", fit, { once: true }));
+    window.addEventListener("resize", fit);
+    return () => {
+      imgs.forEach((i) => i.removeEventListener("load", fit));
+      window.removeEventListener("resize", fit);
+    };
+  }, [anchorId, fit]);
 
   const scroll = (dir) => {
     if (rowRef.current) rowRef.current.scrollBy({ left: dir * 360, behavior: "smooth" });
@@ -4684,8 +4727,9 @@ function Scoreboard({ schedule, goto, onGame }) {
   return (
     <div className="sboard" aria-label="Scoreboard">
       <div className="sboard-inner">
-        <button className="chev" aria-label="Previous games" onClick={() => scroll(-1)}><IcChevL size={22} /></button>
-        <div className="sboard-row" ref={rowRef}>
+        <button className="chev" aria-label="Previous games" disabled={ends.start}
+          onClick={() => scroll(-1)}><IcChevL size={22} /></button>
+        <div className="sboard-row" ref={rowRef} onScroll={readEnds}>
           {games.map((g) => {
             const r = resultText(g);
             const state = gameState(g);
@@ -4717,8 +4761,10 @@ function Scoreboard({ schedule, goto, onGame }) {
               </button>
             );
           })}
+          <span className="sboard-tail" ref={tailRef} aria-hidden="true" />
         </div>
-        <button className="chev" aria-label="More games" onClick={() => scroll(1)}><IcChevR size={22} /></button>
+        <button className="chev" aria-label="More games" disabled={ends.end}
+          onClick={() => scroll(1)}><IcChevR size={22} /></button>
       </div>
     </div>
   );
@@ -7128,48 +7174,6 @@ function VenuePage({ site }) {
  * and absent prints as a dash, not as nought per cent.
  */
 /** W-L-T and goals for a season, from its own finished games. */
-/**
- * Win expectation from goals for and against, pulled toward even by how
- * little has been played.
- *
- * `PRIOR` is measured in games: at ten, a team's own goals carry half the
- * weight after ten games and three quarters after thirty. It is what stops
- * a 4-0 start reading as a certainty.
- */
-const ODDS_PRIOR = 10;
-function pythagorean(gf, ga, gp) {
-  const f = Number(gf) || 0;
-  const a = Number(ga) || 0;
-  const n = Number(gp) || 0;
-  if (!n || f + a === 0) return null;
-  const raw = (f * f) / (f * f + a * a);
-  return (raw * n + 0.5 * ODDS_PRIOR) / (n + ODDS_PRIOR);
-}
-
-/**
- * Two win expectations into one matchup probability, by log5, then home ice.
- *
- * Returns the home-or-neutral-adjusted chance that the first side wins, or
- * null when either side has too little played to say anything.
- */
-const HOME_EDGE = 1.22;
-function matchupOdds(a, b, side) {
-  const pa = pythagorean(a.gf, a.ga, a.gp);
-  const pb = pythagorean(b.gf, b.ga, b.gp);
-  if (pa == null || pb == null) return null;
-  if ((Number(a.gp) || 0) < 5 || (Number(b.gp) || 0) < 5) return null;
-  const both = pa * pb;
-  const den = pa + pb - 2 * both;
-  if (!den) return 0.5;
-  let p = (pa - both) / den;
-  if (side === "H" || side === "A") {
-    const edge = side === "H" ? HOME_EDGE : 1 / HOME_EDGE;
-    const odds = (p / (1 - p)) * edge;
-    p = odds / (1 + odds);
-  }
-  return Math.min(0.97, Math.max(0.03, p));
-}
-
 function seasonRecord(season) {
   let w = 0, l = 0, t = 0, gf = 0, ga = 0;
   for (const g of season.schedule || []) {
@@ -7494,13 +7498,9 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
   /* A record is two numbers in a hyphen, not one quantity, so it gets no
      bar - there is nothing to divide. Everything under it is a single
      figure a side and compares properly. */
-  /* The one line on this card that is a claim rather than a record. */
-  const odds = opp.data ? matchupOdds(us, opp.data, game.homeAway) : null;
   const COMPARE_ROWS = opp.data ? [
     ["Record", us.w + "-" + us.l + (us.t ? "-" + us.t : ""),
       opp.data.w + "-" + opp.data.l + (opp.data.t ? "-" + opp.data.t : ""), false],
-    ...(odds == null ? [] : [["Odds", Math.round(odds * 100) + "%",
-      Math.round((1 - odds) * 100) + "%", true]]),
     ["Games played", us.gp, opp.data.gp, true],
     ["Goals for", us.gf, opp.data.gf, true],
     ["Goals against", us.ga, opp.data.ga, true],
@@ -7978,14 +7978,6 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
                 </div>
               );
             })}
-            {odds != null && (
-              <p className="bsm gcnone gpnote gcoddsnote">
-                Odds are from goals for and against on both sides, weighted for how
-                much of each season has been played and for
-                {game.homeAway === "H" ? " home ice" : game.homeAway === "A" ? " playing away" : " a neutral rink"}.
-                Neither record is adjusted for who they played.
-              </p>
-            )}
           </section>
         )}
         <SeasonSeries site={site} season={season} game={game} />
