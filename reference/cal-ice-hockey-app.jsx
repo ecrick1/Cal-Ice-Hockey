@@ -15256,6 +15256,10 @@ function LiveLineup({ game, roster, oppName, previous, opponent, setOpp, setGame
     awayLineup: { dressed: [...away.dressed], starters: away.starters, goalie: away.goalie, ...patch },
   });
 
+  /* Everyone out, including whoever was marked to start - a starter who is
+     not dressed is a contradiction the sheet should not be able to hold. */
+  const clearAll = (write) => write({ dressed: [], starters: [], goalie: "" });
+
   const fillTo = (list, write, lu) => {
     const byNum = (a, b) => (Number(a.number) || 0) - (Number(b.number) || 0);
     const skatersFirst = list.filter((p) => p.position !== "G").sort(byNum).slice(0, MAX_SKATERS);
@@ -15333,6 +15337,9 @@ function LiveLineup({ game, roster, oppName, previous, opponent, setOpp, setGame
             <button className="btn bGhost bSm"
               title={"Dresses the first " + MAX_SKATERS + " skaters by number, and every goaltender"}
               onClick={() => fillTo(roster, writeHome, home)}>Fill to {MAX_SKATERS}</button>
+            <button className="btn bGhost bSm" disabled={!home.dressed.size}
+              title="Take everyone out of the lineup"
+              onClick={() => clearAll(writeHome)}>Deselect all</button>
             {previous && (
               <button className="btn bGhost bSm"
                 title={"Same players who dressed against " + previous.label}
@@ -15359,6 +15366,11 @@ function LiveLineup({ game, roster, oppName, previous, opponent, setOpp, setGame
             {theirs.length > 0 && (
               <button className="btn bGhost bSm"
                 onClick={() => fillTo(theirs, writeAway, away)}>Fill to {MAX_SKATERS}</button>
+            )}
+            {theirs.length > 0 && (
+              <button className="btn bGhost bSm" disabled={!away.dressed.size}
+                title="Take everyone out of the lineup"
+                onClick={() => clearAll(writeAway)}>Deselect all</button>
             )}
             {opponent && opponent.id && (
               <button className="btn bGhost bSm" onClick={() => setTheirOpen((v) => !v)}>
