@@ -3544,6 +3544,12 @@ a.faffil:hover { filter: grayscale(0); }
 /* Waiting on a penalty: the whistle has gone and the sheet is deliberately
    still empty, so the bar says so rather than leaving a gap. */
 .adminui .aupenwait { border-left: 3px solid var(--au-warn, #F5B544); }
+/* The bench, read rather than edited: the same rows as the lineup sheet
+   without the checkboxes, because this tab reports what was decided there. */
+.adminui .aulivesheet { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px; margin-top: 12px; }
+.adminui .aulivesheet .alurow { padding: 5px 8px; }
+.adminui .aulivesheet .aluname { font-size: 13px; }
 .adminui .audelayed { display: flex; align-items: center; gap: 6px; margin-top: 8px;
   justify-content: center; flex-wrap: wrap; }
 .adminui .audelayed .h6 { margin: 0; }
@@ -12879,6 +12885,19 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
     setAsking((cur) => { if (cur) cur.resolve(value); return null; });
   };
 
+  /* Live scoring publishes as it writes, so there is no unpublished step to
+     walk back - undoing one would move the console and leave the front page
+     where it was. The lineup sheet is an ordinary draft edit and keeps its
+     undo; only the console itself is exempt. */
+  const scoring = tab === "live" && (() => {
+    /* The same two tests the live tab uses to decide what to show. A `live`
+       object on its own is not a game in progress: a finished game keeps one
+       for its shot counts, and 118 of them do, which had this reading as
+       "being scored" all season. */
+    const sched = ((draft.seasons || {})[draft.currentSeason] || {}).schedule || [];
+    return sched.some((g) => gameState(g) === "live" || (g.live && g.live.retro));
+  })();
+
   const baseline = (pending && pending.site) || site;
   const changed = useMemo(() => diffSections(baseline, draft), [baseline, draft]);
   const changedLabels = changed.map((c) => c.label);
@@ -13083,11 +13102,15 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
                 </span>
               </span>
               <span className="auundo">
-                <button className="iconbtn" onClick={undo} disabled={!steps.undo}
-                  title={steps.undo ? "Undo the last change" : "Nothing to undo"}
+                <button className="iconbtn" onClick={undo} disabled={scoring || !steps.undo}
+                  title={scoring
+                    ? "Not while a game is being scored — live entries publish as they are made"
+                    : steps.undo ? "Undo the last change" : "Nothing to undo"}
                   aria-label="Undo"><IcUndo /></button>
-                <button className="iconbtn" onClick={redo} disabled={!steps.redo}
-                  title={steps.redo ? "Redo" : "Nothing to redo"}
+                <button className="iconbtn" onClick={redo} disabled={scoring || !steps.redo}
+                  title={scoring
+                    ? "Not while a game is being scored"
+                    : steps.redo ? "Redo" : "Nothing to redo"}
                   aria-label="Redo"><IcRedo /></button>
               </span>
               <button className="btn bGhost bSm" onClick={discard} disabled={!dirty}>Discard</button>
@@ -15954,6 +15977,11 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
     .filter((p) => (boxLines[p.id] || {}).dressed !== false && !isEjected(p))
     .sort((a, b) => (Number(a.number) || 0) - (Number(b.number) || 0));
   const goalies = skaters.filter((p) => p.position === "G");
+  /* Everyone on the roster who is not on the bench tonight - scratched
+     before the game, or thrown out during it. */
+  const scratched = [...roster]
+    .filter((p) => !skaters.some((x) => x.id === p.id))
+    .sort((a, b) => (Number(a.number) || 0) - (Number(b.number) || 0));
   /* If their roster has been entered, pick from it instead of typing a name
      into a box every time. Free text stays as the fallback, because half the
      time you are handed a lineup sheet at the door and half the time you are
@@ -17039,11 +17067,6 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
                 {live.goalieThem === "Empty net" ? "Goalie back" : "Pull goalie"}
               </button>
             )}
-            <span className="bsm auopplink">
-              {theirs.length
-                ? theirs.length + (theirsFromSheet ? " dressed for this game" : " on their club roster")
-                : "No roster for them yet"}
-            </span>
           </div>
         </div>
       </div>
@@ -17575,7 +17598,53 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
       )}
 
       {shownTab === "rosters" && (
-        opponent && opponent.id
+        <>
+          {/* Ours first: it is the list every picker on the scoring panel is
+              offering, and the tab said "Rosters" while showing one bench. */}
+          <section className="card" style={{ marginBottom: 18 }}>
+            <div className="auopprosterhead">
+              <p className="h6" style={{ margin: 0 }}>{usLabel} — this game</p>
+              <span className="bsm" style={{ color: "var(--au-faint)" }}>
+                {skaters.length} dressed
+                {scratched.length ? " · " + scratched.length + " scratched" : ""}
+              </span>
+            </div>
+            <div className="aulivesheet">
+              {[["Forwards", skaters.filter((p) => p.position !== "G" && p.position !== "D")],
+                ["Defense", skaters.filter((p) => p.position === "D")],
+                ["Goaltenders", skaters.filter((p) => p.position === "G")]]
+                .filter(([, list]) => list.length)
+                .map(([title, list]) => (
+                  <div className="alugroup" key={title}>
+                    <div className="alugrouphead"><span>{title}</span><span>{list.length}</span></div>
+                    {list.map((p) => (
+                      <div className="alurow" key={p.id}>
+                        <span className="alunum">#{p.number || "\u2014"}</span>
+                        <span className="aluname">{p.name}</span>
+                        {live.goalieUs === p.id && <span className="alustart on">In net</span>}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              {scratched.length > 0 && (
+                <div className="alugroup">
+                  <div className="alugrouphead"><span>Scratched</span><span>{scratched.length}</span></div>
+                  {scratched.map((p) => (
+                    <div className="alurow out" key={p.id}>
+                      <span className="alunum">#{p.number || "\u2014"}</span>
+                      <span className="aluname">{p.name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <p className="auhint" style={{ margin: "12px 0 0" }}>
+              Set on the lineup sheet before the game. Anyone ejected comes off the
+              pickers but stays here.
+            </p>
+          </section>
+
+          {opponent && opponent.id
           ? <>
               {/* This game's sheet first, because it is the list every picker
                   in the console is actually offering. The club roster below
@@ -17592,12 +17661,13 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
                 onClose={() => setTab("scoring")} />
             </>
           : <section className="card">
-              <p className="h6" style={{ marginBottom: 6 }}>Rosters</p>
+              <p className="h6" style={{ marginBottom: 6 }}>{oppName || "The other team"}</p>
               <p className="auhint" style={{ margin: 0 }}>
                 This game has no opponent from the library attached, so there is no
                 roster to edit. Set one on the Schedule tab.
               </p>
-            </section>
+            </section>}
+        </>
       )}
 
       <div className="aulivegrid" hidden={shownTab !== "scoring"}>
