@@ -16667,6 +16667,9 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
   const addGoal = () => {
     if (goalMissing) return;
     const us = goalTeam === "us";
+    /* Decided once. The play and the scorer's line both read from this, so
+       there is no way for them to disagree. */
+    const ourAssists = cleanAssists([a1, a2], scorer);
 
     const play = {
       id: uid(), kind: "goal", team: goalTeam,
@@ -16674,17 +16677,20 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
       strength: goalStrength,
       scorerId: us ? scorer : theirId(oppScorer),
       scorer: us ? nameOf(scorer) : theirName(oppScorer),
-      assistIds: us
-        ? cleanAssists([a1, a2], scorer)
-        : cleanAssists([oppA1, oppA2], oppScorer).map(theirId),
+      assistIds: us ? ourAssists : cleanAssists([oppA1, oppA2], oppScorer).map(theirId),
       assists: us
-        ? cleanAssists([a1, a2], scorer).map(nameOf)
+        ? ourAssists.map(nameOf)
         : cleanAssists([oppA1, oppA2], oppScorer).map(theirName),
     };
 
     if (us) {
       bumpLine(scorer, { g: 1, ...(goalStrength === "PP" ? { ppg: 1 } : {}), ...(goalStrength === "SH" ? { shg: 1 } : {}) });
-      [a1, a2].filter(Boolean).forEach((id) => bumpLine(id, { a: 1 }));
+      /* The same list the play records, not the raw pair. Crediting the pair
+         put an assist on a line for a player picked twice, or named as their
+         own assist - a point no goal accounted for, and one that removing the
+         goal would never take off again, because it reverses the assists the
+         goal holds and this was not one of them. */
+      ourAssists.forEach((id) => bumpLine(id, { a: 1 }));
     }
 
     /* What a power-play goal does to the penalty being served, which depends
@@ -18811,6 +18817,43 @@ function reconcileGame({ game, roster, lines, oppRows, usLabel, oppName }) {
   const playAssists = plays
     .filter((p) => p.kind === "goal" && p.team === "us" && p.period !== "SO")
     .reduce((t, p) => t + ((p.assists || []).length), 0);
+
+  /* Which lines disagree with the plays, and by how much. A total on its own
+     says a number is wrong without saying whose line to open, which leaves
+     the whole roster to check by hand. */
+  const offBy = (fromPlays, key) => {
+    const names = [];
+    for (const pl of R) {
+      const line = n((L[pl.id] || {})[key]);
+      const real = fromPlays[pl.id] || 0;
+      if (line !== real) {
+        names.push(pl.name + " " + (line > real ? "+" : "\u2212") + Math.abs(line - real));
+      }
+    }
+    return names;
+  };
+  const assistsFromPlays = (() => {
+    const m = {};
+    for (const p of plays) {
+      if (p.kind !== "goal" || p.team !== "us" || p.period === "SO") continue;
+      for (const id of p.assistIds || []) if (id) m[id] = (m[id] || 0) + 1;
+    }
+    return m;
+  })();
+  const pimFromPlays = (() => {
+    const m = {};
+    for (const p of plays) {
+      if (p.kind !== "penalty" || p.team !== "us") continue;
+      const pl = p.playerId ? R.find((x) => x.id === p.playerId)
+        : R.find((x) => x.name === p.player);
+      if (pl) m[pl.id] = (m[pl.id] || 0) + n(p.minutes);
+    }
+    return m;
+  })();
+  const whoIsOff = (names) => (names.length
+    ? " \u2014 " + names.slice(0, 4).join(", ")
+      + (names.length > 4 ? " and " + (names.length - 4) + " more" : "")
+    : "");
   const playPim = plays
     .filter((p) => p.kind === "penalty" && p.team === "us")
     .reduce((t, p) => t + n(p.minutes), 0);
@@ -18907,12 +18950,14 @@ function reconcileGame({ game, roster, lines, oppRows, usLabel, oppName }) {
   /* ---- assists and minutes, where both records exist ---- */
   check("assists", "Assists",
     playAssists === boxAssists,
-    playAssists + " in the play-by-play vs " + boxAssists + " on player lines",
+    playAssists + " in the play-by-play vs " + boxAssists + " on player lines"
+      + whoIsOff(offBy(assistsFromPlays, "a")),
     !anyBox || !plays.length);
 
   check("pim", "Penalty minutes",
     playPim === boxPim,
-    playPim + " in the play-by-play vs " + boxPim + " on player lines",
+    playPim + " in the play-by-play vs " + boxPim + " on player lines"
+      + whoIsOff(offBy(pimFromPlays, "pim")),
     !anyBox || !anyPenaltyPlays);
 
   /* ---- shots, from three directions ---- */
@@ -19575,7 +19620,6 @@ function RetroPlays({ game, oppName, roster, lines, oppLines, setGame, usLabel }
       ? {
           id: uid(), kind: "goal", team, period, clock: clock.trim() || "—",
           strength,
-          scorerId: us ? scorer : null,
           scorerId: us ? scorer : (oppRowById(oppName1) ? oppName1 : null),
           scorer: us ? nameOf(scorer) : oppRowName(oppName1),
           assistIds: us ? cleanAssists([a1, a2], scorer) : [],
