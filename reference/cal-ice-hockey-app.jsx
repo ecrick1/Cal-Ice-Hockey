@@ -1078,6 +1078,9 @@ table.stats.gcpen th:first-child, table.stats.gcpen td:first-child { padding-lef
 /* Even and a man down each. Not a power play for anyone, so not the gold,
    and too much of an event to wear the kill's outline. */
 .strtag.ev4 { background: #EEF0FB; color: #3B3F7A; box-shadow: inset 0 0 0 1px #C9CDEC; }
+/* Still being sorted out at the whistle: not a strength, a wait. */
+.strtag.pending { background: #FDF3E2; color: #7A5A17; box-shadow: inset 0 0 0 1px #EBD9B4; }
+.sboard .strtag.pending { background: #FDF3E2; color: #7A5A17; box-shadow: inset 0 0 0 1px #EBD9B4; }
 .strtagclock { font-variant-numeric: tabular-nums; opacity: 0.85; }
 .strtag.sm { padding: 1px 7px; font-size: 10px; gap: 5px; margin-left: 8px; }
 /* On the navy strip the outline has to lift off the dark, not sink into it. */
@@ -3496,6 +3499,8 @@ a.faffil:hover { filter: grayscale(0); }
 .adminui .austop select, .adminui .austop input { width: auto; min-width: 190px;
   padding: 5px 8px; font-size: 13px; }
 .adminui .austopskip { margin-left: auto; opacity: 0.75; }
+/* Narrower than the pickers beside it: a reason is two or three words. */
+.adminui .austoptext { min-width: 0; width: 170px; padding: 5px 8px; font-size: 13px; }
 /* Ours, the strength, theirs - the same three across as the scoreboard
    above it, so which bench is short is the shape rather than a read. */
 .adminui .austrength { display: grid; grid-template-columns: 1fr auto 1fr;
@@ -4668,6 +4673,14 @@ function watchRows(game) {
    the advantage changes; a 5-on-3 says how big it is rather than listing both. */
 function StrengthTag({ live, now, usAbbr, size }) {
   if (!live) return null;
+  /* A count that is about to change is worse than no count. */
+  if (assessing(live)) {
+    return (
+      <span className={"strtag pending" + (size === "sm" ? " sm" : "")}>
+        <span className="strtaglab">Penalty pending</span>
+      </span>
+    );
+  }
   const st = strengthState(live, now);
   if (st.kind === "EV") return null;
 
@@ -5047,8 +5060,8 @@ const PERIODS = ["1", "2", "3", "OT", "SO"];
    a goal is already its own record of why play stopped, and a stoppage
    written beside it would be the same fact twice. */
 const STOP_REASONS = [
-  "Goal", "Penalty", "Icing", "Offside", "Puck out of play", "Goalie freeze",
-  "Injury", "Net off moorings", "Other",
+  "Goal", "Penalty", "Icing", "Offside", "Hand pass", "High stick",
+  "Puck out of play", "Goalie freeze", "Injury", "Net off moorings",
 ];
 const OPENS_A_FORM = { Goal: "goal", Penalty: "penalty" };
 
@@ -5225,6 +5238,15 @@ const penaltyClass = (p) => {
  * still returned for the strip, because the box is worth seeing whether or
  * not it changes the count.
  */
+/* A whistle whose penalties are still being entered.
+ *
+ * They go in one at a time, so between the first name and the second the
+ * count is a real number that is about to be wrong: two coincidental minors
+ * read as a power play until the second one lands. Held rather than
+ * published, because the alternative is broadcasting how fast somebody
+ * types. */
+function assessing(live) { return !!(live && live.assessing); }
+
 function strengthState(live, now) {
   const active = activePenalties(live, now);
   const serving = active.filter((p) => p.shorts);
@@ -16802,6 +16824,10 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
     const running = {
       running: true, clockMs: left, startedAt: Date.now(),
       warmup: false, intermission: false, breakAt: null,
+      /* Whatever was being sorted out at the whistle is sorted out now: the
+         puck has dropped. This is the clearing that matters, because it
+         happens whether or not anybody pressed Done. */
+      assessing: false,
     };
     /* The first time a period's clock runs, the period has started. */
     if (!hasPeriodMark("start", curPeriod)) {
@@ -16921,6 +16947,15 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
   const holdForPenalty = () => {
     setStopAsk(false);
     setPenPending({ period: curPeriod, clock: fmtClock(left) });
+    /* On the game, not just in this console: the public strength tag reads
+       the same flag, and it is the one being spared the guesswork. */
+    setLive({ assessing: true });
+  };
+
+  /* The whistle is settled - everything that was called has been entered. */
+  const doneAssessing = () => {
+    setPenPending(null);
+    if (live.assessing) setLive({ assessing: false });
   };
 
   /* The shot that caused the whistle, put in front of the whistle - it is
@@ -17350,6 +17385,27 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
       ...(madeIt && penaltyKind(p.kind).shorts ? { strength: madeIt } : {}),
     }));
 
+    /* The penalties already entered at this whistle were stamped with the
+       strength as it stood before this one existed. Two coincidental minors
+       left the first of them reading 5-on-4 for ever. Same period and same
+       clock is the same stoppage - the clock is stopped while they are
+       entered - so those are brought up to what the whistle actually
+       produced, and a whistle that turns out even loses the stamp rather
+       than keeping one that is no longer true. */
+    const settled = retro ? plays : plays.map((x) => {
+      if (x.kind !== "penalty") return x;
+      if (x.period !== when.period || x.clock !== when.clock) return x;
+      /* Not kindOf: that reads p.kind, which on a play is the string
+         "penalty" rather than the sort of penalty it was, so every play
+         would come back a minor and misconducts would be stamped too. A
+         play carries its length, and ten minutes has only ever meant a
+         misconduct here - served by the player, with the team at full
+         strength. */
+      if ((Number(x.minutes) || 0) >= 10) return x;
+      const { strength, ...rest } = x;
+      return madeIt ? { ...rest, strength: madeIt } : rest;
+    });
+
     /* Every minute counts on the player's line, whether the team was short
        for it or not - penalty minutes are penalty minutes. */
     const totalMins = rows.reduce((n, r) => n + r.mins, 0);
@@ -17368,7 +17424,7 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
        same write - a second one would be built from the `live` above and
        would put the penalty back. */
     push({
-      plays: [...plays, ...newPlays],
+      plays: [...settled, ...newPlays],
       live: retro
         ? { ...live, ejected }
         : { ...live, penalties: [...(live.penalties || []), ...pens], ejected, delayed: null },
@@ -18264,6 +18320,14 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
                 setOpenForm(form);
               }}>{r}</button>
           ))}
+          {/* With the reasons rather than behind an "Other" button: somebody
+              who already knows what to write should not have to ask first. */}
+          <input className="austoptext" placeholder="or type a reason…"
+            onKeyDown={(e) => {
+              if (e.key !== "Enter") return;
+              const v = e.currentTarget.value.trim();
+              if (v) logStop(v);
+            }} />
           <button className="btn bGhost bSm austopskip" onClick={() => setStopAsk(false)}>
             Don't log it
           </button>
@@ -18382,7 +18446,7 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
                     : ". Add the other team's if the calls were together.")
                 : "It goes on the sheet with the penalty, not before it."}
             </span>
-            <button className="btn bGhost bSm austopskip" onClick={() => setPenPending(null)}>
+            <button className="btn bGhost bSm austopskip" onClick={doneAssessing}>
               {atWhistle.length ? "Done" : "No penalty after all"}
             </button>
           </div>
@@ -18422,7 +18486,8 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
             {boxFor("us")}
             <div className="aupenmid">
               <span className="austrengthtag">
-                {strength.kind === "EV" ? "Even strength"
+                {live.assessing ? "Penalty pending"
+                  : strength.kind === "EV" ? "Even strength"
                   : strength.kind === "E4" ? strength.label
                   : strength.kind + " " + strength.label}
               </span>
