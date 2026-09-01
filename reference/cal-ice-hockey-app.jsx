@@ -735,6 +735,10 @@ a.socialbtn:hover { color: var(--deep); background: var(--gold); }
 
 /* ---- Live ----
    One dot, used on the public strip, the home widget and the console. */
+/* Play is stopped. Quieter than the live dot beside it - it qualifies that
+   dot rather than competing with it. */
+.whistlemark { display: inline-flex; align-items: center; margin-left: 6px;
+  vertical-align: -2px; opacity: 0.7; }
 .livedot { display: inline-block; width: 7px; height: 7px; border-radius: 50%;
   background: #E4002B; margin-right: 7px; vertical-align: baseline;
   animation: livepulse 1.6s ease-in-out infinite; }
@@ -4763,6 +4767,11 @@ function Scoreboard({ schedule, goto, onGame }) {
                     {state === "live"
                       ? <>
                           <span className="livedot" aria-hidden="true" />LIVE · {liveLabel(g.live, tick)}
+                          {atWhistle(g.live) && (
+                            <span className="whistlemark" title="Play stopped">
+                              <IcWhistle size={13} />
+                            </span>
+                          )}
                           <StrengthTag live={g.live} now={tick} size="sm" />
                         </>
                       : <>{localDate(g.date, g.time).replace(/^\w+,?\s*/, "")}, {r ? "Final" : localTime(g.date, g.time)}</>}
@@ -5027,6 +5036,17 @@ function strengthState(live, now) {
     : { kind: "PP", diff: them - us, active };
 }
 
+
+/**
+ * Is the clock stopped mid-period?
+ *
+ * An intermission and the warm-up both say what they are, so neither counts:
+ * this is the whistle in the middle of play, which is the state a frozen
+ * clock cannot tell you about on its own.
+ */
+function atWhistle(live) {
+  return !!(live && !live.running && !live.intermission && !live.warmup);
+}
 
 /* "2nd · 12:34", or "End 2nd" during an intermission. */
 function liveLabel(live, now) {
@@ -5560,7 +5580,14 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
               {live ? (
                 <>
                   <span className="gcchip live"><span className="livedot" aria-hidden="true" />LIVE</span>
-                  <span className="gcwhen">{liveLabel(game.live, now)}</span>
+                  <span className="gcwhen">
+                    {liveLabel(game.live, now)}
+                    {atWhistle(game.live) && (
+                      <span className="whistlemark" title="Play stopped">
+                        <IcWhistle size={15} />
+                      </span>
+                    )}
+                  </span>
                   <StrengthTag live={game.live} now={now} usAbbr={usAbbr} />
                 </>
               ) : final ? (
@@ -14027,6 +14054,11 @@ function Home({ site, goto, openPost, openGame }) {
                   {featureState === "live"
                     ? <>
                         <span className="livedot" aria-hidden="true" />Live · {liveLabel(feature.live, tick)}
+                        {atWhistle(feature.live) && (
+                          <span className="whistlemark" title="Play stopped">
+                            <IcWhistle size={14} />
+                          </span>
+                        )}
                         <StrengthTag live={feature.live} now={tick}
                           usAbbr={(site.settings && site.settings.org || {}).abbr || gameName(site)} />
                       </>
@@ -16212,11 +16244,14 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
   /* The shot that caused the whistle, put in front of the whistle - it is
      the order it happened in, and a shot logged after the stoppage reads as
      the next thing rather than the reason for this one. */
-  const logSaveShot = () => {
+  const logSaveShot = (value) => {
     const { freezeId, shooter, keeper, period, clock } = saveAsk;
+    const us = shooter === "us";
     const shot = {
       id: uid(), kind: "shot", team: shooter,
       period, clock, goalie: keeper || "",
+      shooterId: us ? value || null : null,
+      shooter: us ? nameOf(value) : value || "",
     };
     const i = plays.findIndex((p) => p.id === freezeId);
     const next = i < 0
@@ -17387,15 +17422,33 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
 
       {saveAsk && (
         <div className="austop">
-          <span className="h6">Was it a save?</span>
-          <span className="bsm">
-            The shot goes on the sheet ahead of the whistle, where it happened.
-          </span>
-          <button className="btn bGhost bSm" onClick={logSaveShot}>
-            Yes — count the shot
+          <span className="h6">Was it a save? Who shot it?</span>
+          {/* Which goaltender froze it settles which bench shot, so only one
+              list is offered. */}
+          {saveAsk.shooter === "us" ? (
+            <select value="" onChange={(e) => logSaveShot(e.target.value)}>
+              <option value="">{usLabel} — pick a player</option>
+              {skaters.filter((p) => p.position !== "G").map((p) => (
+                <option key={p.id} value={p.id}>#{p.number} {p.name}</option>
+              ))}
+            </select>
+          ) : theirs.length ? (
+            <select value="" onChange={(e) => logSaveShot(e.target.value)}>
+              <option value="">{oppName || "Them"} — pick a player</option>
+              {theirs.map((p) => (
+                <option key={p.id} value={p.name}>#{p.number} {p.name}</option>
+              ))}
+            </select>
+          ) : (
+            <input placeholder={(oppName || "Their") + " shooter"} onKeyDown={(e) => {
+              if (e.key === "Enter") logSaveShot(e.currentTarget.value.trim());
+            }} />
+          )}
+          <button className="btn bGhost bSm" onClick={() => logSaveShot("")}>
+            Count it — shooter unknown
           </button>
           <button className="btn bGhost bSm austopskip" onClick={() => setSaveAsk(null)}>
-            No
+            Not a save
           </button>
         </div>
       )}
