@@ -1224,7 +1224,16 @@ table.stats.gcpen th:first-child, table.stats.gcpen td:first-child { padding-lef
 .gcbox .gpside { padding: 10px 20px; }
 
 /* Box score tables */
+/* Three tables stacked down one page - forwards, defence, goaltenders - were
+   each sized to their own contents, so the name column started in a different
+   place in each and the sheet read as three. The identifying columns are
+   pinned to the same widths in all of them; the stat columns after are each
+   table's own and always were. */
 .gcbt { width: 100%; }
+.gcbt th:nth-child(1), .gcbt td:nth-child(1) { width: 46px; }
+.gcbt th:nth-child(2), .gcbt td:nth-child(2) { width: 210px; }
+.gcbt th:nth-child(3), .gcbt td:nth-child(3) { width: 52px; }
+.gcbtdec { font-weight: 800; }
 .gcbtspot { font-weight: 500; color: var(--ink); }
 .gcbtname { font-weight: 700; }
 .gcbtpts { font-weight: 800; color: var(--ink); }
@@ -6324,18 +6333,18 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
                   .filter((e) => e.p.position === "F")
                   .map((e) => withShots({ id: e.p.id, number: e.p.number, name: e.p.name, spot: e.p.spot, l: e.l }, true))}
                   onPlayer={onPlayer} />
-                <BoxTable title="Defense" rows={skaters
+                <BoxTable title="Defense" showSpot rows={skaters
                   .filter((e) => e.p.position === "D")
-                  .map((e) => withShots({ id: e.p.id, number: e.p.number, name: e.p.name, l: e.l }, true))}
+                  .map((e) => withShots({ id: e.p.id, number: e.p.number, name: e.p.name, spot: "D", l: e.l }, true))}
                   onPlayer={onPlayer} />
                 {/* Anything with an unrecognised position still has to appear. */}
-                <BoxTable title="Skaters" rows={skaters
+                <BoxTable title="Skaters" showSpot rows={skaters
                   .filter((e) => e.p.position !== "F" && e.p.position !== "D")
                   .map((e) => withShots({ id: e.p.id, number: e.p.number, name: e.p.name, l: e.l }, true))}
                   onPlayer={onPlayer} />
                 <GoalieTable rows={goalies.map((e) => ({
                   id: e.p.id, number: e.p.number, name: e.p.name, l: e.l,
-                }))} onPlayer={onPlayer} />
+                }))} onPlayer={onPlayer} result={game.result} mine />
                 <UnnamedShots n={unnamedShots(true)} />
               </>
             ) : oppRows.length ? (
@@ -6343,15 +6352,15 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
                 <BoxTable title="Forwards" showSpot rows={oppSkaters
                   .filter((x) => oppPos(x) === "F")
                   .map((x) => withShots({ id: x.id, number: x.number, name: x.name, spot: oppSpot(x), l: x }, false))} />
-                <BoxTable title="Defense" rows={oppSkaters
+                <BoxTable title="Defense" showSpot rows={oppSkaters
                   .filter((x) => oppPos(x) === "D")
-                  .map((x) => withShots({ id: x.id, number: x.number, name: x.name, l: x }, false))} />
-                <BoxTable title="Skaters" rows={oppSkaters
+                  .map((x) => withShots({ id: x.id, number: x.number, name: x.name, spot: "D", l: x }, false))} />
+                <BoxTable title="Skaters" showSpot rows={oppSkaters
                   .filter((x) => !oppPos(x))
                   .map((x) => withShots({ id: x.id, number: x.number, name: x.name, l: x }, false))} />
                 <GoalieTable rows={oppGoalies.map((x) => ({
                   id: x.id, number: x.number, name: x.name, l: x,
-                }))} />
+                }))} result={game.result} />
               </>
             ) : (
               <div className="emptybox">
@@ -7204,15 +7213,34 @@ function UnnamedShots({ n }) {
   );
 }
 
-function GoalieTable({ rows, onPlayer }) {
+/* Which of W, L or T a goaltender takes for the game.
+ *
+ * The decision belongs to whoever was in net for the winning goal, and where
+ * two keepers played there is nothing on an imported sheet that says which.
+ * So it is only given when one of them played the whole game, and a dash
+ * otherwise: a decision credited to both would be one more than the team
+ * actually earned. */
+function goalieDecision(rows, result, mine) {
+  if (!result) return null;
+  const played = rows.filter((r) => Number(r.l.saves) || Number(r.l.ga) || Number(r.l.minutes));
+  if (played.length !== 1) return null;
+  const us = Number(result.us) || 0, them = Number(result.them) || 0;
+  const ours = mine ? us : them, theirs = mine ? them : us;
+  return { id: played[0].id, mark: ours > theirs ? "W" : ours < theirs ? "L" : "T" };
+}
+
+function GoalieTable({ rows, onPlayer, result, mine }) {
   if (!rows.length) return null;
+  const dec = goalieDecision(rows, result, mine);
   return (
     <section className="gcpad gcboxsec">
       <h2 className="statsec">Goaltending</h2>
       <div className="twrap">
         <table className="stats gcbt">
           <thead>
-            <tr><th>#</th><th>Goaltender</th><th>SA</th><th>SV</th><th>GA</th><th>SV%</th></tr>
+            <tr><th>#</th><th>Goaltender</th>
+              <th title="Decision — win, loss or tie">DEC</th>
+              <th>SA</th><th>SV</th><th>GA</th><th>SV%</th></tr>
           </thead>
           <tbody>
             {rows.map((r) => {
@@ -7227,6 +7255,7 @@ function GoalieTable({ rows, onPlayer }) {
                       ? <button className="pboxname" onClick={() => onPlayer(r.id)}>{r.name}</button>
                       : r.name}
                   </td>
+                  <td className="gcbtdec">{dec && dec.id === r.id ? dec.mark : "\u2014"}</td>
                   <td>{sa}</td>
                   <td>{sv}</td>
                   <td>{ga}</td>
