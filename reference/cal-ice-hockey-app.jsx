@@ -4895,6 +4895,18 @@ const STOP_REASONS = [
   "Injury", "Net off moorings", "Other",
 ];
 
+/* Who the whistle was about. "Who did it" is wrong for half of these, and a
+   question worded wrongly gets answered wrongly at a rink. */
+const STOP_WHO = {
+  "Icing": "Who iced it?",
+  "Offside": "Who was offside?",
+  "Penalty": "Who took the penalty?",
+  "Puck out of play": "Who put it out?",
+  "Goalie freeze": "Who froze it?",
+  "Injury": "Who is hurt?",
+  "Net off moorings": "Who knocked the net off?",
+};
+
 /* ---------------- Live game model ----------------
  * The clock is stored as an anchor, never as a ticking value: `clockMs` is
  * what was left when it was last stopped, and `startedAt` is when it was
@@ -16022,6 +16034,10 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
      has already gone, and making someone pick a reason before the clock
      stops would cost real seconds. */
   const [stopAsk, setStopAsk] = useState(false);
+  /* And who it was about. The reason is written first so the stoppage is on
+     the sheet whatever happens next, and the name is attached to that same
+     play a moment later - the shot and faceoff prompts work the same way. */
+  const [stopWho, setStopWho] = useState(null);
   const curPeriod = live.period || "1";
   const hasPeriodMark = (phase, p) =>
     plays.some((x) => x.kind === "period" && x.phase === phase && x.period === p);
@@ -16034,6 +16050,10 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
       return;
     }
     setStopAsk(false);
+    /* Play has restarted, so the question about the last whistle has gone
+       with it - the stoppage keeps its reason and no name, the same as
+       pressing skip. */
+    setStopWho(null);
     setTimeoutAsk(false);
     setFaceoffAsk({ clock: fmtClock(left) });
     /* Starting the clock is the end of the warm-up, whatever else it is. */
@@ -16141,13 +16161,27 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
   };
 
   const logStop = (reason) => {
+    const pid = uid();
     push({
       plays: [...plays, {
-        id: uid(), kind: "stoppage", reason,
+        id: pid, kind: "stoppage", reason,
         period: curPeriod, clock: fmtClock(left),
       }],
     });
     setStopAsk(false);
+    setStopWho({ id: pid, reason });
+  };
+
+  const nameStopper = (team, value) => {
+    const us = team === "us";
+    push({
+      plays: plays.map((p) => (p.id === stopWho.id ? {
+        ...p, byTeam: team,
+        byId: us ? value || null : null,
+        by: us ? nameOf(value) : value,
+      } : p)),
+    });
+    setStopWho(null);
   };
   const nudge = (secs) =>
     setLive({
@@ -17103,6 +17137,35 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
         </div>
       )}
 
+      {stopWho && (
+        <div className="austop">
+          <span className="h6">{STOP_WHO[stopWho.reason] || "Who did it?"}</span>
+          {/* Goaltenders included: a freeze is the one stoppage that is
+              nearly always theirs. */}
+          <select value="" onChange={(e) => nameStopper("us", e.target.value)}>
+            <option value="">{usLabel} — pick a player</option>
+            {skaters.map((p) => (
+              <option key={p.id} value={p.id}>#{p.number} {p.name}</option>
+            ))}
+          </select>
+          {theirs.length ? (
+            <select value="" onChange={(e) => nameStopper("them", e.target.value)}>
+              <option value="">{oppName || "Them"} — pick a player</option>
+              {theirs.map((p) => (
+                <option key={p.id} value={p.name}>#{p.number} {p.name}</option>
+              ))}
+            </select>
+          ) : (
+            <input placeholder={(oppName || "Their") + " player"} onKeyDown={(e) => {
+              if (e.key === "Enter") nameStopper("them", e.currentTarget.value.trim());
+            }} />
+          )}
+          <button className="btn bGhost bSm austopskip" onClick={() => setStopWho(null)}>
+            Don't know
+          </button>
+        </div>
+      )}
+
       {/* ---- Strength ---- */}
       <div className={"austrength " + strength.kind.toLowerCase()}>
         <span className="austrengthtag">
@@ -17431,6 +17494,7 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
                       <>
                         <span className="auplaykind stop">WHISTLE</span>
                         <span className="auplaywho">{p.reason || "Stoppage"}</span>
+                        {p.by && <span className="auplayassist">{p.by}</span>}
                       </>
                     )}
                   </span>
@@ -18944,6 +19008,7 @@ function RetroPlays({ game, oppName, roster, lines, oppLines, setGame, usLabel }
                       <>
                         <span className="auplaykind stop">WHISTLE</span>
                         <span className="auplaywho">{p.reason || "Stoppage"}</span>
+                        {p.by && <span className="auplayassist">{p.by}</span>}
                       </>
                     )}
                   </span>
