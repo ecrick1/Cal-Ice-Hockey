@@ -3561,6 +3561,8 @@ a.faffil:hover { filter: grayscale(0); }
 /* Waiting on a penalty: the whistle has gone and the sheet is deliberately
    still empty, so the bar says so rather than leaving a gap. */
 .adminui .aupenwait { border-left: 3px solid var(--au-warn, #F5B544); }
+/* Where to go about it, on its own line under the checks. */
+.adminui .aumismatchwhere { flex-basis: 100%; font-size: 11.5px; color: var(--au-faint); }
 /* A folded panel is a heading and nothing else, so the heading has to look
    like the control it is: full width, and the sign on the right says which
    way it goes. */
@@ -15045,9 +15047,16 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
                 onClick={() => goLive(g)}>
                 {gameState(g) === "live" ? "LIVE" : "Live"}
               </button>
+              {/* Open for a game being scored as well as a finished one. Live
+                  scoring writes these lines as the game happens, so it can put
+                  a wrong number in one, so the way to correct it has to be open
+                  while the game is on - the reconciliation checks are raised
+                  then and they have to be answerable then. */}
               <button className="btn bGhost aucount" style={{ fontSize: 12, padding: "5px 8px" }}
-                disabled={!g.result}
-                title={g.result ? "Enter per-player stats" : "Mark the game final first"}
+                disabled={!g.result && !g.live}
+                title={g.result || g.live
+                  ? "Enter and correct per-player stats"
+                  : "Mark the game final first, or score it live"}
                 onClick={() => setOpenBox(openBox === g.id ? null : g.id)}>
                 Box{" "}
                 {/* One badge, not two. Something contradicting itself is the
@@ -15217,7 +15226,9 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
         + Add Game
       </button>
       <p className="bsm" style={{ color: "var(--au-dim)", marginTop: 12 }}>
-        Tick "Final?" to enter a score, then open Box to record who scored. Season and
+        Tick "Final?" to enter a score, then open Box to record who scored. A game
+        being scored live has its Box open too, so a line can be corrected without
+        waiting for the final. Season and
         career totals are calculated from those box scores. Playoff games count toward
         the record and are also reported separately; exhibitions never count.
       </p>
@@ -17892,6 +17903,11 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
               <b>{c.label}</b> {c.detail}
             </span>
           ))}
+          {/* Knowing a number is wrong and knowing which screen fixes it are
+              two different things, and this only had the first. */}
+          <span className="aumismatchwhere">
+            Correct a player's line on Schedule → this game → Box.
+          </span>
         </div>
       )}
 
