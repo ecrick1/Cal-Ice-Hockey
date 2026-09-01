@@ -5223,8 +5223,11 @@ const oppRowPos = (row) => {
   return p ? "F" : null;
 };
 
-/* What a scoresheet writes in the position column. */
-const SHEET_POSITIONS = ["LW", "C", "RW", "D", "G"];
+/* What a scoresheet writes in the position column. F stays: a forward whose
+   wing nobody wrote down is a forward, and it is what the league's own feed
+   gives - so it has to be reachable from every row, not only from the rows
+   that happen to hold it already. */
+const SHEET_POSITIONS = ["F", "LW", "C", "RW", "D", "G"];
 
 /* Absent means dressed: every sheet written before scratches existed. */
 const oppDressed = (row) => (row && row.dressed) !== false;
@@ -18678,6 +18681,8 @@ function GameSheet({ game, oppName, site, setDraft, library, live, setLive }) {
           })}>
           {(SHEET_POSITIONS.includes(keeper ? "G" : posOfRow(r))
             ? SHEET_POSITIONS
+            /* Anything else a sheet was written with still shows what it
+               holds rather than snapping to the first option. */
             : [posOfRow(r), ...SHEET_POSITIONS]
           ).map((x) => <option key={x} value={x}>{x}</option>)}
         </select>
