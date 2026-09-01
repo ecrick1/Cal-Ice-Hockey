@@ -3584,6 +3584,12 @@ a.faffil:hover { filter: grayscale(0); }
 /* Waiting on a penalty: the whistle has gone and the sheet is deliberately
    still empty, so the bar says so rather than leaving a gap. */
 .adminui .aupenwait { border-left: 3px solid var(--au-warn, #F5B544); }
+/* The break clock is not the game clock and should not be mistaken for it
+   at a glance across a press box. */
+.adminui .aubugclock.aubugbreak { color: var(--au-warn, #F5B544); }
+.adminui .aubugbreaklab { margin: 2px 0 0; text-align: center; font-size: 10.5px;
+  font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--au-faint); }
 /* Where to go about it, on its own line under the checks. */
 .adminui .aumismatchwhere { flex-basis: 100%; font-size: 11.5px; color: var(--au-faint); }
 /* A folded panel is a heading and nothing else, so the heading has to look
@@ -4746,7 +4752,7 @@ function OppBadge({ name, logo, size = 30 }) {
 
 function Scoreboard({ schedule, goto, onGame }) {
   const rowRef = useRef(null);
-  const tick = useClockTick(schedule.some((g) => g.live && g.live.running));
+  const tick = useClockTick(schedule.some((g) => clockTicking(g.live)));
   const games = useMemo(() => {
     const sorted = [...schedule].sort(cmpDate);
     const played = sorted.filter((g) => gameState(g) === "final").slice(-5);
@@ -5034,6 +5040,33 @@ function periodSecs(period) {
   return PERIOD_SECS[period] ?? 20 * 60;
 }
 
+/* Is anything counting down? The game clock, or a break between periods -
+   the second of which runs with the first deliberately stopped, so asking
+   only about the game clock left every intermission frozen on screen. A
+   paused break is not moving and does not need the repaint. */
+function clockTicking(live) {
+  return !!(live && (live.running || (live.intermission && !live.running && live.breakAt)));
+}
+
+/* How long a break between periods runs. Fifteen is what the ACHA plays;
+   the others are here for rinks that run longer. */
+const INTERMISSION_CHOICES = [15, 18, 20];
+const INTERMISSION_SECS = 15 * 60;
+
+/* Milliseconds left in the intermission.
+ *
+ * Anchored exactly like the game clock, and separate from it, because the
+ * game clock is holding 20:00 for the period about to start - borrowing it
+ * would mean putting it back afterwards and getting that right every time. */
+function intermissionLeft(live, now) {
+  /* Both halves, everywhere. The flag on its own has been wrong before. */
+  if (!live || !live.intermission || live.running) return 0;
+  const base = Number(live.breakMs);
+  const ms = Number.isFinite(base) ? base : INTERMISSION_SECS * 1000;
+  if (!live.breakAt) return Math.max(0, ms);
+  return Math.max(0, ms - ((now ?? Date.now()) - live.breakAt));
+}
+
 /* Milliseconds left on the clock right now. */
 function clockLeft(live, now) {
   if (!live) return 0;
@@ -5204,7 +5237,13 @@ function liveLabel(live, now) {
   if (live.warmup) return "Warm-up";
   const p = live.period || "1";
   const named = p === "1" ? "1st" : p === "2" ? "2nd" : p === "3" ? "3rd" : p;
-  if (live.intermission) return p === "3" ? "End of regulation" : "End " + named;
+  if (live.intermission && !live.running) {
+    /* The one thing everyone in the building wants to know. Once it has run
+       out it stops being news and the period is what matters again. */
+    const bl = intermissionLeft(live, now);
+    const head = p === "3" ? "End of regulation" : "End " + named;
+    return bl > 0 ? head + " · " + fmtClock(bl) : head;
+  }
   return named + " · " + fmtClock(clockLeft(live, now));
 }
 
@@ -5426,7 +5465,7 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
   const [fTeam, setFTeam] = useState("");
 
   const liveRunning = !!(game && game.live && game.live.running);
-  const now = useClockTick(liveRunning);
+  const now = useClockTick(clockTicking(game && game.live));
 
   if (!game) {
     return (
@@ -14312,7 +14351,7 @@ function Home({ site, goto, openPost, openGame }) {
    *           to, and promising one at the top of the page would mislead.
    */
   const liveGame = sched.find((g) => gameState(g) === "live");
-  const tick = useClockTick(!!(liveGame && liveGame.live && liveGame.live.running));
+  const tick = useClockTick(clockTicking(liveGame && liveGame.live));
   const justFinished = [...sched].reverse().find(
     (g) => gameState(g) === "final" && daysSince(g.date) !== null && daysSince(g.date) <= 1
   );
@@ -16187,12 +16226,16 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
      game keeps its result the whole time, so gameState() still reads "final"
      and none of this reaches the public site. */
   const retro = !!live.retro;
-  const now = useClockTick(!!live.running);
+  const now = useClockTick(clockTicking(live));
   /* "Us" is what the data calls our side; it is not what a scorekeeper calls
      the team they are watching. */
   const usLabel = ((site.settings || {}).org || {}).abbr || gameName(site) || "Us";
 
   const left = clockLeft(live, now);
+  const breakLeft = intermissionLeft(live, now);
+  /* A break is the flag and a stopped clock, never the flag alone. */
+  const onBreak = !retro && !!live.intermission && !live.running;
+  const breakChoice = Number(live.breakLen) || INTERMISSION_SECS / 60;
   const strength = strengthState(live, now);
   /* Overtime has to have been played before a shootout is a thing that has
      happened. Being in OT counts - the moment it ends without a goal, the
@@ -16432,6 +16475,30 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
     push({ plays: nextPlays, live: nextLive });
   };
 
+  /* The break starts, and the period moves on with it: exactly one period
+     follows the second, and typing it in afterwards was a step that existed
+     only to be forgotten. The picker still overrides. */
+  const startIntermission = () => {
+    const order = ["1", "2", "3", "OT"];
+    const i = order.indexOf(live.period || "1");
+    const next = i >= 0 && i < order.length - 1 ? order[i + 1] : live.period;
+    const mins = Number(live.breakLen) || INTERMISSION_SECS / 60;
+    push({
+      plays: hasPeriodMark("end", live.period || "1") ? plays : [...plays, {
+        id: uid(), kind: "period", phase: "end", period: live.period || "1",
+        clock: fmtClock(left),
+      }],
+      live: {
+        ...live,
+        intermission: true,
+        running: false, startedAt: null,
+        /* The game clock goes to the top of the period that is coming. */
+        period: next, clockMs: periodSecs(next) * 1000,
+        breakLen: mins, breakMs: mins * 60 * 1000, breakAt: Date.now(),
+      },
+    });
+  };
+
   /* ---- Clock ---- */
   /* Stopping the clock happens first and is asked about second: the whistle
      has already gone, and making someone pick a reason before the clock
@@ -16479,7 +16546,13 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
     setTimeoutAsk(false);
     setFaceoffAsk({ clock: fmtClock(left) });
     /* Starting the clock is the end of the warm-up, whatever else it is. */
-    const running = { running: true, clockMs: left, startedAt: Date.now(), warmup: false };
+    /* Whatever the game was doing before, it is not doing it now: the
+       warm-up is over and so is any break. Leaving the intermission flag on
+       through a start is what produced a game running with a break clock. */
+    const running = {
+      running: true, clockMs: left, startedAt: Date.now(),
+      warmup: false, intermission: false, breakAt: null,
+    };
     /* The first time a period's clock runs, the period has started. */
     if (!hasPeriodMark("start", curPeriod)) {
       push({
@@ -17417,7 +17490,17 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
           {/* A finished game has no clock to run. Showing 20:00 frozen next to
               a 6-2 final, with Start and Intermission buttons under it, invites
               somebody to press them. */}
-          <p className="aubugclock">{retro ? "FINAL" : fmtClock(left)}</p>
+          {/* Whichever clock is actually running. During a break the game
+              clock is parked on the next period and is not the number
+              anybody is looking for. */}
+          <p className={"aubugclock" + (onBreak ? " aubugbreak" : "")}>
+            {retro ? "FINAL" : onBreak ? fmtClock(breakLeft) : fmtClock(left)}
+          </p>
+          {onBreak && (
+            <p className="aubugbreaklab">
+              {breakLeft > 0 ? "Intermission" : "Intermission over"}
+            </p>
+          )}
           <div className="aubugctl">
             <select value={live.period || "1"}
               onChange={(e) => { setPeriod(e.target.value); if (e.target.value === "SO") setTab("shootout"); }}>
@@ -17429,16 +17512,36 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
                 {live.running ? "Stop" : "Start"}
               </button>
             )}
-            {/* Stops the clock as well as saying so — an intermission with a
-                running clock is a state nobody wants to explain. */}
+            {/* Stops the game clock as well as saying so — an intermission
+                with a running clock is a state nobody wants to explain. */}
             {!retro && (
               <button className={"btn bSm " + (live.intermission ? "bNavy" : "bGhost")}
-                onClick={() => setLive({
-                  intermission: !live.intermission,
-                  running: false, clockMs: left, startedAt: null,
-                })}>
-                Intermission
+                onClick={() => (onBreak
+                  ? setLive({ intermission: false, breakAt: null })
+                  : startIntermission())}>
+                {onBreak ? "End intermission" : "Intermission"}
               </button>
+            )}
+            {onBreak && (
+              <>
+                <button className="btn bSm bGhost"
+                  onClick={() => setLive(live.breakAt
+                    ? { breakMs: intermissionLeft(live, now), breakAt: null }
+                    : { breakAt: Date.now() })}>
+                  {live.breakAt ? "Pause break" : "Resume break"}
+                </button>
+                <select value={breakChoice}
+                  title="How long the break runs"
+                  onChange={(e) => setLive({
+                    breakLen: Number(e.target.value),
+                    breakMs: Number(e.target.value) * 60 * 1000,
+                    breakAt: live.breakAt ? Date.now() : null,
+                  })}>
+                  {INTERMISSION_CHOICES.map((m) => (
+                    <option key={m} value={m}>{m} min</option>
+                  ))}
+                </select>
+              </>
             )}
             {!retro && (
               <button className="btn bSm bGhost" onClick={() => {
