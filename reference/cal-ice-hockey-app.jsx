@@ -13453,9 +13453,90 @@ function parseLineup(text) {
  * Deliberately thin: number, name, position. We are not tracking other teams'
  * players, only recording who did what in our games.
  */
-function OpponentRoster({ opponent, setOpp, onClose }) {
+function OpponentRoster({ opponent, setOpp, onClose, achaSeasonId }) {
+  const ask = useAsk();
   const roster = opponent.roster || [];
   const [paste, setPaste] = useState("");
+  const [pulling, setPulling] = useState(false);
+
+  /* Their id if we have it, otherwise found by name and kept, so this is a
+     lookup once rather than every time. */
+  const pullTheirs = async () => {
+    setPulling(true);
+    try {
+      let teamId = opponent.achaTeamId;
+      if (!teamId) {
+        const teams = await fetch("/acha?view=teamsForSeason&season_id=" + achaSeasonId)
+          .then((r) => r.json());
+        const want = [opponent.name, opponent.short].filter(Boolean).map(achaNameKey);
+        const hit = (teams.teams || []).find((t) => want.includes(achaNameKey(t.name)));
+        if (!hit) {
+          setPulling(false);
+          await ask({
+            title: "Cannot find them in the league",
+            message: "No team in this season matches \u201c" + (opponent.name || "") + "\u201d.",
+            detail: "Set their ACHA team id on the Opponents tab and this will go straight to it.",
+            blocked: true,
+          });
+          return;
+        }
+        teamId = hit.id;
+        setOpp(opponent.id, { achaTeamId: teamId });
+      }
+      const j = await fetch("/acha?view=roster&season_id=" + achaSeasonId + "&team_id=" + teamId)
+        .then((r) => r.json());
+      const holder = j.roster && (Array.isArray(j.roster) ? j.roster[0] : j.roster);
+      const rows = [];
+      for (const sec of (holder && holder.sections) || []) {
+        if (/coach/i.test(sec.title || "")) continue;
+        const fallback = /goal/i.test(sec.title || "") ? "G"
+          : /defen/i.test(sec.title || "") ? "D" : "F";
+        for (const d of sec.data || []) {
+          const r = d.row || {};
+          if (!r.name) continue;
+          /* Number, name, position. Nothing else: this is a record of who
+             played us, not a roster we keep for another club. */
+          rows.push({
+            id: uid(),
+            number: String(r.tp_jersey_number || "").replace(/\D/g, ""),
+            name: String(r.name).trim(),
+            position: /^[FDG]$/.test(r.position || "") ? r.position : fallback,
+          });
+        }
+      }
+      setPulling(false);
+      if (!rows.length) {
+        await ask({
+          title: "The league has not posted their roster",
+          message: (opponent.name || "This team") + " has no players listed for this season.",
+          blocked: true,
+        });
+        return;
+      }
+      const key = (n) => String(n || "").toLowerCase().replace(/[^a-z]/g, "");
+      const have = new Set(roster.map((x) => key(x.name)));
+      const fresh = rows.filter((x) => !have.has(key(x.name)));
+      if (!fresh.length) {
+        await ask({
+          title: "Nothing to add",
+          message: "All " + rows.length + " players the league lists are already here.",
+          blocked: true,
+        });
+        return;
+      }
+      const ok = await ask({
+        title: "Add " + fresh.length + " from the league?",
+        message: (opponent.name || "They") + " have " + rows.length + " listed"
+          + (rows.length === fresh.length ? "." : "; the rest are already here."),
+        list: fresh.map((x) => ({ label: (x.number ? "#" + x.number + "  " : "") + x.name, note: x.position })),
+        confirmLabel: "Add them",
+      });
+      if (ok) setOpp(opponent.id, { roster: [...roster, ...fresh] });
+    } catch (e) {
+      setPulling(false);
+      await ask({ title: "Could not read the league", message: String((e && e.message) || e), blocked: true });
+    }
+  };
 
   const setRow = (id, patch) =>
     setOpp(opponent.id, { roster: roster.map((p) => (p.id === id ? { ...p, ...patch } : p)) });
@@ -13485,7 +13566,14 @@ function OpponentRoster({ opponent, setOpp, onClose }) {
         <span className="bsm" style={{ color: "var(--au-faint)" }}>
           {roster.length} {roster.length === 1 ? "player" : "players"}
         </span>
-        <button className="btn bGhost bSm" style={{ marginLeft: "auto" }} onClick={onClose}>Done</button>
+        <button className="btn bGhost bSm" style={{ marginLeft: "auto" }}
+          onClick={pullTheirs} disabled={pulling || !achaSeasonId}
+          title={achaSeasonId
+            ? "Read their roster from the ACHA"
+            : "This season is not linked to an ACHA season"}>
+          {pulling ? "Reading the league\u2026" : "Fetch from ACHA"}
+        </button>
+        <button className="btn bGhost bSm" onClick={onClose}>Done</button>
       </div>
 
       <div className="auopprows">
@@ -13768,7 +13856,9 @@ function OpponentsEditor({ site, setDraft }) {
         </div>
         {openRoster === o.id && (
           <>
-            <OpponentRoster opponent={o} setOpp={setOpp} onClose={() => setOpenRoster(null)} />
+            <OpponentRoster opponent={o} setOpp={setOpp}
+              achaSeasonId={(site.seasons[site.currentSeason] || {}).achaSeasonId}
+              onClose={() => setOpenRoster(null)} />
             <OpponentSeasonStats opponent={o} seasons={site.seasons} setOpp={setOpp} />
           </>
         )}
@@ -15148,7 +15238,7 @@ function sheetState(roster, lu) {
  * hand. It is still possible to start without their sheet, but now it is a
  * decision taken on its own page rather than an omission.
  */
-function LiveLineup({ game, roster, oppName, previous, opponent, setOpp, setGame, onStart, onWarmup, onCancel }) {
+function LiveLineup({ game, roster, oppName, previous, opponent, setOpp, setGame, onStart, onWarmup, onCancel, achaSeasonId }) {
   const ask = useAsk();
   const [step, setStep] = useState(1);
   const [theirOpen, setTheirOpen] = useState(false);
@@ -15278,7 +15368,7 @@ function LiveLineup({ game, roster, oppName, previous, opponent, setOpp, setGame
           </div>
 
           {(theirOpen || !theirs.length) && opponent && opponent.id && (
-            <OpponentRoster opponent={opponent} setOpp={setOpp}
+            <OpponentRoster opponent={opponent} setOpp={setOpp} achaSeasonId={achaSeasonId}
               onClose={() => setTheirOpen(false)} />
           )}
 
@@ -15532,6 +15622,7 @@ function LiveTab({ site, setDraft, updateSeason, onSave, dirty, setupSeed, onSee
         opponent={oppOf(setupGame)} setOpp={setOppRecord}
         setGame={setGame} onStart={() => goLive(setupGame)}
         onWarmup={() => goLive(setupGame, false, true)}
+        achaSeasonId={season.achaSeasonId}
         onCancel={() => setSetupId(null)} />
     );
   }
@@ -17031,6 +17122,7 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
                 does not change this game.
               </p>
               <OpponentRoster opponent={opponent} setOpp={setOpp}
+                achaSeasonId={(site.seasons[site.currentSeason] || {}).achaSeasonId}
                 onClose={() => setTab("scoring")} />
             </>
           : <section className="card">
@@ -19027,6 +19119,18 @@ async function fetchAchaRoster(seasonId, match) {
     }
   }
   return { rows, teamName: team.name };
+}
+
+/* League names carry a division prefix and spell out what our records
+   abbreviate: "MD2 University of California-Los Angeles" against "UCLA".
+   Stripping both down to letters matches most of them, and the ones it
+   cannot are left to be linked by hand rather than guessed at. */
+function achaNameKey(x) {
+  return String(x || "").toLowerCase()
+    .replace(/^m[d]?\s*[123]\s+/, "")
+    .replace(/\buniv(ersity)?\b/g, "")
+    .replace(/\bof\b/g, "")
+    .replace(/[^a-z]/g, "");
 }
 
 /* What the league is allowed to write. Everything else on a player - class
