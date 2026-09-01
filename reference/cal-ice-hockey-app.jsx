@@ -3561,6 +3561,17 @@ a.faffil:hover { filter: grayscale(0); }
 /* Waiting on a penalty: the whistle has gone and the sheet is deliberately
    still empty, so the bar says so rather than leaving a gap. */
 .adminui .aupenwait { border-left: 3px solid var(--au-warn, #F5B544); }
+/* A folded panel is a heading and nothing else, so the heading has to look
+   like the control it is: full width, and the sign on the right says which
+   way it goes. */
+.adminui .aufoldhead { display: flex; align-items: center; justify-content: space-between;
+  width: 100%; gap: 10px; padding: 0; margin: 0; background: none; border: 0;
+  cursor: pointer; text-align: left; color: inherit; }
+.adminui .aufold.on .aufoldhead { margin-bottom: 12px; }
+.adminui .aufoldhead .h6 { margin: 0; }
+.adminui .aufoldmark { font-family: var(--au-mono, monospace); font-size: 15px;
+  font-weight: 700; color: var(--au-faint); line-height: 1; }
+.adminui .aufoldhead:hover .aufoldmark { color: var(--au-text); }
 /* What the call did to the ice, beside the call. */
 .adminui .auplaystr { font-family: var(--au-mono, monospace); font-size: 10px;
   font-weight: 700; color: #A5B4FC; letter-spacing: 0.04em; }
@@ -4954,10 +4965,26 @@ const PERIODS = ["1", "2", "3", "OT", "SO"];
 /* Why the whistle went. Ordered by how often a scorekeeper reaches for them,
    because this list is tapped on a phone between shifts. "Goal" is not here:
    a goal stops the clock by itself and is already its own entry. */
+/* Goal first: it is the answer most worth having and the one everyone is
+   there to record. Goal and Penalty open a form rather than being logged -
+   a goal is already its own record of why play stopped, and a stoppage
+   written beside it would be the same fact twice. */
 const STOP_REASONS = [
-  "Icing", "Offside", "Penalty", "Puck out of play", "Goalie freeze",
+  "Goal", "Penalty", "Icing", "Offside", "Puck out of play", "Goalie freeze",
   "Injury", "Net off moorings", "Other",
 ];
+const OPENS_A_FORM = { Goal: "goal", Penalty: "penalty" };
+
+/* A panel that folds away when what it records cannot be happening. */
+function FoldHead({ label, open, lock, onClick }) {
+  if (lock) return <p className="h6" style={{ marginBottom: 12 }}>{label}</p>;
+  return (
+    <button className="aufoldhead" onClick={onClick} aria-expanded={open}>
+      <span className="h6">{label}</span>
+      <span className="aufoldmark" aria-hidden="true">{open ? "\u2212" : "+"}</span>
+    </button>
+  );
+}
 
 /* The one whistle worth a follow-up question. Every other reason is a
    reason and a time; stopping to name someone for an icing costs the
@@ -16356,6 +16383,12 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
   const ourKeeperId = live.goalieUs && live.goalieUs !== "empty" ? live.goalieUs : "";
   const ourKeeperName = ourKeeperId ? nameOf(ourKeeperId) : "";
   const [stopAsk, setStopAsk] = useState(false);
+  /* Which entry form is open. Nothing while the clock runs, because neither
+     a goal nor a penalty happens during play - they are what ends it. */
+  const [openForm, setOpenForm] = useState(null);
+  /* Typing up a finished game has no clock to stop and so no whistle to wait
+     for; both forms stay open throughout. */
+  const formOpen = (k) => retro || openForm === k;
   /* And who it was about. The reason is written first so the stoppage is on
      the sheet whatever happens next, and the name is attached to that same
      play a moment later - the shot and faceoff prompts work the same way. */
@@ -16372,6 +16405,7 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
       return;
     }
     setStopAsk(false);
+    setOpenForm(null);
     /* Play has restarted, so the question about the last whistle has gone
        with it - the stoppage keeps its reason and no name, the same as
        pressing skip. */
@@ -17668,8 +17702,15 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
         <div className="austop">
           <span className="h6">Why did play stop?</span>
           {STOP_REASONS.map((r) => (
-            <button className="btn bGhost bSm" key={r}
-              onClick={() => (r === "Penalty" ? holdForPenalty() : logStop(r))}>{r}</button>
+            <button className={"btn bSm " + (OPENS_A_FORM[r] ? "bNavy" : "bGhost")} key={r}
+              onClick={() => {
+                const form = OPENS_A_FORM[r];
+                if (!form) return logStop(r);
+                /* Neither writes a stoppage: the goal or the penalty is the
+                   record. The penalty holds the whistle as it always has. */
+                if (r === "Penalty") holdForPenalty(); else setStopAsk(false);
+                setOpenForm(form);
+              }}>{r}</button>
           ))}
           <button className="btn bGhost bSm austopskip" onClick={() => setStopAsk(false)}>
             Don't log it
@@ -17990,8 +18031,10 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
       <div className="aulivegrid" hidden={shownTab !== "scoring"}>
         {/* ---- Entry ---- */}
         <div className="aulivecol">
-          <section className="card">
-            <p className="h6" style={{ marginBottom: 12 }}>Goal</p>
+          <section className={"card aufold" + (formOpen("goal") ? " on" : "")}>
+            <FoldHead label="Goal" open={formOpen("goal")} lock={retro}
+              onClick={() => setOpenForm(openForm === "goal" ? null : "goal")} />
+            <div hidden={!formOpen("goal")}>
             <div className="autoggle">
               {[["us", usLabel], ["them", oppName || "Them"]].map(([k, label]) => (
                 <button key={k} className={"btn bSm " + (goalTeam === k ? "bNavy" : "bGhost")}
@@ -18058,10 +18101,14 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
               </button>
               {goalMissing && <span className="bsm auaddwhy">{goalMissing}</span>}
             </div>
+            </div>
           </section>
 
-          <section className="card" style={{ marginTop: 16 }}>
-            <p className="h6" style={{ marginBottom: 12 }}>Penalty</p>
+          <section className={"card aufold" + (formOpen("penalty") ? " on" : "")}
+            style={{ marginTop: 16 }}>
+            <FoldHead label="Penalty" open={formOpen("penalty")} lock={retro}
+              onClick={() => setOpenForm(openForm === "penalty" ? null : "penalty")} />
+            <div hidden={!formOpen("penalty")}>
             <div className="autoggle">
               {[["us", usLabel], ["them", oppName || "Them"]].map(([k, label]) => (
                 <button key={k} className={"btn bSm " + (penTeam === k ? "bNavy" : "bGhost")}
@@ -18115,6 +18162,7 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
                 {penaltyKind(penKind).penaltyShot ? "Award the penalty shot" : "Add penalty"}
               </button>
               {penMissing && <span className="bsm auaddwhy">{penMissing}</span>}
+            </div>
             </div>
           </section>
         </div>
