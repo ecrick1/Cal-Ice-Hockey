@@ -742,6 +742,12 @@ a.socialbtn:hover { color: var(--deep); background: var(--gold); }
    dot rather than competing with it. */
 .whistlemark { display: inline-flex; align-items: center; margin-left: 6px;
   vertical-align: -2px; opacity: 0.7; }
+/* A box wide enough for the longest reading it will hold, so counting down
+   changes the digits and moves nothing. Tabular figures because a 1 and a 7
+   are not the same width otherwise, and the clock would still twitch. */
+.liveclock { display: inline-block; min-width: 4.6ch; text-align: left;
+  font-variant-numeric: tabular-nums; }
+
 .livedot { display: inline-block; width: 7px; height: 7px; border-radius: 50%;
   background: #E4002B; margin-right: 7px; vertical-align: baseline;
   animation: livepulse 1.6s ease-in-out infinite; }
@@ -4881,7 +4887,7 @@ function Scoreboard({ schedule, goto, onGame }) {
                   <span className="sdate">
                     {state === "live"
                       ? <>
-                          <span className="livedot" aria-hidden="true" />LIVE · {liveLabel(g.live, tick)}
+                          <span className="livedot" aria-hidden="true" />LIVE · <LiveWhen live={g.live} now={tick} />
                           {atWhistle(g.live) && (
                             <span className="whistlemark" title="Play stopped">
                               <IcWhistle size={13} />
@@ -5261,22 +5267,58 @@ function atWhistle(live) {
   return !!(live && !live.running && !live.intermission && !live.warmup);
 }
 
-/* "2nd · 12:34", or "End 2nd" during an intermission. */
-function liveLabel(live, now) {
-  if (!live) return "";
+/* PERIOD_ORDER is declared further down, next to the label map it belongs
+   with; function declarations here are hoisted past it and read it at call
+   time, so there is one list rather than two that can disagree. */
+const periodName = (p) => (p === "1" ? "1st" : p === "2" ? "2nd" : p === "3" ? "3rd" : p);
+
+/**
+ * The header's two halves: what part of the game this is, and the clock.
+ *
+ * Kept apart so the clock can be given a box of its own. As one string it
+ * was plain text in the middle of a line, and 10:00 becoming 9:59 pulled
+ * everything after it a character to the left, every second.
+ *
+ * During a break the period stored is the one about to start, not the one
+ * just finished - starting an intermission moves it on - so the name is
+ * taken from the period before it. "1st \u00b7 Intermission" is the break
+ * after the first, which is what somebody reading it wants to know.
+ */
+function liveParts(live, now) {
+  if (!live) return { head: "", clock: null };
   /* Before the first faceoff. The game is listed - the stream is up, the
      doors are open - but there is no clock to report yet. */
-  if (live.warmup) return "Warm-up";
+  if (live.warmup) return { head: "Warm-up", clock: null };
   const p = live.period || "1";
-  const named = p === "1" ? "1st" : p === "2" ? "2nd" : p === "3" ? "3rd" : p;
   if (live.intermission && !live.running) {
-    /* The one thing everyone in the building wants to know. Once it has run
-       out it stops being news and the period is what matters again. */
+    const i = PERIOD_ORDER.indexOf(p);
+    const done = i > 0 ? PERIOD_ORDER[i - 1] : p;
     const bl = intermissionLeft(live, now);
-    const head = p === "3" ? "End of regulation" : "End " + named;
-    return bl > 0 ? head + " · " + fmtClock(bl) : head;
+    return {
+      head: periodName(done) + " \u00b7 Intermission",
+      clock: bl > 0 ? fmtClock(bl) : null,
+    };
   }
-  return named + " · " + fmtClock(clockLeft(live, now));
+  return { head: periodName(p), clock: fmtClock(clockLeft(live, now)) };
+}
+
+/* The same thing as one string, for anywhere that needs text rather than
+   markup. */
+function liveLabel(live, now) {
+  const { head, clock } = liveParts(live, now);
+  return clock ? head + " \u00b7 " + clock : head;
+}
+
+/* The period and the clock, with the clock in a box of a fixed width so the
+   digits can change without moving the badges and the score beside them. */
+function LiveWhen({ live, now }) {
+  const { head, clock } = liveParts(live, now);
+  return (
+    <>
+      {head}
+      {clock ? <>{" \u00b7 "}<span className="liveclock">{clock}</span></> : null}
+    </>
+  );
 }
 
 function fmtDateParen(iso) {
@@ -5415,6 +5457,16 @@ function downloadICS(games, seasonName, orgName) {
  */
 const PERIOD_ORDER = ["1", "2", "3", "OT", "SO"];
 const PERIOD_LABEL = { "1": "1st", "2": "2nd", "3": "3rd", OT: "OT", SO: "SO" };
+
+/* What a scoresheet writes at the top and bottom of a period. Overtime and
+   the shootout are named rather than numbered, because "End of OT Period" is
+   not a thing anybody says. */
+function periodMoment(period, phase) {
+  const edge = phase === "start" ? "Start of " : "End of ";
+  if (period === "OT") return edge + "Overtime";
+  if (period === "SO") return edge + "the Shootout";
+  return edge + (PERIOD_LABEL[period] || period) + " Period";
+}
 
 /* An opponent line is written by three different things - the box-score
  * import, the admin editor, and live scoring - and they had each been asking
@@ -5873,7 +5925,7 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
                 <>
                   <span className="gcchip live"><span className="livedot" aria-hidden="true" />LIVE</span>
                   <span className="gcwhen">
-                    {liveLabel(game.live, now)}
+                    <LiveWhen live={game.live} now={now} />
                     {atWhistle(game.live) && (
                       <span className="whistlemark" title="Play stopped">
                         <IcWhistle size={15} />
@@ -6543,11 +6595,7 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
                   if (x.kind === "stoppage" || x.kind === "period") {
                     const said = x.kind === "stoppage"
                       ? (x.reason || "Play stopped")
-                      : (PERIOD_LABEL[x.period] || x.period)
-                        /* "1st period over", but just "OT over" - there is only
-                           ever one, so the noun adds nothing. */
-                        + (x.period === "OT" || x.period === "SO" ? " " : " period ")
-                        + (x.phase === "start" ? "under way" : "over");
+                      : periodMoment(x.period, x.phase);
                     return (
                       <div className="pbstop" key={x.id}>
                         <span className="pbstopicon" aria-hidden="true"><IcWhistle size={20} /></span>
@@ -14586,7 +14634,7 @@ function Home({ site, goto, openPost, openGame }) {
                 <span className="hnextlabel">
                   {featureState === "live"
                     ? <>
-                        <span className="livedot" aria-hidden="true" />Live · {liveLabel(feature.live, tick)}
+                        <span className="livedot" aria-hidden="true" />Live · <LiveWhen live={feature.live} now={tick} />
                         {atWhistle(feature.live) && (
                           <span className="whistlemark" title="Play stopped">
                             <IcWhistle size={14} />
