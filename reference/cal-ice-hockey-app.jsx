@@ -3422,7 +3422,12 @@ a.faffil:hover { filter: grayscale(0); }
 
 /* The scorebug. Big enough to read at arm's length on a phone propped on the
    boards, which is where this actually gets used. */
-.adminui .aubug { display: grid; grid-template-columns: 1fr auto 1fr; gap: 18px;
+/* Every track allowed to go below its contents' preferred width. An auto
+   track takes whatever it is asked for, which is how the middle column grew
+   until it pushed the visitors' shot buttons out through the side of the
+   panel. Shrinking is what lets the rows below wrap instead. */
+.adminui .aubug { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, auto) minmax(0, 1fr);
+  gap: 18px;
   align-items: center; background: var(--au-surface); border: 1px solid var(--au-line);
   border-left: 3px solid #E4002B; border-radius: 12px; padding: 18px 22px; }
 .adminui .aubugside { text-align: center; min-width: 0; }
@@ -3434,7 +3439,10 @@ a.faffil:hover { filter: grayscale(0); }
 .adminui .aubugclock { margin: 0; font-family: var(--au-mono, monospace); font-size: 38px;
   font-weight: 700; line-height: 1; color: var(--au-text); font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em; }
-.adminui .aubugctl { display: flex; gap: 8px; align-items: center; }
+.adminui .aubugctl { display: flex; gap: 8px; align-items: center;
+  flex-wrap: wrap; justify-content: center; }
+/* The break controls, on their own line under the ones always there. */
+.adminui .aubugbreakctl { margin-top: 2px; }
 .adminui .aubugctl select { width: auto; padding: 6px 8px; font-size: 13px; }
 .adminui .aubugnudge { display: flex; gap: 4px; }
 .adminui .aubugnudge .btn { padding: 4px 8px; font-size: 11.5px; }
@@ -3445,7 +3453,7 @@ a.faffil:hover { filter: grayscale(0); }
   padding: 5px 7px; text-align: center; }
 
 .adminui .aushots { display: flex; align-items: center; justify-content: center; gap: 8px;
-  margin-top: 10px; font-size: 12px; color: var(--au-dim); }
+  flex-wrap: wrap; margin-top: 10px; font-size: 12px; color: var(--au-dim); }
 .adminui .aushots strong { font-family: var(--au-mono, monospace); font-size: 15px;
   color: var(--au-text); font-variant-numeric: tabular-nums; }
 .adminui .aushots .btn { padding: 2px 9px; font-size: 14px; line-height: 1.2; }
@@ -17813,27 +17821,6 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
                 {onBreak ? "End intermission" : "Intermission"}
               </button>
             )}
-            {onBreak && (
-              <>
-                <button className="btn bSm bGhost"
-                  onClick={() => setLive(live.breakAt
-                    ? { breakMs: intermissionLeft(live, now), breakAt: null }
-                    : { breakAt: Date.now() })}>
-                  {live.breakAt ? "Pause break" : "Resume break"}
-                </button>
-                <select value={breakChoice}
-                  title="How long the break runs"
-                  onChange={(e) => setLive({
-                    breakLen: Number(e.target.value),
-                    breakMs: Number(e.target.value) * 60 * 1000,
-                    breakAt: live.breakAt ? Date.now() : null,
-                  })}>
-                  {INTERMISSION_CHOICES.map((m) => (
-                    <option key={m} value={m}>{m} min</option>
-                  ))}
-                </select>
-              </>
-            )}
             {!retro && (
               <button className="btn bSm bGhost" onClick={() => {
                 if (live.running) setLive({ running: false, clockMs: left, startedAt: null });
@@ -17844,6 +17831,31 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
               </button>
             )}
           </div>
+
+          {/* Only while the teams are off the ice. On its own row because a
+              control row that changes length with the state of the game is a
+              row that overflows the next time anything is added to it. */}
+          {onBreak && (
+            <div className="aubugctl aubugbreakctl">
+              <button className="btn bSm bGhost"
+                onClick={() => setLive(live.breakAt
+                  ? { breakMs: intermissionLeft(live, now), breakAt: null }
+                  : { breakAt: Date.now() })}>
+                {live.breakAt ? "Pause break" : "Resume break"}
+              </button>
+              <select value={breakChoice}
+                title="How long the break runs"
+                onChange={(e) => setLive({
+                  breakLen: Number(e.target.value),
+                  breakMs: Number(e.target.value) * 60 * 1000,
+                  breakAt: live.breakAt ? Date.now() : null,
+                })}>
+                {INTERMISSION_CHOICES.map((m) => (
+                  <option key={m} value={m}>{m} min</option>
+                ))}
+              </select>
+            </div>
+          )}
           {/* The arm is up and play has not stopped. A state the game is in
               rather than something that happened, so it is a toggle and not
               a play - and it clears itself when the penalty is called. */}
@@ -18774,9 +18786,7 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
                     ) : p.kind === "period" ? (
                       <>
                         <span className="auplaykind stop">PERIOD</span>
-                        <span className="auplaywho">
-                          {p.phase === "start" ? "Period start" : "Period end"}
-                        </span>
+                        <span className="auplaywho">{periodMoment(p.period, p.phase)}</span>
                       </>
                     ) : p.kind === "shot" ? (
                       <>
@@ -20388,9 +20398,7 @@ function RetroPlays({ game, oppName, roster, lines, oppLines, setGame, usLabel }
                     ) : p.kind === "period" ? (
                       <>
                         <span className="auplaykind stop">PERIOD</span>
-                        <span className="auplaywho">
-                          {p.phase === "start" ? "Period start" : "Period end"}
-                        </span>
+                        <span className="auplaywho">{periodMoment(p.period, p.phase)}</span>
                       </>
                     ) : p.kind === "shot" ? (
                       <>
