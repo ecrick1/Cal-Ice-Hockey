@@ -1229,10 +1229,24 @@ table.stats.gcpen th:first-child, table.stats.gcpen td:first-child { padding-lef
    place in each and the sheet read as three. The identifying columns are
    pinned to the same widths in all of them; the stat columns after are each
    table's own and always were. */
-.gcbt { width: 100%; }
-.gcbt th:nth-child(1), .gcbt td:nth-child(1) { width: 46px; }
-.gcbt th:nth-child(2), .gcbt td:nth-child(2) { width: 210px; }
-.gcbt th:nth-child(3), .gcbt td:nth-child(3) { width: 52px; }
+/* Fixed layout so the figures divide what is left of the width equally
+   rather than each column sizing to its own contents - ten numbers arriving
+   in ten different widths is what made this read as a list rather than a
+   table. Number and name stay pinned, which is what holds the three tables
+   in line with one another.
+   The side padding comes down with it: a dozen columns each have to fit a
+   heading inside their share, and the default sixteen a side left a
+   fifty-pixel column fourteen pixels to print SHG in. */
+.gcbt { width: 100%; table-layout: fixed; min-width: 720px; }
+.gcbt th, .gcbt td { padding-left: 8px; padding-right: 8px; }
+.gcbt th:nth-child(1), .gcbt td:nth-child(1) { width: 52px; }
+.gcbt th:nth-child(2), .gcbt td:nth-child(2) { width: 200px; }
+/* Only a name can outgrow its column, so only a name is trimmed. A number
+   that does not fit should be seen not to fit. */
+.gcbt .gcbtname, .gcbt .gcbtname .pboxname { max-width: 100%; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+/* Only the skaters have a position column to line up. */
+.gcbt:not(.gcbtgk) th:nth-child(3), .gcbt:not(.gcbtgk) td:nth-child(3) { width: 52px; }
 
 .gcbtspot { font-weight: 500; color: var(--ink); }
 .gcbtname { font-weight: 700; }
@@ -5689,6 +5703,10 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
    *
    * Ours key on the roster id and theirs on the name, because that is what
    * each side records. */
+  /* How much hockey has been played, for the goaltenders' time on ice. It
+     moves with the clock during a live game. */
+  const playedSecs = gameSeconds(game, plays, game.live, now);
+
   const shotTally = (() => {
     const us = {}, them = {};
     const add = (m, k) => { if (k) m[k] = (m[k] || 0) + 1; };
@@ -6349,7 +6367,7 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
                   onPlayer={onPlayer} />
                 <GoalieTable rows={goalies.map((e) => ({
                   id: e.p.id, number: e.p.number, name: e.p.name, l: e.l,
-                }))} onPlayer={onPlayer} plays={plays} mine />
+                }))} onPlayer={onPlayer} plays={plays} mine endAt={playedSecs} />
                 <UnnamedShots n={unnamedShots(true)} />
               </>
             ) : oppRows.length ? (
@@ -6365,7 +6383,7 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
                   .map((x) => withShots({ id: x.id, number: x.number, name: x.name, l: x }, false))} />
                 <GoalieTable rows={oppGoalies.map((x) => ({
                   id: x.id, number: x.number, name: x.name, l: x,
-                }))} plays={plays} />
+                }))} plays={plays} endAt={playedSecs} />
               </>
             ) : (
               <div className="emptybox">
@@ -7216,8 +7234,6 @@ function UnnamedShots({ n }) {
   );
 }
 
-/* Seconds since the opening face-off, read off a play's period and clock, so
-   two plays from different periods can be put in order against each other. */
 /* What every abbreviation on the site means.
  *
  * Held out here rather than on the stats page because the box score, the
@@ -7274,6 +7290,8 @@ function StatTh({ label, title, ...rest }) {
   );
 }
 
+/* Seconds since the opening face-off, read off a play's period and clock, so
+   two plays from different periods can be put in order against each other. */
 function playElapsed(x) {
   const order = ["1", "2", "3", "OT", "SO"];
   const i = Math.max(0, order.indexOf(String((x && x.period) || "1")));
@@ -7340,24 +7358,89 @@ function goalieGaSplit(rows, plays, mine) {
   return out;
 }
 
-/* Minutes as a scoreboard writes them. The field is a number because it is
-   typed as one; 40.5 is forty minutes and thirty seconds. */
+/**
+ * Seconds of hockey played so far, from the opening face-off.
+ *
+ * A game still being played has run as long as its clock says. A finished one
+ * ran to the end of the last period anybody recorded a play in - except in
+ * overtime, which is sudden death and stops on the goal that ends it.
+ *
+ * Floored at three periods for a finished game, because a sparse log is not
+ * evidence that the third period was never played.
+ */
+function gameSeconds(game, plays, live, now) {
+  if (!game.result) return elapsedSecs(live || game.live || {}, now);
+  const order = ["1", "2", "3", "OT"];
+  const otGoal = (plays || []).find((x) => x.kind === "goal" && x.period === "OT");
+  if (otGoal) return playElapsed(otGoal);
+  const seen = (plays || [])
+    .map((x) => order.indexOf(String(x.period || "1"))).filter((i) => i >= 0);
+  const idx = Math.max(2, seen.length ? Math.max(...seen) : 2);
+  return order.slice(0, idx + 1).reduce((n, k) => n + periodSecs(k), 0);
+}
+
+/**
+ * How long each goaltender was actually in net, in seconds.
+ *
+ * The same timeline the goals-against split is read from: who started, then
+ * every change, pull and return, measured against the clock. A pulled net
+ * belongs to nobody, so those seconds are charged to no one.
+ *
+ * Returns null when there is nothing to count from - no changes recorded and
+ * more than one keeper with a line - which is where a typed figure is the
+ * better answer and the only one there is.
+ */
+function goalieTOI(rows, plays, mine, endAt) {
+  const changes = (plays || [])
+    .filter((x) => x.kind === "goalie" && x.team === (mine ? "us" : "them"))
+    .sort((a, b) => playElapsed(a) - playElapsed(b));
+  const played = rows.filter((r) => Number(r.l.saves) || Number(r.l.ga) || Number(r.l.minutes));
+  if (!changes.length) {
+    return played.length === 1 ? { [played[0].id]: Math.max(0, endAt) } : null;
+  }
+  const byName = new Map(rows.map((r) => [String(r.name || "").toLowerCase(), r.id]));
+  const out = {};
+  let who = changes[0].out || (played[0] || {}).name || "";
+  let since = 0;
+  const close = (name, until) => {
+    const id = byName.get(String(name || "").toLowerCase());
+    if (id) out[id] = (out[id] || 0) + Math.max(0, Math.min(until, endAt) - since);
+  };
+  for (const c of changes) {
+    const t = playElapsed(c);
+    close(who, t);
+    since = t;
+    /* An empty net is nobody's time. */
+    who = c.phase === "pulled" ? "" : (c.player || "");
+  }
+  close(who, endAt);
+  return out;
+}
+
+/* Seconds as a scoreboard writes them. */
+function fmtMMSS(secs) {
+  const t = Math.max(0, Math.round(Number(secs) || 0));
+  return Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0");
+}
+
+/* The typed field is a number of minutes, because that is how a scoresheet
+   writes it; 40.5 is forty minutes and thirty seconds. */
 function fmtTOI(v) {
   const m = Number(v);
   if (!m) return "\u2014";
-  const whole = Math.floor(m);
-  const secs = Math.round((m - whole) * 60);
-  return whole + ":" + String(secs).padStart(2, "0");
+  return fmtMMSS(m * 60);
 }
 
-function GoalieTable({ rows, onPlayer, plays, mine }) {
+function GoalieTable({ rows, onPlayer, plays, mine, endAt }) {
   if (!rows.length) return null;
   const split = goalieGaSplit(rows, plays, mine);
+  /* Counted where it can be counted; the typed figure where it cannot. */
+  const toi = endAt == null ? null : goalieTOI(rows, plays, mine, endAt);
   return (
     <section className="gcpad gcboxsec">
       <h2 className="statsec">Goaltending</h2>
       <div className="twrap">
-        <table className="stats gcbt">
+        <table className="stats gcbt gcbtgk">
           <thead>
             <tr><StatTh label="#" /><th>Goaltender</th>
               <StatTh label="SA" /><StatTh label="SV" /><StatTh label="GA" />
@@ -7384,7 +7467,7 @@ function GoalieTable({ rows, onPlayer, plays, mine }) {
                   <td>{split ? split[r.id].pp : "\u2014"}</td>
                   <td>{split ? split[r.id].sh : "\u2014"}</td>
                   <td className="gcbtpts">{sa ? (sv / sa).toFixed(3).replace(/^0/, "") : "—"}</td>
-                  <td>{fmtTOI(r.l.minutes)}</td>
+                  <td>{toi && toi[r.id] != null ? fmtMMSS(toi[r.id]) : fmtTOI(r.l.minutes)}</td>
                 </tr>
               );
             })}
