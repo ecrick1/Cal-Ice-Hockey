@@ -16870,9 +16870,20 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
           <span className="h6">Who won the faceoff?</span>
           <select value="" onChange={(e) => winFaceoff("us", e.target.value)}>
             <option value="">{usLabel} — pick a player</option>
-            {skaters.filter((p) => p.position !== "G").map((p) => (
-              <option key={p.id} value={p.id}>#{p.number} {p.name}</option>
-            ))}
+            {(() => {
+              const out = skaters.filter((p) => p.position !== "G");
+              const centres = out.filter((p) => p.spot === "C");
+              const rest = out.filter((p) => p.spot !== "C");
+              const opt = (p) => <option key={p.id} value={p.id}>#{p.number} {p.name}</option>;
+              /* Grouped rather than merely sorted: a centre buried at the top
+                 of one long list still reads as one long list. The rest stay
+                 there for the winger who steps in after a centre is thrown
+                 out of the circle. */
+              return centres.length
+                ? [<optgroup key="c" label="Centers">{centres.map(opt)}</optgroup>,
+                   <optgroup key="r" label="Others">{rest.map(opt)}</optgroup>]
+                : out.map(opt);
+            })()}
           </select>
           {theirs.length ? (
             <select value="" onChange={(e) => winFaceoff("them", e.target.value)}>
