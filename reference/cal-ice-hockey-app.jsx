@@ -5218,8 +5218,16 @@ const oppRowPos = (row) => {
   const p = String((row && (row.position || row.pos)) || "").toUpperCase();
   if (p === "D") return "D";
   if (p === "G") return "G";
+  /* LW, C and RW are all forwards to everything that reads this. The sheet
+     keeps the wing; the model only ever asks which of the three it is. */
   return p ? "F" : null;
 };
+
+/* What a scoresheet writes in the position column. */
+const SHEET_POSITIONS = ["LW", "C", "RW", "D", "G"];
+
+/* Absent means dressed: every sheet written before scratches existed. */
+const oppDressed = (row) => (row && row.dressed) !== false;
 const isOppGoalie = (row) => !!row
   && (row.isGoalie === true || oppRowPos(row) === "G"
     || row.saves !== undefined || row.ga !== undefined);
@@ -16002,7 +16010,7 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
    * Ours is the game's own record, so it needs no reconciling with the
    * library: a name typed here goes on this game and nowhere else. */
   const theirSheet = ((site.opponentStats || {})[game.id] || [])
-    .filter((r) => String(r.name || "").trim())
+    .filter((r) => String(r.name || "").trim() && oppDressed(r))
     .map((r) => ({
       id: r.id, name: r.name, number: r.number,
       position: isOppGoalie(r) ? "G" : (r.position || "F"),
@@ -16173,14 +16181,6 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
      where the strip and the panel disagree. */
   const shownTab = (tab === "shootout" && !soStarted) || (tab === "sheet" && !retro)
     ? "scoring" : tab;
-
-  const setOpp = (id, patch) => {
-    setDraft((st) => ({
-      ...st,
-      opponents: (st.opponents || []).map((o) => (o.id === id ? { ...o, ...patch } : o)),
-    }));
-    publish();
-  };
 
   /* Who took the shot and who won the draw are asked after the fact, never
      before it: the counter and the clock are the time-critical parts, and a
@@ -17687,21 +17687,8 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
           </section>
 
           {opponent && opponent.id
-          ? <>
-              {/* This game's sheet first, because it is the list every picker
-                  in the console is actually offering. The club roster below
-                  is the fallback for games that have none. */}
-              <GameSheet game={game} oppName={oppName} site={site} setDraft={setDraft}
-                library={(opponent || {}).roster || []} />
-              <p className="auhint" style={{ margin: "18px 0 8px", maxWidth: 680 }}>
-                Below is {oppName || "their"} club roster — a general list kept between
-                games. It is what a game with no sheet of its own falls back to; editing it
-                does not change this game.
-              </p>
-              <OpponentRoster opponent={opponent} setOpp={setOpp}
-                achaSeasonId={(site.seasons[site.currentSeason] || {}).achaSeasonId}
-                onClose={() => setTab("scoring")} />
-            </>
+          ? <GameSheet game={game} oppName={oppName} site={site} setDraft={setDraft}
+              library={(opponent || {}).roster || []} live={live} setLive={setLive} />
           : <section className="card">
               <p className="h6" style={{ marginBottom: 6 }}>{oppName || "The other team"}</p>
               <p className="auhint" style={{ margin: 0 }}>
@@ -18629,7 +18616,7 @@ const pendingChecks = (checks) => checks.filter((c) => !c.ok && !c.muted && c.to
  * what every picker in the console is offering. Editing the club roster does
  * nothing to this game, which is why this is the list the tab shows.
  */
-function GameSheet({ game, oppName, site, setDraft, library }) {
+function GameSheet({ game, oppName, site, setDraft, library, live, setLive }) {
   const rows = (site.opponentStats || {})[game.id] || [];
 
   const setRows = (next) =>
@@ -18637,7 +18624,7 @@ function GameSheet({ game, oppName, site, setDraft, library }) {
   const setRow = (id, patch) => setRows(rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
 
   const add = (goalie) => setRows([...rows, {
-    id: uid(), name: "", number: "", isGoalie: goalie, position: goalie ? "G" : "F",
+    id: uid(), name: "", number: "", isGoalie: goalie, position: goalie ? "G" : "LW",
     g: 0, a: 0, pim: 0, shots: 0,
     ...(goalie ? { saves: 0, ga: 0 } : {}),
   }]);
@@ -18646,31 +18633,53 @@ function GameSheet({ game, oppName, site, setDraft, library }) {
      and somebody has typed one in for a previous meeting. */
   const copyFromLibrary = () => setRows((library || []).map((p) => ({
     id: uid(), name: p.name, number: p.number,
-    isGoalie: p.position === "G", position: p.position || "F",
+    isGoalie: p.position === "G", position: p.position || "LW",
     g: 0, a: 0, pim: 0, shots: 0,
     ...(p.position === "G" ? { saves: 0, ga: 0 } : {}),
   })));
 
-  const skaters = rows.filter((r) => !isOppGoalie(r));
-  const keepers = rows.filter(isOppGoalie);
+  const dressed = rows.filter(oppDressed);
+  const skaters = dressed.filter((r) => !isOppGoalie(r));
+  const keepers = dressed.filter(isOppGoalie);
+  const scratched = rows.filter((r) => !oppDressed(r));
 
-  const line = (r) => (
-    <div className="opprow oppsheetrow" key={r.id}>
-      <input value={r.number || ""} placeholder="—"
-        onChange={(e) => setRow(r.id, { number: e.target.value })} />
-      <input value={r.name || ""} placeholder="Player name"
-        onChange={(e) => setRow(r.id, { name: e.target.value })} />
-      <select value={isOppGoalie(r) ? "G" : (r.position || "F")}
-        onChange={(e) => setRow(r.id, {
-          position: e.target.value, isGoalie: e.target.value === "G",
-          ...(e.target.value === "G" && r.saves === undefined ? { saves: 0, ga: 0 } : {}),
-        })}>
-        <option value="F">F</option><option value="D">D</option><option value="G">G</option>
-      </select>
-      <button className="btn bDanger" aria-label="Remove player"
-        onClick={() => setRows(rows.filter((x) => x.id !== r.id))}>✕</button>
-    </div>
-  );
+  /* The same row as ours, and the same last column: who is on the bench
+     tonight, and which of them is in net. */
+  const line = (r) => {
+    const out = !oppDressed(r);
+    const keeper = isOppGoalie(r);
+    return (
+      <div className={"opprow oppsheetrow" + (out ? " ausheetout" : "")} key={r.id}>
+        <input value={r.number || ""} placeholder="—"
+          onChange={(e) => setRow(r.id, { number: e.target.value })} />
+        <input value={r.name || ""} placeholder="Player name"
+          onChange={(e) => setRow(r.id, { name: e.target.value })} />
+        <select value={keeper ? "G" : (r.position || "F")}
+          onChange={(e) => setRow(r.id, {
+            position: e.target.value, isGoalie: e.target.value === "G",
+            ...(e.target.value === "G" && r.saves === undefined ? { saves: 0, ga: 0 } : {}),
+          })}>
+          {(SHEET_POSITIONS.includes(keeper ? "G" : (r.position || "F"))
+            ? SHEET_POSITIONS
+            : [r.position || "F", ...SHEET_POSITIONS]
+          ).map((x) => <option key={x} value={x}>{x}</option>)}
+        </select>
+        {keeper && !out ? (
+          <button className={"btn bSm " + (live && live.goalieThem === r.name ? "bLive" : "bGhost")}
+            title={live && live.goalieThem === r.name ? "In net" : "Put them in net"}
+            onClick={() => setLive && setLive({ goalieThem: r.name })}>
+            In net
+          </button>
+        ) : (
+          <button className="btn bGhost bSm"
+            title={out ? "Dress them" : "Take them out of the lineup"}
+            onClick={() => setRow(r.id, { dressed: out })}>
+            {out ? "Dress" : "Scratch"}
+          </button>
+        )}
+      </div>
+    );
+  };
 
   return (
     <section className="card">
@@ -18679,7 +18688,7 @@ function GameSheet({ game, oppName, site, setDraft, library }) {
           {oppName || "Opponent"} · this game
         </p>
         <span className="bsm" style={{ color: "var(--au-faint)", marginLeft: "auto" }}>
-          {rows.length ? rows.length + " dressed" : "nobody yet"}
+          {dressed.length ? dressed.length + " dressed" : "nobody yet"}
         </span>
       </div>
 
@@ -18710,6 +18719,15 @@ function GameSheet({ game, oppName, site, setDraft, library }) {
             <span>#</span><span>Goaltenders</span><span>Pos</span><span />
           </div>
           {keepers.map(line)}
+        </>
+      )}
+
+      {scratched.length > 0 && (
+        <>
+          <div className="opprow oppsheetrow head" style={{ marginTop: 10 }}>
+            <span>#</span><span>Scratched</span><span>Pos</span><span />
+          </div>
+          {scratched.map(line)}
         </>
       )}
 
