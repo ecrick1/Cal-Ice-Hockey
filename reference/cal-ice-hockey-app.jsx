@@ -6144,6 +6144,7 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
                 ["Play type", fType, setFType, [
                   ["", "All"], ["goal", "Goals"], ["penalty", "Penalties"],
                   ["shot", "Shots on goal"], ["miss", "Missed shots"],
+                  ["goalie", "Goaltending changes"],
                   ["faceoff", "Face-offs"], ["timeout", "Timeouts"],
                   ["stoppage", "Stoppages"], ["period", "Period start / end"],
                   ["game", "Game end"],
@@ -6271,6 +6272,8 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
                     : x.kind === "game" ? "Game End"
                     : x.kind === "period" ? (x.phase === "start" ? "Period Start" : "Period End")
                     : x.kind === "shot" ? "Shot On Goal"
+                    : x.kind === "goalie" ? (x.phase === "pulled" ? "Goaltender Pulled"
+                      : x.phase === "back" ? "Goaltender Returns" : "Goaltender Change")
                     : x.kind === "miss" ? "Missed Shot"
                     : x.kind === "faceoff" ? "Face-off"
                     : x.kind === "timeout" ? "Timeout"
@@ -6291,6 +6294,13 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
                     : x.kind === "shot"
                       ? (x.shooter ? withNumber(x.shooter, x.shooterId, mine) : abbr) + " shot"
                         + (x.goalie ? " saved by " + x.goalie : " on goal")
+                    : x.kind === "goalie"
+                      ? (x.phase === "pulled"
+                        ? abbr + (x.out ? " pull " + x.out : " empty the net")
+                          + (x.extra ? " for an extra attacker" : "")
+                        : x.phase === "back"
+                          ? (x.player || abbr + " goaltender") + " back in net"
+                          : (x.player || "A goaltender") + (x.out ? " in for " + x.out : " takes the net"))
                     : x.kind === "miss"
                       ? (x.shooter ? withNumber(x.shooter, x.shooterId, mine) : abbr)
                         + " missed the net"
@@ -6308,7 +6318,7 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
                      taking a shot, so it takes the crest too. */
                   const owned = x.kind === "penalty" || x.kind === "shot"
                     || x.kind === "timeout" || x.kind === "faceoff"
-                    || x.kind === "miss" || x.kind === "shootout";
+                    || x.kind === "miss" || x.kind === "goalie" || x.kind === "shootout";
                   return (
                     <div className="pbrow" key={x.id}>
                       <Time />
@@ -16063,6 +16073,46 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
   };
   const setLive = (patch) => push({ live: { ...live, ...patch } });
 
+  /* The two sides say "empty" differently: ours holds a player id, theirs a
+     typed name. */
+  const NET_EMPTY = { us: "empty", them: "Empty net" };
+  const netName = (side, v) => (!v || v === NET_EMPTY[side]
+    ? "" : side === "us" ? nameOf(v) : String(v));
+
+  /**
+   * Every change of net, in one place: a substitution, a pull, or the
+   * goaltender coming back.
+   *
+   * The play and the live state go in a single write. Two writes would have
+   * the second rebuilt from the state the first replaced, which is how a
+   * penalty came back from the dead once already.
+   */
+  const setNet = (side, value, extra) => {
+    const us = side === "us";
+    const key = us ? "goalieUs" : "goalieThem";
+    const prev = live[key] || "";
+    if (prev === value) return;
+    const nowEmpty = value === NET_EMPTY[side];
+    const wasEmpty = prev === NET_EMPTY[side];
+    const patch = { [key]: value };
+    patch[us ? "pulledUs" : "pulledThem"] = nowEmpty ? prev || "" : null;
+    /* Shots faced are counted from the moment a keeper takes the net. */
+    if (us) patch.netBase = { shots: live.shotsThem || 0, goals: live.them || 0 };
+    const play = {
+      id: uid(), kind: "goalie", team: side, ...whenNow(),
+      phase: nowEmpty ? "pulled" : wasEmpty ? "back" : "change",
+      player: netName(side, value),
+      out: netName(side, prev),
+      ...(nowEmpty ? { extra: !!extra } : {}),
+    };
+    push({ plays: [...plays, play], live: { ...live, ...patch } });
+  };
+
+  /* Pulling asks the one thing the sheet cannot work out: a net emptied for
+     a sixth skater and a net emptied on a delayed penalty look the same
+     afterwards and are not the same thing. */
+  const [pullAsk, setPullAsk] = useState(null);
+
   /* A shot belongs to the period it was taken in. The running total is kept
    * alongside the per-period buckets rather than summed on read, so nothing
    * that already reads shotsUs/shotsThem has to change. */
@@ -16985,21 +17035,19 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
           <div className="aunet">
             <label className="h6">In net</label>
             <select value={live.goalieUs || ""}
-              onChange={(e) => setLive({
-                goalieUs: e.target.value,
-                netBase: { shots: live.shotsThem || 0, goals: live.them || 0 },
-              })}>
+              onChange={(e) => (e.target.value === "empty"
+                ? setPullAsk({ side: "us" })
+                : setNet("us", e.target.value))}>
               <option value="">— nobody —</option>
               {goalies.map((p) => <option key={p.id} value={p.id}>#{p.number} {p.name}</option>)}
               <option value="empty">Empty net</option>
             </select>
             {!retro && (
               <button className={"btn bSm " + (live.goalieUs === "empty" ? "bLive" : "bGhost")}
-                title="Goaltender off for an extra attacker"
-                onClick={() => setLive(live.goalieUs === "empty"
-                  ? { goalieUs: live.pulledUs || "", pulledUs: null }
-                  : { goalieUs: "empty", pulledUs: live.goalieUs || "",
-                      netBase: { shots: live.shotsThem || 0, goals: live.them || 0 } })}>
+                title="Goaltender off the ice"
+                onClick={() => (live.goalieUs === "empty"
+                  ? setNet("us", live.pulledUs || "")
+                  : setPullAsk({ side: "us" }))}>
                 {live.goalieUs === "empty" ? "Goalie back" : "Pull goalie"}
               </button>
             )}
@@ -17078,7 +17126,10 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
           <div className="aunet">
             <label className="h6">In net</label>
             {theirs.filter((p) => p.position === "G").length ? (
-              <select value={live.goalieThem || ""} onChange={(e) => setLive({ goalieThem: e.target.value })}>
+              <select value={live.goalieThem || ""}
+                onChange={(e) => (e.target.value === "Empty net"
+                  ? setPullAsk({ side: "them" })
+                  : setNet("them", e.target.value))}>
                 <option value="">— nobody —</option>
                 {theirs.filter((p) => p.position === "G").map((p) => (
                   <option key={p.id} value={p.name}>#{p.number} {p.name}</option>
@@ -17086,15 +17137,19 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
                 <option value="Empty net">Empty net</option>
               </select>
             ) : (
-              <input value={live.goalieThem || ""} placeholder="Their goaltender"
-                onChange={(e) => setLive({ goalieThem: e.target.value })} />
+              /* Uncontrolled so a name is typed rather than logged letter by
+                 letter, and keyed on the value so pulling the goaltender
+                 elsewhere still empties the box. */
+              <input key={live.goalieThem || ""} defaultValue={live.goalieThem || ""}
+                placeholder="Their goaltender"
+                onBlur={(e) => setNet("them", e.currentTarget.value.trim())} />
             )}
             {!retro && (
               <button className={"btn bSm " + (live.goalieThem === "Empty net" ? "bLive" : "bGhost")}
-                title="Their goaltender off for an extra attacker"
-                onClick={() => setLive(live.goalieThem === "Empty net"
-                  ? { goalieThem: live.pulledThem || "", pulledThem: null }
-                  : { goalieThem: "Empty net", pulledThem: live.goalieThem || "" })}>
+                title="Their goaltender off the ice"
+                onClick={() => (live.goalieThem === "Empty net"
+                  ? setNet("them", live.pulledThem || "")
+                  : setPullAsk({ side: "them" }))}>
                 {live.goalieThem === "Empty net" ? "Goalie back" : "Pull goalie"}
               </button>
             )}
@@ -17474,6 +17529,31 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
       )}
 
 
+      {pullAsk && (
+        <div className="austop">
+          <span className="h6">
+            {(pullAsk.side === "us" ? usLabel : oppName || "Them")} — extra attacker on?
+          </span>
+          <span className="bsm">
+            A net emptied for a sixth skater and one emptied on a delayed penalty
+            read the same afterwards.
+          </span>
+          <button className="btn bGhost bSm" onClick={() => {
+            setNet(pullAsk.side, NET_EMPTY[pullAsk.side], true); setPullAsk(null);
+          }}>
+            Yes — extra attacker
+          </button>
+          <button className="btn bGhost bSm" onClick={() => {
+            setNet(pullAsk.side, NET_EMPTY[pullAsk.side], false); setPullAsk(null);
+          }}>
+            No
+          </button>
+          <button className="btn bGhost bSm austopskip" onClick={() => setPullAsk(null)}>
+            Cancel
+          </button>
+        </div>
+      )}
+
       {saveAsk && (
         <div className="austop">
           <span className="h6">Was it a save? Who shot it?</span>
@@ -17678,10 +17758,7 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
                         {keeper && !out ? (
                           <button className={"btn bSm " + (live.goalieUs === p.id ? "bLive" : "bGhost")}
                             title={live.goalieUs === p.id ? "In net" : "Put them in net"}
-                            onClick={() => setLive({
-                              goalieUs: p.id,
-                              netBase: { shots: live.shotsThem || 0, goals: live.them || 0 },
-                            })}>
+                            onClick={() => setNet("us", p.id)}>
                             In net
                           </button>
                         ) : (
@@ -17700,7 +17777,7 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
 
           {opponent && opponent.id
           ? <GameSheet game={game} oppName={oppName} site={site} setDraft={setDraft}
-              library={(opponent || {}).roster || []} live={live} setLive={setLive} />
+              library={(opponent || {}).roster || []} live={live} setNet={setNet} />
           : <section className="card">
               <p className="h6" style={{ marginBottom: 6 }}>{oppName || "The other team"}</p>
               <p className="auhint" style={{ margin: 0 }}>
@@ -17893,6 +17970,22 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
                         <span className="auplaykind stop">SOG</span>
                         <span className="auplaywho">{p.shooter || "Shot on goal"}</span>
                         {p.goalie && <span className="auplayassist">saved by {p.goalie}</span>}
+                      </>
+                    ) : p.kind === "goalie" ? (
+                      <>
+                        <span className="auplaykind stop">NET</span>
+                        <span className="auplaywho">
+                          {p.phase === "pulled"
+                            ? (p.out ? p.out + " pulled" : "Net empty")
+                            : p.phase === "back"
+                              ? (p.player ? p.player + " back in net" : "Goaltender back")
+                              : (p.player || "Goaltender") + (p.out ? " in for " + p.out : " in net")}
+                        </span>
+                        {p.phase === "pulled" && (
+                          <span className="auplayassist">
+                            {p.extra ? "extra attacker" : "no extra attacker"}
+                          </span>
+                        )}
                       </>
                     ) : p.kind === "miss" ? (
                       <>
@@ -18628,7 +18721,7 @@ const pendingChecks = (checks) => checks.filter((c) => !c.ok && !c.muted && c.to
  * what every picker in the console is offering. Editing the club roster does
  * nothing to this game, which is why this is the list the tab shows.
  */
-function GameSheet({ game, oppName, site, setDraft, library, live, setLive }) {
+function GameSheet({ game, oppName, site, setDraft, library, live, setNet }) {
   const rows = (site.opponentStats || {})[game.id] || [];
 
   const setRows = (next) =>
@@ -18689,7 +18782,7 @@ function GameSheet({ game, oppName, site, setDraft, library, live, setLive }) {
         {keeper && !out ? (
           <button className={"btn bSm " + (live && live.goalieThem === r.name ? "bLive" : "bGhost")}
             title={live && live.goalieThem === r.name ? "In net" : "Put them in net"}
-            onClick={() => setLive && setLive({ goalieThem: r.name })}>
+            onClick={() => setNet && setNet("them", r.name)}>
             In net
           </button>
         ) : (
@@ -19450,6 +19543,22 @@ function RetroPlays({ game, oppName, roster, lines, oppLines, setGame, usLabel }
                         <span className="auplaykind stop">SOG</span>
                         <span className="auplaywho">{p.shooter || "Shot on goal"}</span>
                         {p.goalie && <span className="auplayassist">saved by {p.goalie}</span>}
+                      </>
+                    ) : p.kind === "goalie" ? (
+                      <>
+                        <span className="auplaykind stop">NET</span>
+                        <span className="auplaywho">
+                          {p.phase === "pulled"
+                            ? (p.out ? p.out + " pulled" : "Net empty")
+                            : p.phase === "back"
+                              ? (p.player ? p.player + " back in net" : "Goaltender back")
+                              : (p.player || "Goaltender") + (p.out ? " in for " + p.out : " in net")}
+                        </span>
+                        {p.phase === "pulled" && (
+                          <span className="auplayassist">
+                            {p.extra ? "extra attacker" : "no extra attacker"}
+                          </span>
+                        )}
                       </>
                     ) : p.kind === "miss" ? (
                       <>
