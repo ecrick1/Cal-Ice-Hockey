@@ -3537,6 +3537,16 @@ a.faffil:hover { filter: grayscale(0); }
    to pick from. Wide enough for a name and no wider - the bar is a row of
    controls, not a form. */
 .adminui .auentryname { width: 170px; flex: 0 0 auto; }
+/* Waiting on a penalty: the whistle has gone and the sheet is deliberately
+   still empty, so the bar says so rather than leaving a gap. */
+.adminui .aupenwait { border-left: 3px solid var(--au-warn, #F5B544); }
+.adminui .audelayed { display: flex; align-items: center; gap: 6px; margin-top: 8px;
+  justify-content: center; flex-wrap: wrap; }
+.adminui .audelayed .h6 { margin: 0; }
+.adminui .audelaytag, .adminui .auemptytag { font-size: 11.5px; font-weight: 700;
+  border-radius: 999px; padding: 2px 10px; white-space: nowrap; }
+.adminui .audelaytag { background: rgba(245,181,68,0.16); color: var(--au-warn, #F5B544); }
+.adminui .auemptytag { background: rgba(127,127,127,0.16); color: var(--au-dim); }
 .adminui .auentryclock { width: 92px; flex: 0 0 auto; text-align: center;
   font-family: var(--au-mono, monospace); font-size: 15px; font-weight: 700;
   font-variant-numeric: tabular-nums; }
@@ -16036,6 +16046,10 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
   /* Stopping the clock happens first and is asked about second: the whistle
      has already gone, and making someone pick a reason before the clock
      stops would cost real seconds. */
+  /* A whistle for a penalty, waiting for the penalty. Held rather than
+     written: the penalty play carries this time when it arrives, and if it
+     never does there was nothing to list. */
+  const [penPending, setPenPending] = useState(null);
   const ourKeeperId = live.goalieUs && live.goalieUs !== "empty" ? live.goalieUs : "";
   const ourKeeperName = ourKeeperId ? nameOf(ourKeeperId) : "";
   const [stopAsk, setStopAsk] = useState(false);
@@ -16059,6 +16073,8 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
        with it - the stoppage keeps its reason and no name, the same as
        pressing skip. */
     setStopWho(null);
+    /* And a penalty whistle nobody filled in was not a penalty. */
+    setPenPending(null);
     setTimeoutAsk(false);
     setFaceoffAsk({ clock: fmtClock(left) });
     /* Starting the clock is the end of the warm-up, whatever else it is. */
@@ -16178,6 +16194,13 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
        stopping to name someone for an icing costs the scorekeeper the next
        thing that happens. */
     if (reason === "Goalie freeze") setStopWho({ id: pid, reason });
+  };
+
+  /* Chosen "Penalty": nothing is written yet. The whistle and the penalty
+     are one event, and the penalty entry is about to carry the time. */
+  const holdForPenalty = () => {
+    setStopAsk(false);
+    setPenPending({ period: curPeriod, clock: fmtClock(left) });
   };
 
   const nameStopper = (team, value) => {
@@ -16394,7 +16417,9 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
     const at = elapsedSecs(live, now);
     const player = us ? nameOf(penPlayer) : theirName(penOpp);
     const playerId = us ? penPlayer : theirId(penOpp);
-    const when = whenNow();
+    /* The whistle that stopped play for this is the time it happened at, not
+       whenever the form was finished being filled in. */
+    const when = penPending && !retro ? penPending : whenNow();
 
     /* A penalty shot is not time in the box. The foul goes on the sheet and
        on the offender's minutes, and then the other team gets its shot. */
@@ -16404,8 +16429,10 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
           id: uid(), kind: "penalty", team: penTeam, ...when,
           player, minutes: 0, infraction: penWhat + " (penalty shot)",
         }],
+        live: { ...live, delayed: null },
       });
       setPenPlayer(""); setPenOpp("");
+      setPenPending(null);
       setPsAsk({ against: penTeam, infraction: penWhat, by: player });
       return;
     }
@@ -16442,13 +16469,17 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
        phantom power play, because there is no clock ticking to expire it -
        so on a finished game only the play is written. The strength of each
        goal is typed in beside it instead. */
+    /* The arm comes down when the call is made, and it comes down in the
+       same write - a second one would be built from the `live` above and
+       would put the penalty back. */
     push({
       plays: [...plays, ...newPlays],
       live: retro
         ? { ...live, ejected }
-        : { ...live, penalties: [...(live.penalties || []), ...pens], ejected },
+        : { ...live, penalties: [...(live.penalties || []), ...pens], ejected, delayed: null },
     });
     setPenPlayer(""); setPenOpp("");
+    setPenPending(null);
   };
 
   const endPenalty = (id) =>
@@ -16845,6 +16876,16 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
               {goalies.map((p) => <option key={p.id} value={p.id}>#{p.number} {p.name}</option>)}
               <option value="empty">Empty net</option>
             </select>
+            {!retro && (
+              <button className={"btn bSm " + (live.goalieUs === "empty" ? "bLive" : "bGhost")}
+                title="Goaltender off for an extra attacker"
+                onClick={() => setLive(live.goalieUs === "empty"
+                  ? { goalieUs: live.pulledUs || "", pulledUs: null }
+                  : { goalieUs: "empty", pulledUs: live.goalieUs || "",
+                      netBase: { shots: live.shotsThem || 0, goals: live.them || 0 } })}>
+                {live.goalieUs === "empty" ? "Goalie back" : "Pull goalie"}
+              </button>
+            )}
           </div>
         </div>
 
@@ -16885,6 +16926,22 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
               </button>
             )}
           </div>
+          {/* The arm is up and play has not stopped. A state the game is in
+              rather than something that happened, so it is a toggle and not
+              a play - and it clears itself when the penalty is called. */}
+          {!retro && (
+            <div className="audelayed">
+              <span className="h6">Delayed penalty</span>
+              {[["us", usLabel], ["them", oppName || "Them"]].map(([side, label]) => (
+                <button key={side}
+                  className={"btn bSm " + (live.delayed === side ? "bLive" : "bGhost")}
+                  title={"Arm up against " + label}
+                  onClick={() => setLive({ delayed: live.delayed === side ? null : side })}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
           {!retro && (
             <div className="aubugnudge">
               {[[-60, "−1:00"], [-10, "−:10"], [-1, "−:01"], [1, "+:01"], [10, "+:10"], [60, "+1:00"]].map(([d, label]) => (
@@ -16914,6 +16971,15 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
             ) : (
               <input value={live.goalieThem || ""} placeholder="Their goaltender"
                 onChange={(e) => setLive({ goalieThem: e.target.value })} />
+            )}
+            {!retro && (
+              <button className={"btn bSm " + (live.goalieThem === "Empty net" ? "bLive" : "bGhost")}
+                title="Their goaltender off for an extra attacker"
+                onClick={() => setLive(live.goalieThem === "Empty net"
+                  ? { goalieThem: live.pulledThem || "", pulledThem: null }
+                  : { goalieThem: "Empty net", pulledThem: live.goalieThem || "" })}>
+                {live.goalieThem === "Empty net" ? "Goalie back" : "Pull goalie"}
+              </button>
             )}
             <span className="bsm auopplink">
               {theirs.length
@@ -17176,10 +17242,49 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
           )}
 
           {editPlay.kind === "stoppage" && (
-            <select value={editDraft.reason || "Other"}
-              onChange={(e) => setEditDraft({ ...editDraft, reason: e.target.value })}>
-              {STOP_REASONS.map((r) => <option key={r}>{r}</option>)}
-            </select>
+            <>
+              <select value={editDraft.reason || "Other"}
+                onChange={(e) => setEditDraft({ ...editDraft, reason: e.target.value })}>
+                {STOP_REASONS.map((r) => <option key={r}>{r}</option>)}
+              </select>
+              {/* Whose it was, and who. Not asked at the whistle - that costs
+                  the next thing that happens - but every stoppage can be
+                  attributed here afterwards. */}
+              <select value={editDraft.byTeam || ""}
+                onChange={(e) => setEditDraft({
+                  ...editDraft, byTeam: e.target.value || null, by: "", byId: null,
+                })}>
+                <option value="">— neither bench —</option>
+                <option value="us">{usLabel}</option>
+                <option value="them">{oppName || "Them"}</option>
+              </select>
+              {editDraft.byTeam === "us" && (
+                <select value={editDraft.byId || ""}
+                  onChange={(e) => setEditDraft({
+                    ...editDraft,
+                    byId: e.target.value || null,
+                    by: e.target.value ? nameOf(e.target.value) : "",
+                  })}>
+                  <option value="">{usLabel} — no player</option>
+                  {skaters.map((p) => (
+                    <option key={p.id} value={p.id}>#{p.number} {p.name}</option>
+                  ))}
+                </select>
+              )}
+              {editDraft.byTeam === "them" && (theirs.length ? (
+                <select value={editDraft.by || ""}
+                  onChange={(e) => setEditDraft({ ...editDraft, by: e.target.value, byId: null })}>
+                  <option value="">{oppName || "Them"} — no player</option>
+                  {theirs.map((p) => (
+                    <option key={p.id} value={p.name}>#{p.number} {p.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <input className="auentryname" value={editDraft.by || ""}
+                  placeholder={(oppName || "Their") + " player"}
+                  onChange={(e) => setEditDraft({ ...editDraft, by: e.target.value, byId: null })} />
+              ))}
+            </>
           )}
 
           {editPlay.kind === "penalty" && (
@@ -17217,7 +17322,8 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
         <div className="austop">
           <span className="h6">Why did play stop?</span>
           {STOP_REASONS.map((r) => (
-            <button className="btn bGhost bSm" key={r} onClick={() => logStop(r)}>{r}</button>
+            <button className="btn bGhost bSm" key={r}
+              onClick={() => (r === "Penalty" ? holdForPenalty() : logStop(r))}>{r}</button>
           ))}
           <button className="btn bGhost bSm austopskip" onClick={() => setStopAsk(false)}>
             Don't log it
@@ -17246,6 +17352,16 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
       )}
 
 
+      {penPending && (
+        <div className="austop aupenwait">
+          <span className="h6">Whistle at {penPending.clock} — enter the penalty</span>
+          <span className="bsm">It goes on the sheet with the penalty, not before it.</span>
+          <button className="btn bGhost bSm austopskip" onClick={() => setPenPending(null)}>
+            No penalty after all
+          </button>
+        </div>
+      )}
+
       {/* ---- Strength ---- */}
       <div className={"austrength " + strength.kind.toLowerCase()}>
         <span className="austrengthtag">
@@ -17253,6 +17369,17 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
             ? "Even strength"
             : strength.kind + (strength.diff > 1 ? " +" + strength.diff : "")}
         </span>
+        {live.delayed && (
+          <span className="audelaytag">
+            Delayed penalty · {live.delayed === "us" ? usLabel : oppName || "Them"}
+          </span>
+        )}
+        {live.goalieUs === "empty" && (
+          <span className="auemptytag">{usLabel} net empty</span>
+        )}
+        {live.goalieThem === "Empty net" && (
+          <span className="auemptytag">{oppName || "Them"} net empty</span>
+        )}
         {strength.active.map((p) => (
           <button className={"aupen " + (p.shorts ? "" : "aupenfull")} key={p.id}
             onClick={() => endPenalty(p.id)}
