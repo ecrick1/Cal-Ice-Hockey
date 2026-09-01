@@ -3533,6 +3533,10 @@ a.faffil:hover { filter: grayscale(0); }
   background: var(--au-panel); border: 1px solid var(--au-line); border-radius: 10px;
   padding: 10px 14px; margin-top: 14px; }
 .adminui .auentry select { width: auto; }
+/* A name typed into the correction bar, where the other side has no roster
+   to pick from. Wide enough for a name and no wider - the bar is a row of
+   controls, not a form. */
+.adminui .auentryname { width: 170px; flex: 0 0 auto; }
 .adminui .auentryclock { width: 92px; flex: 0 0 auto; text-align: center;
   font-family: var(--au-mono, monospace); font-size: 15px; font-weight: 700;
   font-variant-numeric: tabular-nums; }
@@ -4895,17 +4899,10 @@ const STOP_REASONS = [
   "Injury", "Net off moorings", "Other",
 ];
 
-/* Who the whistle was about. "Who did it" is wrong for half of these, and a
-   question worded wrongly gets answered wrongly at a rink. */
-const STOP_WHO = {
-  "Icing": "Who iced it?",
-  "Offside": "Who was offside?",
-  "Penalty": "Who took the penalty?",
-  "Puck out of play": "Who put it out?",
-  "Goalie freeze": "Who froze it?",
-  "Injury": "Who is hurt?",
-  "Net off moorings": "Who knocked the net off?",
-};
+/* The one whistle worth a follow-up question. Every other reason is a
+   reason and a time; stopping to name someone for an icing costs the
+   scorekeeper whatever happens next. */
+const FREEZE_ASK = "Which goalie froze it?";
 
 /* ---------------- Live game model ----------------
  * The clock is stored as an anchor, never as a ticking value: `clockMs` is
@@ -16177,7 +16174,10 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
       }],
     });
     setStopAsk(false);
-    setStopWho({ id: pid, reason });
+    /* Only the freeze asks. Every other whistle is a reason and a time, and
+       stopping to name someone for an icing costs the scorekeeper the next
+       thing that happens. */
+    if (reason === "Goalie freeze") setStopWho({ id: pid, reason });
   };
 
   const nameStopper = (team, value) => {
@@ -16641,7 +16641,7 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
       nextLive = withShot(nextLive, next.team, 1, next.period);
     }
 
-    push({ plays: [...list, next], live: nextLive });
+    push({ plays: sortPlays([...list, next]), live: nextLive });
     setEditPlay(null);
   };
 
@@ -16887,7 +16887,7 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
           </div>
           {!retro && (
             <div className="aubugnudge">
-              {[[-60, "−1:00"], [-10, "−:10"], [10, "+:10"], [60, "+1:00"]].map(([d, label]) => (
+              {[[-60, "−1:00"], [-10, "−:10"], [-1, "−:01"], [1, "+:01"], [10, "+:10"], [60, "+1:00"]].map(([d, label]) => (
                 <button key={d} className="btn bGhost" onClick={() => nudge(d)}>{label}</button>
               ))}
             </div>
@@ -17107,6 +17107,81 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
             </>
           )}
 
+          {editPlay.kind === "faceoff" && (
+            <>
+              {/* The side first, because changing it changes who can have
+                  won it - and the winner list has to be the right bench. */}
+              <select value={editDraft.team || "us"}
+                onChange={(e) => setEditDraft({
+                  ...editDraft, team: e.target.value, winner: "", winnerId: null,
+                })}>
+                <option value="us">{usLabel}</option>
+                <option value="them">{oppName || "Them"}</option>
+              </select>
+              {editDraft.team === "us" ? (
+                <select value={editDraft.winnerId || ""}
+                  onChange={(e) => setEditDraft({
+                    ...editDraft,
+                    winnerId: e.target.value || null,
+                    winner: e.target.value ? nameOf(e.target.value) : "",
+                  })}>
+                  {/* A draw with no name on it is a complete answer, not a
+                      blank one, so it is worded as the team rather than as
+                      an empty option. */}
+                  <option value="">{usLabel} — no player</option>
+                  {skaters.filter((p) => p.position !== "G").map((p) => (
+                    <option key={p.id} value={p.id}>#{p.number} {p.name}</option>
+                  ))}
+                </select>
+              ) : theirs.length ? (
+                <select value={editDraft.winner || ""}
+                  onChange={(e) => setEditDraft({
+                    ...editDraft, winner: e.target.value, winnerId: null,
+                  })}>
+                  <option value="">{oppName || "Them"} — no player</option>
+                  {theirs.map((p) => (
+                    <option key={p.id} value={p.name}>#{p.number} {p.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <input className="auentryname" value={editDraft.winner || ""}
+                  placeholder={(oppName || "Their") + " player"}
+                  onChange={(e) => setEditDraft({
+                    ...editDraft, winner: e.target.value, winnerId: null,
+                  })} />
+              )}
+            </>
+          )}
+
+          {editPlay.kind === "miss" && (
+            editDraft.team === "us" ? (
+              <select value={editDraft.shooterId || ""}
+                onChange={(e) => setEditDraft({
+                  ...editDraft,
+                  shooterId: e.target.value || null,
+                  shooter: e.target.value ? nameOf(e.target.value) : "",
+                })}>
+                <option value="">{usLabel} — no player</option>
+                {skaters.filter((p) => p.position !== "G").map((p) => (
+                  <option key={p.id} value={p.id}>#{p.number} {p.name}</option>
+                ))}
+              </select>
+            ) : (
+              <input className="auentryname" value={editDraft.shooter || ""}
+                placeholder={(oppName || "Their") + " player"}
+                onChange={(e) => setEditDraft({
+                  ...editDraft, shooter: e.target.value, shooterId: null,
+                })} />
+            )
+          )}
+
+          {editPlay.kind === "stoppage" && (
+            <select value={editDraft.reason || "Other"}
+              onChange={(e) => setEditDraft({ ...editDraft, reason: e.target.value })}>
+              {STOP_REASONS.map((r) => <option key={r}>{r}</option>)}
+            </select>
+          )}
+
           {editPlay.kind === "penalty" && (
             <>
               <select value={editDraft.minutes || 2}
@@ -17152,7 +17227,7 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
 
       {stopWho && stopWho.reason === "Goalie freeze" && (
         <div className="austop">
-          <span className="h6">{STOP_WHO["Goalie freeze"]}</span>
+          <span className="h6">{FREEZE_ASK}</span>
           {/* Only one player a side can freeze a puck, and the sheet already
               knows which one is in net. Two buttons, each naming who it will
               credit, rather than two rosters and a decision. */}
@@ -17170,33 +17245,6 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
         </div>
       )}
 
-      {stopWho && stopWho.reason !== "Goalie freeze" && (
-        <div className="austop">
-          <span className="h6">{STOP_WHO[stopWho.reason] || "Who did it?"}</span>
-          {/* Goaltenders are in the list: they play the puck too. */}
-          <select value="" onChange={(e) => nameStopper("us", e.target.value)}>
-            <option value="">{usLabel} — pick a player</option>
-            {skaters.map((p) => (
-              <option key={p.id} value={p.id}>#{p.number} {p.name}</option>
-            ))}
-          </select>
-          {theirs.length ? (
-            <select value="" onChange={(e) => nameStopper("them", e.target.value)}>
-              <option value="">{oppName || "Them"} — pick a player</option>
-              {theirs.map((p) => (
-                <option key={p.id} value={p.name}>#{p.number} {p.name}</option>
-              ))}
-            </select>
-          ) : (
-            <input placeholder={(oppName || "Their") + " player"} onKeyDown={(e) => {
-              if (e.key === "Enter") nameStopper("them", e.currentTarget.value.trim());
-            }} />
-          )}
-          <button className="btn bGhost bSm austopskip" onClick={() => setStopWho(null)}>
-            Don't know
-          </button>
-        </div>
-      )}
 
       {/* ---- Strength ---- */}
       <div className={"austrength " + strength.kind.toLowerCase()}>
