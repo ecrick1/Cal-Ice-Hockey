@@ -1236,14 +1236,21 @@ table.stats.gcpen th:first-child, table.stats.gcpen td:first-child { padding-lef
    fifty-pixel column fourteen pixels to print SHG in. */
 .gcbt { width: 100%; table-layout: fixed; min-width: 720px; }
 .gcbt th, .gcbt td { padding-left: 8px; padding-right: 8px; }
+/* The jersey number and the name are the only two columns that are not a
+   figure, so they are the only two given a width of their own. Everything
+   after them divides the rest equally - which also makes the skater tables
+   and the goaltenders' table come out on the same grid, since both have ten
+   columns and the same two pinned. */
 .gcbt th:nth-child(1), .gcbt td:nth-child(1) { width: 52px; }
 .gcbt th:nth-child(2), .gcbt td:nth-child(2) { width: 200px; }
+/* And centred, because a single digit left-aligned in a hundred-pixel column
+   sits against one edge with the rest of the column empty after it: the
+   figures pooled at the left instead of marching across the row. */
+.gcbt th:not(:nth-child(2)), .gcbt td:not(:nth-child(2)) { text-align: center; }
 /* Only a name can outgrow its column, so only a name is trimmed. A number
    that does not fit should be seen not to fit. */
 .gcbt .gcbtname, .gcbt .gcbtname .pboxname { max-width: 100%; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; }
-/* Only the skaters have a position column to line up. */
-.gcbt:not(.gcbtgk) th:nth-child(3), .gcbt:not(.gcbtgk) td:nth-child(3) { width: 52px; }
 
 .gcbtspot { font-weight: 500; color: var(--ink); }
 .gcbtname { font-weight: 700; }
