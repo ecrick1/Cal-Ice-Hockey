@@ -16046,6 +16046,9 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
   /* Stopping the clock happens first and is asked about second: the whistle
      has already gone, and making someone pick a reason before the clock
      stops would cost real seconds. */
+  /* A freeze the console is about to offer to count as a save. */
+  const [saveAsk, setSaveAsk] = useState(null);
+
   /* A whistle for a penalty, waiting for the penalty. Held rather than
      written: the penalty play carries this time when it arrives, and if it
      never does there was nothing to list. */
@@ -16075,6 +16078,7 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
     setStopWho(null);
     /* And a penalty whistle nobody filled in was not a penalty. */
     setPenPending(null);
+    setSaveAsk(null);
     setTimeoutAsk(false);
     setFaceoffAsk({ clock: fmtClock(left) });
     /* Starting the clock is the end of the warm-up, whatever else it is. */
@@ -16193,7 +16197,9 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
     /* Only the freeze asks. Every other whistle is a reason and a time, and
        stopping to name someone for an icing costs the scorekeeper the next
        thing that happens. */
-    if (reason === "Goalie freeze") setStopWho({ id: pid, reason });
+    if (reason === "Goalie freeze") {
+      setStopWho({ id: pid, reason, period: curPeriod, clock: fmtClock(left) });
+    }
   };
 
   /* Chosen "Penalty": nothing is written yet. The whistle and the penalty
@@ -16201,6 +16207,23 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
   const holdForPenalty = () => {
     setStopAsk(false);
     setPenPending({ period: curPeriod, clock: fmtClock(left) });
+  };
+
+  /* The shot that caused the whistle, put in front of the whistle - it is
+     the order it happened in, and a shot logged after the stoppage reads as
+     the next thing rather than the reason for this one. */
+  const logSaveShot = () => {
+    const { freezeId, shooter, keeper, period, clock } = saveAsk;
+    const shot = {
+      id: uid(), kind: "shot", team: shooter,
+      period, clock, goalie: keeper || "",
+    };
+    const i = plays.findIndex((p) => p.id === freezeId);
+    const next = i < 0
+      ? [...plays, shot]
+      : [...plays.slice(0, i), shot, ...plays.slice(i)];
+    push({ plays: next, live: withShot(live, shooter, 1, period) });
+    setSaveAsk(null);
   };
 
   const nameStopper = (team, value) => {
@@ -17219,7 +17242,7 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
             </>
           )}
 
-          {editPlay.kind === "miss" && (
+          {(editPlay.kind === "shot" || editPlay.kind === "miss") && (
             editDraft.team === "us" ? (
               <select value={editDraft.shooterId || ""}
                 onChange={(e) => setEditDraft({
@@ -17338,11 +17361,21 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
               knows which one is in net. Two buttons, each naming who it will
               credit, rather than two rosters and a decision. */}
           <button className="btn bGhost bSm"
-            onClick={() => nameStopper("us", ourKeeperId)}>
+            onClick={() => {
+              const at = { period: stopWho.period, clock: stopWho.clock };
+              nameStopper("us", ourKeeperId);
+              /* Our goaltender froze it, so the shot was theirs. */
+              setSaveAsk({ freezeId: stopWho.id, shooter: "them", keeper: ourKeeperName, ...at });
+            }}>
             {usLabel}{ourKeeperName ? " — " + ourKeeperName : ""}
           </button>
           <button className="btn bGhost bSm"
-            onClick={() => nameStopper("them", live.goalieThem || "")}>
+            onClick={() => {
+              const at = { period: stopWho.period, clock: stopWho.clock };
+              nameStopper("them", live.goalieThem || "");
+              setSaveAsk({ freezeId: stopWho.id, shooter: "us",
+                keeper: live.goalieThem || "", ...at });
+            }}>
             {oppName || "Them"}{live.goalieThem ? " — " + live.goalieThem : ""}
           </button>
           <button className="btn bGhost bSm austopskip" onClick={() => setStopWho(null)}>
@@ -17351,6 +17384,21 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
         </div>
       )}
 
+
+      {saveAsk && (
+        <div className="austop">
+          <span className="h6">Was it a save?</span>
+          <span className="bsm">
+            The shot goes on the sheet ahead of the whistle, where it happened.
+          </span>
+          <button className="btn bGhost bSm" onClick={logSaveShot}>
+            Yes — count the shot
+          </button>
+          <button className="btn bGhost bSm austopskip" onClick={() => setSaveAsk(null)}>
+            No
+          </button>
+        </div>
+      )}
 
       {penPending && (
         <div className="austop aupenwait">
