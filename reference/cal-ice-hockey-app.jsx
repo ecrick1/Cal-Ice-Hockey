@@ -3387,6 +3387,13 @@ a.faffil:hover { filter: grayscale(0); }
 .adminui .aushots strong { font-family: var(--au-mono, monospace); font-size: 15px;
   color: var(--au-text); font-variant-numeric: tabular-nums; }
 .adminui .aushots .btn { padding: 2px 9px; font-size: 14px; line-height: 1.2; }
+/* Set apart from the shot counter and quieter than it: a miss is worth
+   recording and is not the number on the scoreboard. */
+.adminui .aumissbox { display: inline-flex; align-items: center; gap: 6px;
+  margin-left: 12px; padding-left: 12px; border-left: 1px solid var(--au-line); }
+.adminui .aumisscount { font-size: 12px; color: var(--au-dim); }
+.adminui .aumisscount strong { font-family: var(--au-mono, monospace); font-size: 13px;
+  color: var(--au-text); }
 
 /* Strength */
 /* A field with something attached to it - stepper arrows, or a unit. */
@@ -6063,7 +6070,8 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
                 ["Period", fPeriod, setFPeriod, [["", "All"], ...periods.map((p) => [p, PERIOD_LABEL[p]])]],
                 ["Play type", fType, setFType, [
                   ["", "All"], ["goal", "Goals"], ["penalty", "Penalties"],
-                  ["shot", "Shots on goal"], ["faceoff", "Face-offs"], ["timeout", "Timeouts"],
+                  ["shot", "Shots on goal"], ["miss", "Missed shots"],
+                  ["faceoff", "Face-offs"], ["timeout", "Timeouts"],
                   ["stoppage", "Stoppages"], ["period", "Period start / end"],
                   ["game", "Game end"],
                 ]],
@@ -15087,7 +15095,7 @@ function useClockTick(active, everyMs = 250) {
 /* Shots on goal. A team counter rather than a per-player one: nobody at a
  * club game is tracking who took which shot, but the shot count is on every
  * scoreboard in the building. */
-function Shots({ value, label, onChange }) {
+function Shots({ value, label, onChange, missed, onMiss, onUnmiss }) {
   return (
     <div className="aushots">
       <button className="btn bGhost" aria-label={"One fewer shot for " + label}
@@ -15095,6 +15103,17 @@ function Shots({ value, label, onChange }) {
       <span><strong>{value}</strong> SOG</span>
       <button className="btn bGhost" aria-label={"One more shot for " + label}
         onClick={() => onChange(value + 1)}>+</button>
+      {/* Wide of the net, so it is not a shot on goal and does not touch the
+          count beside it. Its own pair of controls rather than a mode on
+          the ones above, because the two are pressed in the same second and
+          a mode you have to notice is a mode you will get wrong. */}
+      <span className="aumissbox">
+        <button className="btn bGhost" aria-label={"One fewer miss for " + label}
+          disabled={!missed} onClick={onUnmiss}>−</button>
+        <span className="aumisscount"><strong>{missed}</strong> wide</span>
+        <button className="btn bGhost" aria-label={"One more miss for " + label}
+          onClick={onMiss}>+</button>
+      </span>
     </div>
   );
 }
@@ -16058,6 +16077,25 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
      before it: the counter and the clock are the time-critical parts, and a
      picker standing between the scorer and the + button costs real seconds.
      Both can be skipped, and the play survives without the name. */
+  /* A miss writes a play and nothing else: the shot counters, the period
+     buckets and every save percentage read off them stay where they were. */
+  const missCount = (side) => plays.filter((p) => p.kind === "miss" && p.team === side).length;
+
+  const addMiss = (side) => {
+    const pid = uid();
+    push({ plays: [...plays, { id: pid, kind: "miss", team: side, ...whenNow() }] });
+    setShotAsk({ id: pid, side, missed: true });
+  };
+
+  const undoMiss = (side) => {
+    for (let i = plays.length - 1; i >= 0; i--) {
+      if (plays[i].kind === "miss" && plays[i].team === side) {
+        push({ plays: [...plays.slice(0, i), ...plays.slice(i + 1)] });
+        return;
+      }
+    }
+  };
+
   const [shotAsk, setShotAsk] = useState(null);
   const [faceoffAsk, setFaceoffAsk] = useState(null);
 
@@ -16385,8 +16423,10 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
   const describePlay = (p) =>
     p.kind === "goal" ? p.scorer + " at " + (p.clock || "—") + " in the " + p.period
       : p.kind === "penalty" ? p.player + ", " + p.minutes + " for " + p.infraction
-      : p.kind === "shot" ? "a shot" + (p.player ? " by " + p.player : "")
+      : p.kind === "shot" ? "a shot" + (p.shooter ? " by " + p.shooter : "")
         + (p.clock ? " at " + p.clock : "")
+      : p.kind === "miss" ? "a shot that missed"
+        + (p.shooter ? " by " + p.shooter : "") + (p.clock ? " at " + p.clock : "")
       : p.kind + (p.clock ? " at " + p.clock : "");
 
   const removePlay = async (play) => {
@@ -16396,6 +16436,7 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
       detail: play.kind === "goal" ? "The score, the box score and the shot count are corrected too."
         : play.kind === "penalty" ? "The penalty minutes come off the player's line."
         : play.kind === "shot" ? "The shots on goal come down by one."
+        : play.kind === "miss" ? "Shots on goal are not affected — a miss was never one."
         : "Nothing else is affected.",
       confirmLabel: "Remove",
       danger: true,
@@ -16748,7 +16789,9 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
           <p className="aubugname">{usLabel}</p>
           <p className="aubugscore">{live.us || 0}</p>
           <Shots value={live.shotsUs || 0} label={usLabel}
-            onChange={(v) => bumpShots("us", v - (live.shotsUs || 0))} />
+            onChange={(v) => bumpShots("us", v - (live.shotsUs || 0))}
+            missed={missCount("us")} onMiss={() => addMiss("us")}
+            onUnmiss={() => undoMiss("us")} />
           <div className="aunet">
             <label className="h6">In net</label>
             <select value={live.goalieUs || ""}
@@ -16813,6 +16856,8 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
           <p className="aubugname">{oppName || "Them"}</p>
           <p className="aubugscore">{live.them || 0}</p>
           <Shots value={live.shotsThem || 0} label={oppName || "Them"}
+            missed={missCount("them")} onMiss={() => addMiss("them")}
+            onUnmiss={() => undoMiss("them")}
             onChange={(v) => bumpShots("them", v - (live.shotsThem || 0))} />
           <div className="aunet">
             <label className="h6">In net</label>
@@ -16839,7 +16884,7 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
 
       {shotAsk && (
         <div className="austop">
-          <span className="h6">Who shot it?</span>
+          <span className="h6">{shotAsk.missed ? "Who missed?" : "Who shot it?"}</span>
           {shotAsk.side === "us" ? (
             <select value="" onChange={(e) => nameShooter(e.target.value)}>
               <option value="">— pick a player —</option>
@@ -17366,6 +17411,11 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
                         <span className="auplaykind stop">SOG</span>
                         <span className="auplaywho">{p.shooter || "Shot on goal"}</span>
                         {p.goalie && <span className="auplayassist">saved by {p.goalie}</span>}
+                      </>
+                    ) : p.kind === "miss" ? (
+                      <>
+                        <span className="auplaykind stop">MISS</span>
+                        <span className="auplaywho">{p.shooter || "Shot missed"}</span>
                       </>
                     ) : p.kind === "faceoff" ? (
                       <>
@@ -18874,6 +18924,11 @@ function RetroPlays({ game, oppName, roster, lines, oppLines, setGame, usLabel }
                         <span className="auplaykind stop">SOG</span>
                         <span className="auplaywho">{p.shooter || "Shot on goal"}</span>
                         {p.goalie && <span className="auplayassist">saved by {p.goalie}</span>}
+                      </>
+                    ) : p.kind === "miss" ? (
+                      <>
+                        <span className="auplaykind stop">MISS</span>
+                        <span className="auplaywho">{p.shooter || "Shot missed"}</span>
                       </>
                     ) : p.kind === "faceoff" ? (
                       <>
