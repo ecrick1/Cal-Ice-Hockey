@@ -16367,7 +16367,7 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
     if (retro && patch.plays) patch = { ...patch, plays: sortPlays(patch.plays) };
     setGame(game.id, patch);
     if (patch.live) writeGoalie(patch.live);
-    if (patch.plays) writeCounts(patch.plays);
+    if (patch.plays) { writeCounts(patch.plays); writeTheirCounts(patch.plays); }
     publish();
   };
   const setLive = (patch) => push({ live: { ...live, ...patch } });
@@ -16748,6 +16748,26 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
     setStopAsk(false);
   };
 
+  /* The period is over when the clock says so.
+   *
+   * The end was only ever written when somebody changed the period, so a
+   * period that simply ran out sat unmarked and the sheet went from the last
+   * whistle of the first to the opening face-off of the second with nothing
+   * between them saying twenty minutes had been played. */
+  useEffect(() => {
+    if (retro || !live.running || left > 0) return;
+    if (hasPeriodMark("end", curPeriod)) {
+      setLive({ running: false, clockMs: 0, startedAt: null });
+      return;
+    }
+    push({
+      plays: [...plays, {
+        id: uid(), kind: "period", phase: "end", period: curPeriod, clock: "0:00",
+      }],
+      live: { ...live, running: false, clockMs: 0, startedAt: null },
+    });
+  }, [left <= 0, live.running, curPeriod, retro]);
+
   /* ---- The goaltender's line, derived from shots and goals ----
    *
    * Saves and goals-against are not separate facts to be entered: they fall
@@ -16819,6 +16839,69 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
         }
       }
       return touched ? { ...st, gameStats: { ...all, [game.id]: forGame } } : st;
+    });
+  };
+
+  /**
+   * Their half of the same sheet.
+   *
+   * Nothing on this console has ever written an away line, so everything
+   * recorded against them lived in the play-by-play and nowhere a reader
+   * would look for it. Counted the same way ours are, from the plays, so
+   * both halves of one box score are built by one rule.
+   *
+   * Matched on the row id when the play carries one and on the name when it
+   * does not: a play entered before ids were written has only a name.
+   */
+  const writeTheirCounts = (nextPlays) => {
+    if (retro) return;
+    setDraft((st) => {
+      const all = st.opponentStats || {};
+      const rows = all[game.id] || [];
+      if (!rows.length) return st;
+      const byId = new Map(rows.map((r) => [r.id, r]));
+      const byName = new Map(rows.map((r) => [String(r.name || "").toLowerCase(), r]));
+      const find = (id, name) => (id && byId.get(id))
+        || (name && byName.get(String(name).toLowerCase())) || null;
+
+      const t = new Map();
+      const add = (row, key, n = 1) => {
+        if (!row || !n) return;
+        const c = t.get(row.id) || {};
+        c[key] = (c[key] || 0) + n;
+        t.set(row.id, c);
+      };
+      for (const x of nextPlays || []) {
+        if (x.team === "them") {
+          if (x.kind === "goal" && x.period !== "SO") {
+            const sc = find(x.scorerId, x.scorer);
+            add(sc, "g"); add(sc, "shots");
+            (x.assists || []).forEach((nm, i) => add(find((x.assistIds || [])[i], nm), "a"));
+          } else if (x.kind === "penalty") {
+            add(find(x.playerId, x.player), "pim", Number(x.minutes) || 0);
+          } else if (x.kind === "shot") {
+            add(find(x.shooterId, x.shooter), "shots");
+          } else if (x.kind === "faceoff") {
+            add(find(x.winnerId, x.winner), "fow");
+          }
+        } else if (x.kind === "faceoff" && x.team === "us") {
+          /* Our draw, so theirs is the one who lost it. */
+          add(find(x.loserId, x.loser), "fol");
+        }
+      }
+
+      let touched = false;
+      const next = rows.map((r) => {
+        const c = t.get(r.id) || {};
+        const m = {
+          ...r, g: c.g || 0, a: c.a || 0, pim: c.pim || 0,
+          shots: c.shots || 0, fow: c.fow || 0, fol: c.fol || 0,
+        };
+        if (m.g !== r.g || m.a !== r.a || m.pim !== r.pim
+          || m.shots !== r.shots || m.fow !== r.fow || m.fol !== r.fol) touched = true;
+        return m;
+      });
+      return touched ? { ...st, opponentStats: { ...all, [game.id]: next } } : st;
     });
   };
 
