@@ -1066,10 +1066,14 @@ table.stats.gcpen th:first-child, table.stats.gcpen td:first-child { padding-lef
    celebrating on the team's own site, being a man down is not. */
 .strtag.pp { background: var(--gold); color: var(--deep); }
 .strtag.pk { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px var(--border); }
+/* Even and a man down each. Not a power play for anyone, so not the gold,
+   and too much of an event to wear the kill's outline. */
+.strtag.ev4 { background: #EEF0FB; color: #3B3F7A; box-shadow: inset 0 0 0 1px #C9CDEC; }
 .strtagclock { font-variant-numeric: tabular-nums; opacity: 0.85; }
 .strtag.sm { padding: 1px 7px; font-size: 10px; gap: 5px; margin-left: 8px; }
 /* On the navy strip the outline has to lift off the dark, not sink into it. */
 .sboard .strtag.pk { color: var(--muted); box-shadow: inset 0 0 0 1px var(--border); }
+.sboard .strtag.ev4 { background: #EEF0FB; color: #3B3F7A; box-shadow: inset 0 0 0 1px #C9CDEC; }
 .hnext .strtag { margin-left: 10px; }
 
 .statloghead { display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
@@ -3441,6 +3445,9 @@ a.faffil:hover { filter: grayscale(0); }
 .adminui .austrength.pp .austrengthtag { color: var(--au-ok); }
 .adminui .austrength.pk { border-color: rgba(245,181,68,0.4); }
 .adminui .austrength.pk .austrengthtag { color: var(--au-warn, #F5B544); }
+/* Even and short. Not a power play either way, so not either colour. */
+.adminui .austrength.e4 { border-color: rgba(129,140,248,0.45); }
+.adminui .austrength.e4 .austrengthtag { color: #A5B4FC; }
 .adminui .aupen { background: var(--au-surface); border: 1px solid var(--au-line);
   border-radius: 999px; padding: 4px 11px; font: inherit; font-size: 12px; font-weight: 650;
   color: var(--au-text); cursor: pointer; font-variant-numeric: tabular-nums; }
@@ -3546,6 +3553,9 @@ a.faffil:hover { filter: grayscale(0); }
 /* Waiting on a penalty: the whistle has gone and the sheet is deliberately
    still empty, so the bar says so rather than leaving a gap. */
 .adminui .aupenwait { border-left: 3px solid var(--au-warn, #F5B544); }
+/* What the call did to the ice, beside the call. */
+.adminui .auplaystr { font-family: var(--au-mono, monospace); font-size: 10px;
+  font-weight: 700; color: #A5B4FC; letter-spacing: 0.04em; }
 /* Read-only fields: the same box, and the same ink. Dimming them was what
    made the two halves of this tab look like different tables - the cursor
    is what says a field will not take typing, not the colour of the name in
@@ -4564,6 +4574,19 @@ function StrengthTag({ live, now, usAbbr, size }) {
   if (!live) return null;
   const st = strengthState(live, now);
   if (st.kind === "EV") return null;
+
+  /* Nobody is on a power play and it is still worth saying, because the ice
+     is not what it was. Neither colour fits, so it gets its own. */
+  if (st.kind === "E4") {
+    const box = st.active.filter((x) => x.shorts).map((x) => x.left);
+    return (
+      <span className={"strtag ev4" + (size === "sm" ? " sm" : "")}>
+        <span className="strtaglab">{st.label}</span>
+        {box.length ? <span className="strtagclock">{fmtClock(Math.min(...box) * 1000)}</span> : null}
+      </span>
+    );
+  }
+
   const pp = st.kind === "PP";
   const against = st.active
     .filter((p) => (pp ? p.team === "them" : p.team === "us"))
@@ -4575,7 +4598,7 @@ function StrengthTag({ live, now, usAbbr, size }) {
         {small
           ? (pp ? "PP" : "PK")
           : (usAbbr ? usAbbr + " " : "") + (pp ? "Power play" : "Penalty kill")}
-        {st.diff > 1 ? " +" + st.diff : ""}
+        {" " + st.label}
       </span>
       {against ? <span className="strtagclock">{fmtClock(against.left * 1000)}</span> : null}
     </span>
@@ -5026,24 +5049,79 @@ function activePenalties(live, now) {
     .filter((p) => p.left > 0);
 }
 
-/* Who is up a skater, if anyone. Coincidental penalties cancel, which is the
- * common case this has to get right; 5-on-3 shows as a two-player advantage
- * rather than being modelled as its own state.
+/* Penalties handed out at the same stoppage are coincidental. Nothing has
+   to record that: the clock is stopped while they are entered, so they were
+   all stamped with the same elapsed second, to the tick. Reading it back out
+   of the end time means it holds for games typed up long afterwards too. */
+const penaltyStart = (p) => p.endsAt - (Number(p.minutes) || 0) * 60;
+
+/* Majors substitute and minors do not, so the two never cancel against each
+   other. Everything that sits a player down for five is grouped with the
+   majors; a match penalty is served the same way. */
+const penaltyClass = (p) => {
+  const k = kindOf(p);
+  return k === "major" || k === "match" ? "major" : "minor";
+};
+
+/**
+ * How many skaters each side has on the ice.
  *
- * Only the penalties that actually take a skater off count. A misconduct is
+ * Counting skaters rather than the differential is what makes 4-on-4 sayable
+ * at all: a penalty each is not even strength, and reporting it as such threw
+ * away the most open ice in the game. The rulebook decides the count.
+ *
+ * Coincidental minors do not substitute (NHL 19.2) - one each from 5-on-5 is
+ * 4-on-4, two each is 3-on-3 - while coincidental majors do (NHL 20.4), so a
+ * fight leaves both benches full and cancels out of this entirely. Unequal
+ * calls at one whistle sort themselves out: the pair cancels for advantage
+ * and both sides still lose the man, which is how two against one comes to
+ * be 4-on-3 rather than 5-on-4.
+ *
+ * No side ever goes below three (NHL 19.1). A third penalty is served without
+ * a fourth skater coming off; its clock waits for an earlier one to expire.
+ *
+ * Only penalties that actually take a skater off are counted. A misconduct is
  * ten minutes in the box with a substitute on the ice, so a team serving one
- * is at even strength and the console has to say so. Every running penalty
- * is still returned for the strip, because the box is worth seeing whether
- * or not it changes the count. */
+ * is at full strength and the console has to say so. Every running penalty is
+ * still returned for the strip, because the box is worth seeing whether or
+ * not it changes the count.
+ */
 function strengthState(live, now) {
   const active = activePenalties(live, now);
-  const onIce = active.filter((p) => p.shorts);
-  const us = onIce.filter((p) => p.team === "us").length;
-  const them = onIce.filter((p) => p.team === "them").length;
-  if (us === them) return { kind: "EV", diff: 0, active };
+  const serving = active.filter((p) => p.shorts);
+
+  /* Coincidental majors put nobody in the box as far as the ice is
+     concerned, so they come out before anything is counted. */
+  const groups = {};
+  for (const p of serving) {
+    const key = penaltyStart(p) + "|" + penaltyClass(p);
+    const g = groups[key]
+      || (groups[key] = { major: penaltyClass(p) === "major", us: [], them: [] });
+    (p.team === "us" ? g.us : g.them).push(p);
+  }
+  const substituted = new Set();
+  for (const g of Object.values(groups)) {
+    if (!g.major) continue;
+    for (let i = 0; i < Math.min(g.us.length, g.them.length); i++) {
+      substituted.add(g.us[i].id); substituted.add(g.them[i].id);
+    }
+  }
+
+  const box = (team) => serving.filter((p) => p.team === team && !substituted.has(p.id)).length;
+  const us = Math.max(3, 5 - box("us"));
+  const them = Math.max(3, 5 - box("them"));
+  const label = us === them ? us + "-on-" + us
+    : Math.max(us, them) + "-on-" + Math.min(us, them);
+
+  if (us === them) {
+    /* Even, but not necessarily five a side. Four-on-four is its own state
+       and gets its own name; only a full sheet is nothing worth saying. */
+    return { kind: us === 5 ? "EV" : "E4", diff: 0, us, them, label, active };
+  }
+  /* These are skaters, not penalties: more of them is the advantage. */
   return us > them
-    ? { kind: "PK", diff: us - them, active }
-    : { kind: "PP", diff: them - us, active };
+    ? { kind: "PP", diff: us - them, us, them, label, active }
+    : { kind: "PK", diff: them - us, us, them, label, active };
 }
 
 
@@ -6280,6 +6358,7 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
                     : x.reason || "Stoppage";
                   const detail = x.kind === "penalty"
                     ? x.player + " — " + x.minutes + " minutes for " + x.infraction
+                      + (x.strength ? " · " + x.strength : "")
                     : x.kind === "shootout"
                       ? x.player + (x.shot ? " \u00b7 " + x.shot : "")
                     : x.kind === "game"
@@ -16616,10 +16695,18 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
       player, playerId,
       endsAt: at + r.mins * 60, ended: false,
     }));
+    /* The strength this call produced, written down while it is true. The
+       clock these penalties run on has stopped by the time anyone reads the
+       game back, so it cannot be worked out again afterwards. */
+    const after = retro ? null : strengthState(
+      { ...live, penalties: [...(live.penalties || []), ...pens] }, now);
+    const madeIt = after && after.kind !== "EV" ? after.label : null;
+
     const newPlays = pens.map((p) => ({
       id: p.id, kind: "penalty", team: penTeam, ...when,
       player, minutes: p.minutes,
       infraction: p.kind === "misconduct" && rows.length > 1 ? "Misconduct" : penWhat,
+      ...(madeIt && penaltyKind(p.kind).shorts ? { strength: madeIt } : {}),
     }));
 
     /* Every minute counts on the player's line, whether the team was short
@@ -16646,7 +16733,10 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
         : { ...live, penalties: [...(live.penalties || []), ...pens], ejected, delayed: null },
     });
     setPenPlayer(""); setPenOpp("");
-    setPenPending(null);
+    /* The bar stays up. A scrum is two or four calls at one whistle and the
+       second one was being entered after the form had closed; leaving it
+       open is also what stamps them all with the same stoppage, which is
+       what makes them cancel. */
   };
 
   const endPenalty = (id) =>
@@ -17587,22 +17677,42 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
         </div>
       )}
 
-      {penPending && (
-        <div className="austop aupenwait">
-          <span className="h6">Whistle at {penPending.clock} — enter the penalty</span>
-          <span className="bsm">It goes on the sheet with the penalty, not before it.</span>
-          <button className="btn bGhost bSm austopskip" onClick={() => setPenPending(null)}>
-            No penalty after all
-          </button>
-        </div>
-      )}
+      {penPending && (() => {
+        /* Everything already entered at this whistle. Two here means the
+           benches are even and a man light rather than anyone up one. */
+        const atWhistle = plays.filter((x) => x.kind === "penalty"
+          && x.period === penPending.period && x.clock === penPending.clock);
+        const mine = atWhistle.filter((x) => x.team === "us").length;
+        const theirs = atWhistle.length - mine;
+        return (
+          <div className="austop aupenwait">
+            <span className="h6">
+              {atWhistle.length
+                ? "Whistle at " + penPending.clock + " — another penalty?"
+                : "Whistle at " + penPending.clock + " — enter the penalty"}
+            </span>
+            <span className="bsm">
+              {atWhistle.length
+                ? "In so far: " + (mine ? mine + " on " + usLabel : "")
+                  + (mine && theirs ? ", " : "")
+                  + (theirs ? theirs + " on " + (oppName || "them") : "")
+                  + (mine && theirs ? ". Matching calls cancel — both benches skate a man short."
+                    : ". Add the other team's if the calls were together.")
+                : "It goes on the sheet with the penalty, not before it."}
+            </span>
+            <button className="btn bGhost bSm austopskip" onClick={() => setPenPending(null)}>
+              {atWhistle.length ? "Done" : "No penalty after all"}
+            </button>
+          </div>
+        );
+      })()}
 
       {/* ---- Strength ---- */}
       <div className={"austrength " + strength.kind.toLowerCase()}>
         <span className="austrengthtag">
-          {strength.kind === "EV"
-            ? "Even strength"
-            : strength.kind + (strength.diff > 1 ? " +" + strength.diff : "")}
+          {strength.kind === "EV" ? "Even strength"
+            : strength.kind === "E4" ? strength.label
+            : strength.kind + " " + strength.label}
         </span>
         {live.delayed && (
           <span className="audelaytag">
@@ -17951,7 +18061,10 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
                       <>
                         <span className="auplaykind pen">{p.minutes} MIN</span>
                         <span className="auplaywho">{p.player}</span>
-                        <span className="auplayassist">{p.infraction}</span>
+                        <span className="auplayassist">
+                          {p.infraction}
+                          {p.strength && <b className="auplaystr">{p.strength}</b>}
+                        </span>
                       </>
                     ) : p.kind === "game" ? (
                       <>
@@ -19524,7 +19637,10 @@ function RetroPlays({ game, oppName, roster, lines, oppLines, setGame, usLabel }
                       <>
                         <span className="auplaykind pen">{p.minutes} MIN</span>
                         <span className="auplaywho">{p.player}</span>
-                        <span className="auplayassist">{p.infraction}</span>
+                        <span className="auplayassist">
+                          {p.infraction}
+                          {p.strength && <b className="auplaystr">{p.strength}</b>}
+                        </span>
                       </>
                     ) : p.kind === "game" ? (
                       <>
