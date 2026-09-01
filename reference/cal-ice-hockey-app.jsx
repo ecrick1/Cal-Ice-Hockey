@@ -649,7 +649,56 @@ html { scrollbar-gutter: stable; }
   --blue: #041E42; --deep: #041E42; --mid: #0B2440;
   --gold: #FFC72C; --gold-hot: #FFD34F;
   --ink: #10202F; --muted: #4E6072;
-  /* Marks a link. A gold block behind the words read as highlighter pen, so
+  /* ---- Pages built from blocks ---- */
+/* The hero carries an image when there is one and the navy when there is
+   not, so a page with no picture is still a header rather than a gap. */
+.pbhero { background: var(--deep); color: #fff; background-size: cover;
+  background-position: center; padding-top: 64px; padding-bottom: 64px; position: relative; }
+.pbhero::before { content: ""; position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(4,30,66,0.55), rgba(4,30,66,0.8)); }
+.pbhero > * { position: relative; }
+.pbeyebrow { margin: 0 0 10px; font-size: 11px; font-weight: 800; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--gold); }
+.pbherotitle { color: #fff; margin: 0; }
+.pbherblurb { margin: 12px 0 0; max-width: 60ch; font-size: 16px; line-height: 1.6;
+  color: rgba(255,255,255,0.86); }
+
+.pbcards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px; margin-top: 18px; }
+.pbcard { display: block; background: #fff; border: 1px solid var(--border); border-radius: 10px;
+  padding: 20px; text-decoration: none; color: inherit; }
+a.pbcard:hover { border-color: var(--rule-on); }
+.pbcardtitle { margin: 0; font-weight: 800; font-size: 16px; color: var(--ink); }
+.pbcardtext { margin: 8px 0 0; font-size: 14px; line-height: 1.6; color: var(--muted); }
+
+.pbstats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 18px; background: var(--ice); border: 1px solid var(--border); border-radius: 10px;
+  padding: 26px 20px; }
+.pbstat { display: grid; justify-items: center; gap: 6px; text-align: center; }
+.pbstatvalue { font-family: var(--disp); font-size: 38px; font-weight: 600; line-height: 1;
+  color: var(--blue); }
+.pbstatlabel { font-size: 12px; font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--muted); }
+
+.pbimage { display: block; width: 100%; border-radius: 10px; }
+.pbcaption { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
+
+.pbcta { display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+  background: var(--deep); border-radius: 12px; padding: 28px 30px; }
+.pbctatitle { margin: 0; font-family: var(--disp); font-size: 27px; font-weight: 600;
+  color: #fff; }
+.pbctablurb { margin: 8px 0 0; font-size: 15px; color: rgba(255,255,255,0.8); max-width: 56ch; }
+.pbcta .goldpill { margin-left: auto; }
+
+.pbfaq { border-top: 1px solid var(--border); padding: 16px 0; }
+.pbfaq summary { cursor: pointer; font-weight: 700; font-size: 16px; color: var(--ink);
+  list-style: none; }
+.pbfaq summary::-webkit-details-marker { display: none; }
+.pbfaq summary::after { content: "+"; float: right; color: var(--muted); font-weight: 700; }
+.pbfaq[open] summary::after { content: "\u2212"; }
+.pbfaq .legalbody { margin-top: 10px; }
+
+/* Marks a link. A gold block behind the words read as highlighter pen, so
      it is a hairline under them instead: faint at rest, solid on hover. */
   --rule: rgba(4, 30, 66, 0.30); --rule-on: rgba(4, 30, 66, 0.75);
   --ondark: #EAF1F8; --ondark-muted: #9FB4C8;
@@ -3635,6 +3684,38 @@ a.faffil:hover { filter: grayscale(0); }
 /* Waiting on a penalty: the whistle has gone and the sheet is deliberately
    still empty, so the bar says so rather than leaving a gap. */
 .adminui .aupenwait { border-left: 3px solid var(--au-warn, #F5B544); }
+
+/* ---- Page builder ---- */
+.adminui .aublockhead { display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 12px; }
+.adminui .aublockrow { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)) 30px;
+  gap: 8px; align-items: center; margin-top: 8px; }
+.adminui .aublockimg { display: block; max-width: 240px; border-radius: 8px; margin-bottom: 8px; }
+.adminui .aublockpick { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px; }
+.adminui .aublockopt { display: grid; gap: 3px; text-align: left; padding: 12px 14px;
+  background: var(--au-raised); border: 1px solid var(--au-line); border-radius: 9px;
+  cursor: pointer; color: inherit; font: inherit; }
+.adminui .aublockopt:hover { border-color: var(--au-primary); }
+.adminui .aublockoptname { font-size: 13.5px; font-weight: 700; color: var(--au-text); }
+.adminui .aublockopthint { font-size: 11.5px; color: var(--au-faint); }
+
+/* ---- Menu bar ---- */
+.adminui .aunavlist { display: grid; gap: 6px; margin-top: 14px; }
+.adminui .aunavrow { display: flex; align-items: center; gap: 6px; padding: 7px 9px;
+  background: var(--au-raised); border: 1px solid var(--au-line); border-radius: 8px; }
+.adminui .aunavrow.child { margin-left: 26px; background: none; }
+.adminui .aunavrow.off { opacity: 0.5; }
+.adminui .aunavlabel { flex: 1 1 auto; min-width: 0; padding: 4px 7px; font-size: 13px; }
+.adminui .aunavwhat { flex: 0 0 auto; font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--au-faint); }
+.adminui .aunavrow .btn { flex: 0 0 auto; padding: 4px 8px; font-size: 12px; }
+.adminui .aunavaddchild { margin: 4px 0 8px 26px; }
+.adminui .aunavadd { border-color: var(--au-primary); }
+/* The button that makes a page, last in its group and marked as an action
+   rather than a destination. */
+.adminui .aulink.aunewpage { color: var(--au-faint); }
+.adminui .aulink.aunewpage:hover { color: var(--au-text); }
 /* The break clock is not the game clock and should not be mistaken for it
    at a glance across a press box. */
 .adminui .aubugclock.aubugbreak { color: var(--au-warn, #F5B544); }
@@ -12575,6 +12656,427 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
   );
 }
 
+/* ---------------- Page builder ----------------
+ *
+ * The fields are read off the block's own definition rather than written per
+ * type, because seven hand-written forms is seven things to keep in step
+ * with seven renderers.
+ */
+function BlockFields({ block, set }) {
+  const def = blockType(block.type);
+  if (!def) return null;
+  const fields = def[3] || [];
+
+  const setItem = (key, i, k) => (e) => {
+    const rows = [...(block[key] || [])];
+    rows[i] = { ...(rows[i] || {}), [k]: e.target.value };
+    set(key, rows);
+  };
+  const addRow = (key) => () => set(key, [...(block[key] || []), {}]);
+  const dropRow = (key, i) => () => set(key, (block[key] || []).filter((_, j) => j !== i));
+
+  const readImage = (key) => (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const fr = new FileReader();
+    fr.onload = () => set(key, fr.result);
+    fr.readAsDataURL(file);
+  };
+
+  return (
+    <div style={{ display: "grid", gap: 12 }}>
+      {fields.map(([key, label, kind, cols]) => {
+        if (kind === "list") {
+          const rows = block[key] || [];
+          return (
+            <div className="field" key={key}>
+              <label className="h6">{label}</label>
+              {rows.map((row, i) => (
+                <div className="aublockrow" key={i}>
+                  {cols.map(([ck, clabel]) => (
+                    <input key={ck} placeholder={clabel} value={row[ck] || ""}
+                      onChange={setItem(key, i, ck)} />
+                  ))}
+                  <button className="btn bDanger" aria-label={"Remove " + label}
+                    onClick={dropRow(key, i)}>✕</button>
+                </div>
+              ))}
+              <button className="btn bGhost bSm" style={{ marginTop: 8, justifySelf: "start" }}
+                onClick={addRow(key)}>Add one</button>
+            </div>
+          );
+        }
+        if (kind === "image") {
+          return (
+            <div className="field" key={key}>
+              <label className="h6">{label}</label>
+              {block[key] && <img className="aublockimg" src={block[key]} alt="" />}
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input type="file" accept="image/*" style={{ fontSize: 12 }}
+                  onChange={readImage(key)} />
+                {block[key] && (
+                  <button className="btn bGhost bSm" onClick={() => set(key, "")}>Remove</button>
+                )}
+              </div>
+            </div>
+          );
+        }
+        return (
+          <div className="field" key={key}>
+            <label className="h6">{label}</label>
+            {kind === "markdown" || kind === "text"
+              ? <textarea rows={kind === "markdown" ? 10 : 3} value={block[key] || ""}
+                  onChange={(e) => set(key, e.target.value)} />
+              : <input value={block[key] || ""} onChange={(e) => set(key, e.target.value)} />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function PageBuilder({ site, setDraft, pageId, onGone }) {
+  const ask = useAsk();
+  const pages = site.pages || [];
+  const page = pages.find((p) => p.id === pageId);
+  const [adding, setAdding] = useState(false);
+
+  const write = (fn) => setDraft((st) => ({
+    ...st,
+    pages: (st.pages || []).map((p) => (p.id === pageId ? fn(p) : p)),
+  }));
+
+  if (!page) {
+    return (
+      <section className="card">
+        <p className="h6" style={{ marginBottom: 6 }}>Page not found</p>
+        <p className="auhint" style={{ margin: 0 }}>It may have been deleted.</p>
+      </section>
+    );
+  }
+
+  const blocks = page.blocks || [];
+  const setBlock = (id) => (key, value) => write((p) => ({
+    ...p, blocks: (p.blocks || []).map((b) => (b.id === id ? { ...b, [key]: value } : b)),
+  }));
+  const move = (i, by) => write((p) => {
+    const list = [...(p.blocks || [])];
+    const j = i + by;
+    if (j < 0 || j >= list.length) return p;
+    [list[i], list[j]] = [list[j], list[i]];
+    return { ...p, blocks: list };
+  });
+  const remove = async (b) => {
+    const def = blockType(b.type);
+    const ok = await ask({
+      title: "Remove this block?",
+      message: (def ? def[1] : "Block") + " and everything written in it.",
+      confirmLabel: "Remove", danger: true,
+    });
+    if (ok) write((p) => ({ ...p, blocks: (p.blocks || []).filter((x) => x.id !== b.id) }));
+  };
+  const add = (type) => {
+    write((p) => ({ ...p, blocks: [...(p.blocks || []), { id: uid(), type }] }));
+    setAdding(false);
+  };
+
+  const deletePage = async () => {
+    const ok = await ask({
+      title: "Delete this page?",
+      message: (page.title || "This page") + " and everything on it. Its place in the "
+        + "menu bar goes too.",
+      confirmLabel: "Delete", danger: true,
+    });
+    if (!ok) return;
+    setDraft((st) => ({
+      ...st,
+      pages: (st.pages || []).filter((p) => p.id !== pageId),
+      /* A nav entry pointing at a deleted page is a link to nowhere. */
+      nav: (st.nav || []).map((it) => (it.items
+        ? { ...it, items: it.items.filter((c) => c.view !== pageView(pageId)) } : it))
+        .filter((it) => (it.items ? true : it.view !== pageView(pageId))),
+    }));
+    onGone();
+  };
+
+  return (
+    <div style={{ display: "grid", gap: 18, maxWidth: 720 }}>
+      <section className="card">
+        <div className="field">
+          <label className="h6">Page title</label>
+          <input value={page.title || ""}
+            onChange={(e) => write((p) => ({ ...p, title: e.target.value }))} />
+        </div>
+        <p className="auhint" style={{ margin: "10px 0 0" }}>
+          The title is what the menu bar offers it as until you rename it there.
+          A page is not on the site until it is in the bar.
+        </p>
+      </section>
+
+      {blocks.map((b, i) => {
+        const def = blockType(b.type);
+        return (
+          <section className="card" key={b.id}>
+            <div className="aublockhead">
+              <div>
+                <p className="h6" style={{ margin: 0 }}>{def ? def[1] : b.type}</p>
+                {def && <p className="bsm" style={{ margin: "2px 0 0", color: "var(--au-faint)" }}>{def[2]}</p>}
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button className="btn bGhost bSm" onClick={() => move(i, -1)}
+                  disabled={i === 0} title="Move up">↑</button>
+                <button className="btn bGhost bSm" onClick={() => move(i, 1)}
+                  disabled={i === blocks.length - 1} title="Move down">↓</button>
+                <button className="btn bGhost bSm" onClick={() => remove(b)} title="Remove">✕</button>
+              </div>
+            </div>
+            <div style={{ marginTop: 14 }}>
+              <BlockFields block={b} set={setBlock(b.id)} />
+            </div>
+          </section>
+        );
+      })}
+
+      {!blocks.length && (
+        <div className="auempty">
+          <p style={{ margin: 0, fontWeight: 600, color: "var(--au-text)" }}>No blocks yet</p>
+          <p className="bsm" style={{ margin: "6px 0 0" }}>
+            A page is a stack of blocks. Add the first one below.
+          </p>
+        </div>
+      )}
+
+      {adding ? (
+        <section className="card">
+          <p className="h6" style={{ marginBottom: 10 }}>Add a block</p>
+          <div className="aublockpick">
+            {BLOCK_TYPES.map(([t, label, hint]) => (
+              <button className="aublockopt" key={t} onClick={() => add(t)}>
+                <span className="aublockoptname">{label}</span>
+                <span className="aublockopthint">{hint}</span>
+              </button>
+            ))}
+          </div>
+          <button className="btn bGhost bSm" style={{ marginTop: 12 }}
+            onClick={() => setAdding(false)}>Cancel</button>
+        </section>
+      ) : (
+        <div style={{ display: "flex", gap: 10 }}>
+          <button className="btn bNavy" onClick={() => setAdding(true)}>+ Add block</button>
+          <button className="btn bGhost" style={{ marginLeft: "auto" }}
+            onClick={deletePage}>Delete page</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- The menu bar ----------------
+ *
+ * A page and its place in the bar are separate on purpose: building a page
+ * does not put it in front of the public, and taking it out of the bar does
+ * not delete it.
+ */
+const NAV_DESTINATIONS = [
+  ["home", "Home"], ["schedule", "Schedule"], ["roster", "Roster"],
+  ["prospects", "Recruits"], ["staff", "Hockey Ops Staff"], ["volunteers", "Volunteers"],
+  ["stats", "Stats"], ["newsindex", "News"], ["venue", "Venue"], ["alumni", "Alumni"],
+  ["recruit", "Interest form"], ["tickets", "Tickets"],
+];
+
+function NavEditor({ site, setDraft }) {
+  const ask = useAsk();
+  const pages = site.pages || [];
+  const bar = Array.isArray(site.nav) && site.nav.length ? site.nav : DEFAULT_NAV;
+  const [addTo, setAddTo] = useState(null);
+
+  const write = (next) => setDraft((st) => ({ ...st, nav: next }));
+
+  /* Every item, flattened with where it sits, so a move is arithmetic on one
+     list rather than four cases about parents. */
+  const setAt = (parentId, fn) => write(bar.map((it) => (
+    parentId && it.id === parentId ? { ...it, items: fn(it.items || []) }
+      : it)));
+
+  const moveTop = (i, by) => {
+    const list = [...bar];
+    const j = i + by;
+    if (j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    write(list);
+  };
+  const moveChild = (parentId, i, by) => setAt(parentId, (items) => {
+    const list = [...items];
+    const j = i + by;
+    if (j < 0 || j >= list.length) return items;
+    [list[i], list[j]] = [list[j], list[i]];
+    return list;
+  });
+
+  const rename = (parentId, id, label) => (parentId
+    ? setAt(parentId, (items) => items.map((c) => (c.id === id ? { ...c, label } : c)))
+    : write(bar.map((it) => (it.id === id ? { ...it, label } : it))));
+
+  const toggleHide = (parentId, id) => (parentId
+    ? setAt(parentId, (items) => items.map((c) => (c.id === id ? { ...c, hidden: !c.hidden } : c)))
+    : write(bar.map((it) => (it.id === id ? { ...it, hidden: !it.hidden } : it))));
+
+  const drop = async (parentId, item) => {
+    const ok = await ask({
+      title: "Remove from the menu?",
+      message: (item.label || "This item") + (item.items && item.items.length
+        ? " and the " + item.items.length + " items under it."
+        : ". The page itself is not deleted."),
+      confirmLabel: "Remove", danger: true,
+    });
+    if (!ok) return;
+    if (parentId) setAt(parentId, (items) => items.filter((c) => c.id !== item.id));
+    else write(bar.filter((it) => it.id !== item.id));
+  };
+
+  /* Lifting a child to the top level and pushing a top-level item into the
+     dropdown above it: the two moves the arrows cannot make. */
+  const lift = (parentId, item) => {
+    const at = bar.findIndex((it) => it.id === parentId);
+    const next = bar.map((it) => (it.id === parentId
+      ? { ...it, items: (it.items || []).filter((c) => c.id !== item.id) } : it));
+    next.splice(at + 1, 0, item);
+    write(next);
+  };
+  const nest = (i) => {
+    const item = bar[i];
+    /* The nearest dropdown above it, which is where "indent" means. */
+    let host = -1;
+    for (let j = i - 1; j >= 0; j--) if (bar[j].items) { host = j; break; }
+    if (host < 0) return;
+    write(bar
+      .map((it, j) => (j === host ? { ...it, items: [...(it.items || []), item] } : it))
+      .filter((_, j) => j !== i));
+  };
+
+  const addItem = (parentId, made) => {
+    if (parentId) setAt(parentId, (items) => [...items, made]);
+    else write([...bar, made]);
+    setAddTo(null);
+  };
+
+  const Adder = ({ parentId }) => (
+    <section className="card aunavadd">
+      <p className="h6" style={{ marginBottom: 8 }}>
+        Add to {parentId ? "this dropdown" : "the bar"}
+      </p>
+      <div className="field">
+        <label className="h6">A page of the site</label>
+        <select value="" onChange={(e) => e.target.value && addItem(parentId, {
+          id: uid(), label: (NAV_DESTINATIONS.find(([v]) => v === e.target.value) || [])[1]
+            || e.target.value, view: e.target.value })}>
+          <option value="">— pick one —</option>
+          {NAV_DESTINATIONS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+        </select>
+      </div>
+      {pages.length > 0 && (
+        <div className="field" style={{ marginTop: 10 }}>
+          <label className="h6">A page you built</label>
+          <select value="" onChange={(e) => e.target.value && addItem(parentId, {
+            id: uid(),
+            label: (pages.find((p) => p.id === e.target.value) || {}).title || "Untitled",
+            view: pageView(e.target.value) })}>
+            <option value="">— pick one —</option>
+            {pages.map((p) => <option key={p.id} value={p.id}>{p.title || "Untitled"}</option>)}
+          </select>
+        </div>
+      )}
+      <div className="field" style={{ marginTop: 10 }}>
+        <label className="h6">A link out</label>
+        <input placeholder="https://\u2026" onKeyDown={(e) => {
+          if (e.key !== "Enter") return;
+          const href = e.currentTarget.value.trim();
+          if (href) addItem(parentId, { id: uid(), label: "New link", href });
+        }} />
+        <p className="bsm" style={{ marginTop: 5, color: "var(--au-faint)" }}>
+          Enter to add, then rename it above.
+        </p>
+      </div>
+      {!parentId && (
+        <button className="btn bGhost bSm" style={{ marginTop: 12 }}
+          onClick={() => addItem(null, { id: uid(), label: "New menu", items: [] })}>
+          Add an empty dropdown
+        </button>
+      )}
+      <button className="btn bGhost bSm" style={{ marginTop: 12, marginLeft: 8 }}
+        onClick={() => setAddTo(null)}>Cancel</button>
+    </section>
+  );
+
+  const Row = ({ item, parentId, i, count }) => (
+    <div className={"aunavrow" + (item.hidden ? " off" : "") + (parentId ? " child" : "")}>
+      <input className="aunavlabel" value={item.label || ""}
+        onChange={(e) => rename(parentId, item.id, e.target.value)} />
+      <span className="aunavwhat">
+        {item.items ? "dropdown" : item.href ? "link out"
+          : viewPageId(item.view) ? "built page" : "page"}
+      </span>
+      <button className="btn bGhost bSm" title="Move up" disabled={i === 0}
+        onClick={() => (parentId ? moveChild(parentId, i, -1) : moveTop(i, -1))}>↑</button>
+      <button className="btn bGhost bSm" title="Move down" disabled={i === count - 1}
+        onClick={() => (parentId ? moveChild(parentId, i, 1) : moveTop(i, 1))}>↓</button>
+      {parentId
+        ? <button className="btn bGhost bSm" title="Move out of this dropdown"
+            onClick={() => lift(parentId, item)}>←</button>
+        : <button className="btn bGhost bSm" title="Move into the dropdown above"
+            disabled={item.items || !bar.slice(0, i).some((x) => x.items)}
+            onClick={() => nest(i)}>→</button>}
+      <button className="btn bGhost bSm" title={item.hidden ? "Show it" : "Hide it"}
+        onClick={() => toggleHide(parentId, item.id)}>{item.hidden ? "Hidden" : "Shown"}</button>
+      <button className="btn bDanger" title="Remove from the menu"
+        onClick={() => drop(parentId, item)}>✕</button>
+    </div>
+  );
+
+  return (
+    <div style={{ display: "grid", gap: 18, maxWidth: 760 }}>
+      <section className="card">
+        <p className="h6" style={{ marginBottom: 6 }}>Menu bar</p>
+        <p className="auhint" style={{ marginTop: 0 }}>
+          The bar across the top of the public site, and the same list the phone
+          menu reads. Hiding an item leaves it here; removing it does not delete
+          the page it points at.
+        </p>
+        <div className="aunavlist">
+          {bar.map((item, i) => (
+            <div key={item.id}>
+              <Row item={item} parentId={null} i={i} count={bar.length} />
+              {item.items && (
+                <>
+                  {(item.items || []).map((c, j) => (
+                    <Row key={c.id} item={c} parentId={item.id} i={j} count={item.items.length} />
+                  ))}
+                  <button className="btn bGhost bSm aunavaddchild"
+                    onClick={() => setAddTo(item.id)}>+ Add to {item.label}</button>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+          <button className="btn bNavy bSm" onClick={() => setAddTo("top")}>+ Add to the bar</button>
+          <button className="btn bGhost bSm" style={{ marginLeft: "auto" }}
+            onClick={async () => {
+              const ok = await ask({
+                title: "Put the menu back?",
+                message: "Back to Home, Schedule, Team, Stats, News and More as it ships.",
+                confirmLabel: "Reset", danger: true,
+              });
+              if (ok) write(DEFAULT_NAV);
+            }}>Reset to default</button>
+        </div>
+      </section>
+
+      {addTo && <Adder parentId={addTo === "top" ? null : addTo} />}
+    </div>
+  );
+}
+
 /* ---------------- Custom theme builder ----------------
  * Two colors and a mode is the whole surface: the sidebar takes the base, the
  * accent drives every primary control, and the mode decides whether the content
@@ -13629,11 +14131,19 @@ const ADMIN_NAV = [
   ["Library", [["opponents", "Opponents"], ["news", "News"], ["sponsors", "Sponsors"]]],
   /* Pages that put words on the public site. They were cards inside Settings
      until each grew past the field or two a settings screen is for. */
-  ["Pages", [["venue", "Venue page"], ["legal", "Footer pages"],
-    ["form", "Interest form"]]],
+  ["Pages", [["menubar", "Menu bar"], ["venue", "Venue page"],
+    ["legal", "Footer pages"], ["form", "Interest form"]]],
   ["Inbox", [["inbox", "Interest forms"], ["alumni", "Alumni list"]]],
   ["System", [["seasons", "Seasons"], ["import", "Import"], ["settings", "Settings"]]],
 ];
+
+/* A built page is titled by its own name rather than by a fixed string. */
+const adminTitle = (tab, site) => {
+  const pid = viewPageId(tab);
+  if (!pid) return ADMIN_TITLES[tab] || "";
+  const pg = ((site && site.pages) || []).find((p) => p.id === pid);
+  return (pg && pg.title) || "Untitled page";
+};
 
 const ADMIN_TITLES = {
   live: "Live scoring",
@@ -13654,12 +14164,24 @@ const ADMIN_TITLES = {
   venue: "Venue page",
   legal: "Footer pages",
   form: "Interest form",
+  menubar: "Menu bar",
 };
 
 function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
   pending, setPending, authed, setAuthed, goto }) {
   const [tab, setTab] = useState("schedule");
   const [settingsSection, setSettingsSection] = useState("organization");
+
+  /* Straight into the editor with a working title. A page called Untitled
+     that exists is easier to name than a name decided before anything does. */
+  const newPage = () => {
+    const id = uid();
+    setDraft((st) => ({
+      ...st,
+      pages: [...(st.pages || []), { id, title: "Untitled page", blocks: [] }],
+    }));
+    setTab(pageView(id));
+  };
   const [statsView, setStatsView] = useState("game");
   /* A game handed from the schedule to Live scoring. It has to sit above the
      two tabs because only one of them is mounted at a time. */
@@ -13929,6 +14451,22 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
                     {k === "alumni" && alumniUnread > 0 && <span className="aubadge">{alumniUnread}</span>}
                   </button>
                 ))}
+                {/* Pages built in the console sit with the ones that ship, and
+                    the button that makes another closes the group. */}
+                {group === "Pages" && (
+                  <>
+                    {(draft.pages || []).map((pg) => (
+                      <button key={pg.id} className={"aulink " + (tab === pageView(pg.id) ? "on" : "")}
+                        onClick={() => setTab(pageView(pg.id))}>
+                        <span className="audot" />
+                        {pg.title || "Untitled"}
+                      </button>
+                    ))}
+                    <button className="aulink aunewpage" onClick={newPage}>
+                      <span className="audot" />+ New page
+                    </button>
+                  </>
+                )}
               </div>
             ))}
           </nav>
@@ -13952,7 +14490,7 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
 
         <div className="aumain">
           <header className="autop">
-            <h1 className="autitle">{ADMIN_TITLES[tab]}</h1>
+            <h1 className="autitle">{adminTitle(tab, draft)}</h1>
             <div className="auactions">
               <span className={"austate " + (dirty ? "dirty" : "")}>
                 <span className="aupulse" />
@@ -14025,6 +14563,11 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
             {/* Settings and the three pages lifted out of it are one editor.
                 The tab picks the section: Settings keeps its own sub-nav, and
                 a page opened from the sidebar renders only itself. */}
+            {tab === "menubar" && <NavEditor site={draft} setDraft={setDraft} />}
+            {viewPageId(tab) && (
+              <PageBuilder site={draft} setDraft={setDraft} pageId={viewPageId(tab)}
+                onGone={() => setTab("menubar")} />
+            )}
             {(tab === "settings" || PAGE_SECTIONS.includes(tab)) && (
               <SettingsEditor site={draft} setDraft={setDraft}
                 section={tab === "settings" ? settingsSection : tab}
@@ -14090,6 +14633,11 @@ function diffSections(saved, draft) {
 
   list("News", saved.news, draft.news);
   list("Opponents", saved.opponents, draft.opponents);
+  /* Both of these decide whether anything is dirty AND whether Publish does
+     anything at all - it returns early on an empty list - so a key missing
+     here is a change that can never be saved. */
+  list("Pages", saved.pages, draft.pages);
+  flat("Menu bar", saved.nav, draft.nav);
   flat("Settings", saved.settings, draft.settings);
   flat("Account", saved.account, draft.account);
   flat("Recruits page", saved.recruiting, draft.recruiting);
