@@ -3450,9 +3450,26 @@ a.faffil:hover { filter: grayscale(0); }
 .adminui .austop select, .adminui .austop input { width: auto; min-width: 190px;
   padding: 5px 8px; font-size: 13px; }
 .adminui .austopskip { margin-left: auto; opacity: 0.75; }
-.adminui .austrength { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+/* Ours, the strength, theirs - the same three across as the scoreboard
+   above it, so which bench is short is the shape rather than a read. */
+.adminui .austrength { display: grid; grid-template-columns: 1fr auto 1fr;
+  align-items: center; gap: 10px 14px;
   border: 1px solid var(--au-line); border-radius: 10px; padding: 10px 14px;
   background: var(--au-panel); }
+/* Stacked, because a second call against one bench is a second line under
+   the first and not a chip further along a row. */
+.adminui .aupenbox { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.adminui .aupenbox.us { align-items: flex-start; }
+.adminui .aupenbox.them { align-items: flex-end; }
+.adminui .aupenmid { display: flex; flex-direction: column; align-items: center; gap: 6px;
+  text-align: center; }
+/* Narrow: the three columns become three rows and the sides square up,
+   because two chips pushed to opposite edges of a phone read as unrelated. */
+@media (max-width: 720px) {
+  .adminui .austrength { grid-template-columns: 1fr; }
+  .adminui .aupenbox.us, .adminui .aupenbox.them { align-items: center; }
+  .adminui .aupenbox:empty { display: none; }
+}
 .adminui .austrengthtag { font-family: var(--au-mono, monospace); font-size: 11.5px;
   font-weight: 700; letter-spacing: 0.1em; color: var(--au-dim); }
 .adminui .austrength.pp { border-color: rgba(52,211,153,0.4); }
@@ -18004,45 +18021,63 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
       })()}
 
       {/* ---- Strength ---- */}
-      <div className={"austrength " + strength.kind.toLowerCase()}>
-        <span className="austrengthtag">
-          {strength.kind === "EV" ? "Even strength"
-            : strength.kind === "E4" ? strength.label
-            : strength.kind + " " + strength.label}
-        </span>
-        {live.delayed && (
-          <span className="audelaytag">
-            Delayed penalty · {live.delayed === "us" ? usLabel : oppName || "Them"}
-          </span>
-        )}
-        {live.goalieUs === "empty" && (
-          <span className="auemptytag">{usLabel} net empty</span>
-        )}
-        {live.goalieThem === "Empty net" && (
-          <span className="auemptytag">{oppName || "Them"} net empty</span>
-        )}
-        {strength.active.map((p) => (
-          <button className={"aupen " + (p.shorts ? "" : "aupenfull")} key={p.id}
-            onClick={() => endPenalty(p.id)}
-            title={p.shorts
-              ? "End this penalty early"
-              : "Served by the player — the team is not short. End it early"}>
-            {p.team === "us" ? "" : oppName + " · "}{p.player} {fmtClock(p.left * 1000)}
-            {p.halfServed && <span className="aupennote">2nd half</span>}
-            {!p.shorts && <span className="aupennote">no advantage</span>}
-            {" ✕"}
-          </button>
-        ))}
-        {ejected.map((e, i) => (
-          <span className="aupen aupenout" key={"ej" + i}>
-            {e.team === "us" ? "" : oppName + " · "}{e.name}
-            <span className="aupennote">ejected</span>
-          </span>
-        ))}
-        {!strength.active.length && !ejected.length && (
-          <span className="bsm" style={{ color: "var(--au-faint)" }}>No penalties being served.</span>
-        )}
-      </div>
+      {(() => {
+        /* Each bench's box on its own side, the way the scoreboard two inches
+           above already arranges the same two teams. A chip on the right is
+           theirs, so it does not have to say so. */
+        const boxFor = (side) => (
+          <div className={"aupenbox " + side}>
+            {strength.active.filter((p) => p.team === side).map((p) => (
+              <button className={"aupen " + (p.shorts ? "" : "aupenfull")} key={p.id}
+                onClick={() => endPenalty(p.id)}
+                title={p.shorts
+                  ? "End this penalty early"
+                  : "Served by the player — the team is not short. End it early"}>
+                {p.player} {fmtClock(p.left * 1000)}
+                {p.halfServed && <span className="aupennote">2nd half</span>}
+                {!p.shorts && <span className="aupennote">no advantage</span>}
+                {" ✕"}
+              </button>
+            ))}
+            {ejected.filter((e) => e.team === side).map((e, i) => (
+              <span className="aupen aupenout" key={"ej" + i}>
+                {e.name}
+                <span className="aupennote">ejected</span>
+              </span>
+            ))}
+          </div>
+        );
+        const nothing = !strength.active.length && !ejected.length;
+        return (
+          <div className={"austrength " + strength.kind.toLowerCase()}>
+            {boxFor("us")}
+            <div className="aupenmid">
+              <span className="austrengthtag">
+                {strength.kind === "EV" ? "Even strength"
+                  : strength.kind === "E4" ? strength.label
+                  : strength.kind + " " + strength.label}
+              </span>
+              {live.delayed && (
+                <span className="audelaytag">
+                  Delayed · {live.delayed === "us" ? usLabel : oppName || "Them"}
+                </span>
+              )}
+              {live.goalieUs === "empty" && (
+                <span className="auemptytag">{usLabel} net empty</span>
+              )}
+              {live.goalieThem === "Empty net" && (
+                <span className="auemptytag">{oppName || "Them"} net empty</span>
+              )}
+              {nothing && (
+                <span className="bsm" style={{ color: "var(--au-faint)" }}>
+                  No penalties being served.
+                </span>
+              )}
+            </div>
+            {boxFor("them")}
+          </div>
+        );
+      })()}
 
       {liveChecks.length > 0 && (
         <div className="aumismatch">
