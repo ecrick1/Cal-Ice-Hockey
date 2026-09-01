@@ -4093,6 +4093,194 @@ const IcFacebook = (p) => <Ic {...p} d={<path d="M14.5 8.5h2.5M14.5 21V8.6c0-1.7
    and stroked like the rest of the set rather than lifted from the brand. */
 const IcTikTok = (p) => <Ic {...p} d={<><path d="M14 3.5v11.2a4.3 4.3 0 1 1-3.3-4.2" /><path d="M14 3.5c.4 2.6 2.1 4.2 4.7 4.4" /></>} />;
 
+/* ---------------- Pages built from blocks ----------------
+ *
+ * A page that is words and pictures rather than a view of the data. Each
+ * block names a shape the site already has, so a built page looks like the
+ * rest of the site instead of like a page builder.
+ *
+ * `fields` drives the editor; the renderer reads the same names. Adding a
+ * block type means adding one entry here and one case in PageBlock.
+ */
+const BLOCK_TYPES = [
+  ["hero", "Hero", "A title over the width of the page",
+    [["eyebrow", "Eyebrow", "line"], ["title", "Title", "line"],
+     ["blurb", "Blurb", "text"], ["image", "Background image", "image"]]],
+  ["rich", "Text", "Paragraphs, headings and lists",
+    [["title", "Heading", "line"], ["body", "Body", "markdown"]]],
+  ["cards", "Cards", "A row of linked cards",
+    [["title", "Heading", "line"],
+     ["items", "Cards", "list", [["title", "Title"], ["text", "Text"], ["href", "Link"]]]]],
+  ["stats", "Figures", "A band of numbers",
+    [["items", "Figures", "list", [["value", "Figure"], ["label", "Label"]]]]],
+  ["image", "Picture", "One image with a caption",
+    [["image", "Image", "image"], ["caption", "Caption", "line"]]],
+  ["cta", "Call to action", "A band with a button",
+    [["title", "Title", "line"], ["blurb", "Blurb", "text"],
+     ["label", "Button", "line"], ["href", "Link", "line"]]],
+  ["faq", "Questions", "Questions that open",
+    [["title", "Heading", "line"],
+     ["items", "Questions", "list", [["q", "Question"], ["a", "Answer"]]]]],
+];
+const blockType = (t) => BLOCK_TYPES.find((b) => b[0] === t) || null;
+
+/* Rows a repeating block actually has something in - an empty row is one
+   somebody started and left, not content. */
+const filled = (items, keys) => (items || [])
+  .filter((it) => it && keys.some((k) => String(it[k] || "").trim()));
+
+function PageBlock({ block, goto }) {
+  const b = block || {};
+  const has = (k) => String(b[k] || "").trim();
+
+  if (b.type === "hero") {
+    return (
+      <section className="section pbhero"
+        style={b.image ? { backgroundImage: `url(${b.image})` } : undefined}>
+        <div className="wrap" style={{ maxWidth: 900 }}>
+          {has("eyebrow") && <p className="pbeyebrow">{b.eyebrow}</p>}
+          {has("title") && <h1 className="stitle pbherotitle">{b.title}</h1>}
+          {has("blurb") && <p className="pbherblurb">{b.blurb}</p>}
+        </div>
+      </section>
+    );
+  }
+
+  if (b.type === "rich") {
+    return (
+      <section className="section">
+        <div className="wrap" style={{ maxWidth: 760 }}>
+          {has("title") && <h2 className="stitle">{b.title}</h2>}
+          {has("body") && <div className="legalbody">{renderArticle(b.body, goto || (() => {}))}</div>}
+        </div>
+      </section>
+    );
+  }
+
+  if (b.type === "cards") {
+    const items = filled(b.items, ["title", "text"]);
+    if (!items.length) return null;
+    return (
+      <section className="section">
+        <div className="wrap">
+          {has("title") && <h2 className="stitle">{b.title}</h2>}
+          <div className="pbcards">
+            {items.map((it, i) => {
+              const inner = (
+                <>
+                  <p className="pbcardtitle">{it.title}</p>
+                  {it.text && <p className="pbcardtext">{it.text}</p>}
+                </>
+              );
+              return it.href
+                ? <a className="pbcard" key={i} href={it.href}
+                    target={/^https?:/.test(it.href) ? "_blank" : undefined}
+                    rel="noreferrer noopener">{inner}</a>
+                : <div className="pbcard" key={i}>{inner}</div>;
+            })}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (b.type === "stats") {
+    const items = filled(b.items, ["value", "label"]);
+    if (!items.length) return null;
+    return (
+      <section className="section">
+        <div className="wrap">
+          <div className="pbstats">
+            {items.map((it, i) => (
+              <div className="pbstat" key={i}>
+                <span className="pbstatvalue">{it.value}</span>
+                <span className="pbstatlabel">{it.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (b.type === "image") {
+    if (!has("image")) return null;
+    return (
+      <section className="section">
+        <div className="wrap" style={{ maxWidth: 900 }}>
+          <img className="pbimage" src={b.image} alt={b.caption || ""} />
+          {has("caption") && <p className="pbcaption">{b.caption}</p>}
+        </div>
+      </section>
+    );
+  }
+
+  if (b.type === "cta") {
+    if (!has("title") && !has("label")) return null;
+    return (
+      <section className="section">
+        <div className="wrap">
+          <div className="pbcta">
+            <div>
+              {has("title") && <p className="pbctatitle">{b.title}</p>}
+              {has("blurb") && <p className="pbctablurb">{b.blurb}</p>}
+            </div>
+            {has("label") && has("href") && (
+              <a className="goldpill" href={b.href}
+                target={/^https?:/.test(b.href) ? "_blank" : undefined}
+                rel="noreferrer noopener">{b.label}</a>
+            )}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (b.type === "faq") {
+    const items = filled(b.items, ["q", "a"]);
+    if (!items.length) return null;
+    return (
+      <section className="section">
+        <div className="wrap" style={{ maxWidth: 760 }}>
+          {has("title") && <h2 className="stitle">{b.title}</h2>}
+          {items.map((it, i) => (
+            <details className="pbfaq" key={i}>
+              <summary>{it.q}</summary>
+              <div className="legalbody">{renderArticle(it.a || "", goto || (() => {}))}</div>
+            </details>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  /* A type this build does not know. Skipped rather than thrown, so a page
+     written by a newer console still shows the parts this one understands. */
+  return null;
+}
+
+function CustomPage({ page, goto }) {
+  if (!page) return null;
+  const blocks = (page.blocks || []).filter((b) => b && blockType(b.type));
+  return (
+    <main style={{ background: "var(--page)", minHeight: "50vh" }}>
+      {blocks.length ? blocks.map((b) => <PageBlock key={b.id} block={b} goto={goto} />) : (
+        <section className="section" style={{ paddingTop: 40 }}>
+          <div className="wrap" style={{ maxWidth: 900 }}>
+            <h1 className="stitle">{page.title || "Untitled"}</h1>
+            <div className="emptybox">
+              <p style={{ margin: 0, fontWeight: 700, color: "var(--ink)" }}>Nothing here yet</p>
+              <p className="bsm" style={{ margin: "6px 0 0", color: "var(--muted)" }}>
+                This page has no blocks on it. Add some in the console.
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
+    </main>
+  );
+}
+
 /* The Team submenu, in one place: the desktop dropdown and the mobile
    accordion read the same list so they cannot drift apart. */
 const NAV_TEAM = [
@@ -4108,6 +4296,65 @@ const NAV_MORE = [
   ["venue", "Venue"],
   ["alumni", "Alumni"],
 ];
+
+/* ---------------- The nav bar, as data ----------------
+ *
+ * The bar used to be written twice - a row of buttons for the desktop and an
+ * accordion for the phone - so moving an item meant editing both. One list
+ * now, rendered twice.
+ *
+ * An item is a destination or a group of them:
+ *   { id, label, view }   a page of the site
+ *   { id, label, href }   a link out
+ *   { id, label, items }  a dropdown of the above
+ *
+ * A page built from blocks is a view like any other: "page:" and its id.
+ */
+const DEFAULT_NAV = [
+  { id: "home", label: "Home", view: "home" },
+  { id: "schedule", label: "Schedule", view: "schedule" },
+  { id: "team", label: "Team", items: NAV_TEAM.map(([view, label]) => ({ id: view, label, view })) },
+  { id: "stats", label: "Stats", view: "stats" },
+  { id: "news", label: "News", view: "newsindex" },
+  { id: "more", label: "More", items: NAV_MORE.map(([view, label]) => ({ id: view, label, view })) },
+];
+
+const pageView = (id) => "page:" + id;
+const viewPageId = (view) => (String(view || "").startsWith("page:") ? view.slice(5) : null);
+
+/* The bar to draw: what has been arranged, or the default if nothing has.
+   Items pointing at a page that no longer exists are dropped rather than
+   left as a link to nowhere. */
+function navFor(site, donateUrl) {
+  /* Called during the first render, before the site has been read out of
+     storage - everything else on this component guards the same way. */
+  const pages = (site && site.pages) || [];
+  const alive = (it) => {
+    const pid = viewPageId(it.view);
+    return !pid || pages.some((pg) => pg.id === pid);
+  };
+  const nav = site && site.nav;
+  const raw = Array.isArray(nav) && nav.length ? nav : DEFAULT_NAV;
+  return raw
+    .map((it) => (it.items
+      ? { ...it, items: it.items.filter(alive)
+          /* Donate has always appended itself to More when a link is set. It
+             follows the group rather than the position, so the group can be
+             moved or renamed and the link goes with it. */
+          .concat(it.id === "more" && donateUrl
+            ? [{ id: "donate", label: "Donate", href: donateUrl }] : []) }
+      : it))
+    .filter((it) => (it.items ? it.items.length : alive(it)));
+}
+
+/* NavMenu and the mobile accordion both read [key, label, href] tuples. */
+const navTuples = (item) => (item.items || [])
+  .map((c) => [c.view || c.id, c.label, c.href]);
+
+/* Is this item the page being looked at? */
+const navOn = (item, view) => (item.items
+  ? (item.items || []).some((c) => c.view === view)
+  : item.view === view || (item.view === "newsindex" && view === "news"));
 
 /* The footer's affiliate marks. Pac-8's own domain still does not resolve,
    but the conference does post as @pac8hockey, so the mark points there
@@ -4347,8 +4594,9 @@ export default function CalIceHockey() {
      only then because a program without a channel still has games. */
   const watchUrl = ((site && site.settings) || {}).watchUrl || "";
   /* Giving is a link out, so it joins the menu rather than the view list. */
-  const moreItems = donateUrl ? [...NAV_MORE, ["donate", "Donate", donateUrl]] : NAV_MORE;
   const pub = useMemo(() => hydrate(site), [site]);
+  /* One list, drawn as the row on a desktop and the accordion on a phone. */
+  const navBar = useMemo(() => navFor(pub, donateUrl), [pub, donateUrl]);
 
   /* The nearest game with something to watch: an upcoming stream first, then
    * the most recent replay. */
@@ -4390,12 +4638,16 @@ export default function CalIceHockey() {
             <Logo size={52} />
           </button>
           <nav className="navlinks" aria-label="Primary">
-            <button className={`navlink ${view === "home" ? "on" : ""}`} onClick={() => setView("home")}>Home</button>
-            <button className={`navlink ${view === "schedule" ? "on" : ""}`} onClick={() => setView("schedule")}>Schedule</button>
-            <NavMenu label="Team" view={view} setView={setView} items={NAV_TEAM} />
-            <button className={`navlink ${view === "stats" ? "on" : ""}`} onClick={() => setView("stats")}>Stats</button>
-            <button className={`navlink ${view === "news" || view === "newsindex" ? "on" : ""}`} onClick={() => setView("newsindex")}>News</button>
-            <NavMenu label="More" view={view} setView={setView} items={moreItems} />
+            {navBar.map((it) => (it.items ? (
+              <NavMenu key={it.id} label={it.label} view={view} setView={setView}
+                items={navTuples(it)} />
+            ) : it.href ? (
+              <a key={it.id} className="navlink" href={it.href}
+                target="_blank" rel="noreferrer noopener">{it.label}</a>
+            ) : (
+              <button key={it.id} className={"navlink " + (navOn(it, view) ? "on" : "")}
+                onClick={() => setView(it.view)}>{it.label}</button>
+            )))}
           </nav>
           <div className="navactions">
             <div className="socials">
@@ -4429,49 +4681,35 @@ export default function CalIceHockey() {
 
         {navOpen && (
           <nav className="navpanel" id="mobilenav" aria-label="Primary">
-            <button className={"navpanelitem" + (view === "home" ? " on" : "")}
-              onClick={() => goNav("home")}>Home</button>
-            <button className={"navpanelitem" + (view === "schedule" ? " on" : "")}
-              onClick={() => goNav("schedule")}>Schedule</button>
-
-            <button className={"navpanelitem group" + (navGroup === "team" ? " open" : "")
-                + (NAV_TEAM.some(([k]) => k === view) ? " on" : "")}
-              aria-expanded={navGroup === "team"}
-              onClick={() => setNavGroup((g) => (g === "team" ? null : "team"))}>
-              Team <IcChevD size={17} />
-            </button>
-            {navGroup === "team" && (
-              <div className="navpanelsub">
-                {NAV_TEAM.map(([k, text]) => (
-                  <button key={k} className={"navpanelitem child" + (view === k ? " on" : "")}
-                    onClick={() => goNav(k)}>{text}</button>
-                ))}
+            {navBar.map((it) => (it.items ? (
+              <div key={it.id}>
+                <button className={"navpanelitem group" + (navGroup === it.id ? " open" : "")
+                    + (navOn(it, view) ? " on" : "")}
+                  aria-expanded={navGroup === it.id}
+                  onClick={() => setNavGroup((g) => (g === it.id ? null : it.id))}>
+                  {it.label} <IcChevD size={17} />
+                </button>
+                {navGroup === it.id && (
+                  <div className="navpanelsub">
+                    {navTuples(it).map(([k, text, href]) => (href ? (
+                      <a key={k} className="navpanelitem child" href={href}
+                        target="_blank" rel="noreferrer noopener"
+                        onClick={() => setNavOpen(false)}>{text}</a>
+                    ) : (
+                      <button key={k} className={"navpanelitem child" + (view === k ? " on" : "")}
+                        onClick={() => goNav(k)}>{text}</button>
+                    )))}
+                  </div>
+                )}
               </div>
-            )}
-
-            <button className={"navpanelitem" + (view === "stats" ? " on" : "")}
-              onClick={() => goNav("stats")}>Stats</button>
-            <button className={"navpanelitem" + (view === "news" || view === "newsindex" ? " on" : "")}
-              onClick={() => goNav("newsindex")}>News</button>
-
-            <button className={"navpanelitem group" + (navGroup === "more" ? " open" : "")
-                + (NAV_MORE.some(([k]) => k === view) ? " on" : "")}
-              aria-expanded={navGroup === "more"}
-              onClick={() => setNavGroup((g) => (g === "more" ? null : "more"))}>
-              More <IcChevD size={17} />
-            </button>
-            {navGroup === "more" && (
-              <div className="navpanelsub">
-                {moreItems.map(([k, text, href]) => (href ? (
-                  <a key={k} className="navpanelitem child" href={href}
-                    target="_blank" rel="noreferrer noopener"
-                    onClick={() => setNavOpen(false)}>{text}</a>
-                ) : (
-                  <button key={k} className={"navpanelitem child" + (view === k ? " on" : "")}
-                    onClick={() => goNav(k)}>{text}</button>
-                )))}
-              </div>
-            )}
+            ) : it.href ? (
+              <a key={it.id} className="navpanelitem" href={it.href}
+                target="_blank" rel="noreferrer noopener"
+                onClick={() => setNavOpen(false)}>{it.label}</a>
+            ) : (
+              <button key={it.id} className={"navpanelitem" + (navOn(it, view) ? " on" : "")}
+                onClick={() => goNav(it.view)}>{it.label}</button>
+            )))}
 
             {/* Off the bar, but not gone - a phone header has no room for two
                 pills and a visitor still wants both. */}
@@ -4534,6 +4772,11 @@ export default function CalIceHockey() {
           onPlayerName={openPlayerNamed} />
       )}
       {view === "venue" && <VenuePage site={pub} />}
+      {/* A page built from blocks. Its view is "page:" and the page's id. */}
+      {viewPageId(view) && (
+        <CustomPage goto={setView}
+          page={((pub && pub.pages) || []).find((pg) => pg.id === viewPageId(view))} />
+      )}
       {LEGAL.some(([k]) => k === view) && <LegalPage site={pub} which={view} />}
       {view === "alumni" && (
         <AlumniPage site={pub}
