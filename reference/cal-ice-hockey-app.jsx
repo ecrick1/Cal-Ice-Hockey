@@ -8004,16 +8004,14 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
 /* One row of the lineup sheet. At module level for the same reason OppPick is:
    a component built during render is remade on every toggle, and the checkbox
    loses focus the moment it is used. */
-function LineupRow({ p, starter, lu, full, fullG, max, maxG, onToggle, onStarter, onNet }) {
+function LineupRow({ p, starter, lu, block, blockG, onToggle, onStarter, onNet }) {
   const on = lu.dressed.has(p.id);
   const keeper = p.position === "G";
-  const blocked = keeper ? !!fullG : !!full;
-  const cap = keeper ? maxG : max;
-  const capWord = keeper ? "goaltenders are" : "skaters are";
+  const blocked = keeper ? blockG : block;
   return (
     <div className={"alurow" + (on ? "" : " out")}>
       <label className={"alupick" + (!on && blocked ? " blocked" : "")}
-        title={!on && blocked ? cap + " " + capWord + " already dressed" : undefined}>
+        title={!on && blocked ? BLOCK_TEXT[blocked] : undefined}>
         <input type="checkbox" checked={on} disabled={!on && blocked}
           onChange={() => onToggle(p.id)} />
         <span className="alunum">{p.number ? "#" + p.number : "\u2014"}</span>
@@ -15133,8 +15131,27 @@ const INFRACTIONS = [
    enforced rather than warned about: a nineteenth skater or a third
    goaltender is not something a scoresheet can express, so the checkbox
    simply stops accepting them. */
-const MAX_SKATERS = 18;
-const MAX_GOALIES = 2;
+/* Twenty-two dress. The split is the coach's: nineteen skaters and three
+   goaltenders, or twenty and two. Each part has its own ceiling as well, so
+   twenty-two cannot be reached by dressing four keepers. */
+const MAX_SKATERS = 20;
+const MAX_GOALIES = 3;
+const MAX_DRESSED = 22;
+
+/* Which of the three limits a player would run into, or null if none does.
+   Named rather than boolean because the sheet has to say which. */
+function dressBlock(kind, skaters, goalies) {
+  if (skaters + goalies >= MAX_DRESSED) return "dressed";
+  if (kind === "G" && goalies >= MAX_GOALIES) return "goalies";
+  if (kind !== "G" && skaters >= MAX_SKATERS) return "skaters";
+  return null;
+}
+
+const BLOCK_TEXT = {
+  dressed: MAX_DRESSED + " players are already dressed",
+  goalies: MAX_GOALIES + " goaltenders are already dressed",
+  skaters: MAX_SKATERS + " skaters are already dressed",
+};
 
 /* One bench's sheet: who dresses, who starts, who is in net. The same
  * component draws both teams, which is the point - the away page should read
@@ -15153,8 +15170,10 @@ function LineupSheet({ roster, lu, onWrite, bar }) {
   const countGoalies = (set) =>
     roster.filter((p) => p.position === "G" && set.has(p.id)).length;
   const inCount = (list) => list.filter((p) => lu.dressed.has(p.id)).length;
-  const full = countSkaters(lu.dressed) >= MAX_SKATERS;
-  const fullG = countGoalies(lu.dressed) >= MAX_GOALIES;
+  const nSkaters = countSkaters(lu.dressed);
+  const nGoalies = countGoalies(lu.dressed);
+  const blockSkater = dressBlock("F", nSkaters, nGoalies);
+  const blockGoalie = dressBlock("G", nSkaters, nGoalies);
 
   /* Dropping a player has to drop them from the starting five and out of net
      too, or the sheet keeps a starter who is not dressed. */
@@ -15163,8 +15182,7 @@ function LineupSheet({ roster, lu, onWrite, bar }) {
     if (next.has(id)) next.delete(id);
     else {
       const p = roster.find((x) => x.id === id);
-      if (p && p.position !== "G" && countSkaters(next) >= MAX_SKATERS) return;
-      if (p && p.position === "G" && countGoalies(next) >= MAX_GOALIES) return;
+      if (p && dressBlock(p.position, countSkaters(next), countGoalies(next))) return;
       next.add(id);
     }
     onWrite({
@@ -15181,8 +15199,7 @@ function LineupSheet({ roster, lu, onWrite, bar }) {
   };
 
   const Line = (props) => (
-    <LineupRow {...props} lu={lu} full={full} fullG={fullG}
-      max={MAX_SKATERS} maxG={MAX_GOALIES}
+    <LineupRow {...props} lu={lu} block={blockSkater} blockG={blockGoalie}
       onToggle={toggle} onStarter={toggleStarter} onNet={(id) => onWrite({ goalie: id })} />
   );
 
@@ -15221,14 +15238,18 @@ function sheetState(roster, lu) {
      nineteenth being added; this stops an untouched sheet sliding past it. */
   else if (skaters > MAX_SKATERS) {
     missing = "Only " + MAX_SKATERS + " skaters can dress — scratch "
-      + (skaters - MAX_SKATERS) + " more, or use Fill to " + MAX_SKATERS + ".";
+      + (skaters - MAX_SKATERS) + " more.";
   } else if (goalies > MAX_GOALIES) {
     missing = "Only " + MAX_GOALIES + " goaltenders can dress — scratch "
       + (goalies - MAX_GOALIES) + " more.";
+  } else if (skaters + goalies > MAX_DRESSED) {
+    missing = "Only " + MAX_DRESSED + " can dress — scratch "
+      + (skaters + goalies - MAX_DRESSED) + " more. "
+      + MAX_SKATERS + " and 2 in net, or " + (MAX_SKATERS - 1) + " and 3.";
   } else if (goalies > 0 && !lu.goalie) missing = "Pick who starts in net.";
   return {
-    skaters, goalies, missing,
-    full: skaters >= MAX_SKATERS, fullG: goalies >= MAX_GOALIES,
+    skaters, goalies, dressed: skaters + goalies, missing,
+    full: !!dressBlock("F", skaters, goalies), fullG: !!dressBlock("G", skaters, goalies),
   };
 }
 
@@ -15260,10 +15281,14 @@ function LiveLineup({ game, roster, oppName, previous, opponent, setOpp, setGame
      not dressed is a contradiction the sheet should not be able to hold. */
   const clearAll = (write) => write({ dressed: [], starters: [], goalie: "" });
 
+  /* Goaltenders first, then skaters into whatever is left of the twenty-two.
+     A sheet with nobody in net is a worse place to start than one a forward
+     short. */
   const fillTo = (list, write, lu) => {
     const byNum = (a, b) => (Number(a.number) || 0) - (Number(b.number) || 0);
-    const skatersFirst = list.filter((p) => p.position !== "G").sort(byNum).slice(0, MAX_SKATERS);
     const keepers = list.filter((p) => p.position === "G").sort(byNum).slice(0, MAX_GOALIES);
+    const room = Math.min(MAX_SKATERS, MAX_DRESSED - keepers.length);
+    const skatersFirst = list.filter((p) => p.position !== "G").sort(byNum).slice(0, room);
     const ids = [...skatersFirst, ...keepers].map((p) => p.id);
     write({
       dressed: ids,
@@ -15287,11 +15312,12 @@ function LiveLineup({ game, roster, oppName, previous, opponent, setOpp, setGame
 
   const Chips = ({ st, lu, label }) => (
     <>
-      <span className={"aluchip" + (st.full ? " warn" : "")}>
-        {st.skaters} of {MAX_SKATERS} skaters
+      <span className={"aluchip" + (st.dressed >= MAX_DRESSED ? " warn" : "")}>
+        {st.dressed} of {MAX_DRESSED} dressed
       </span>
+      <span className={"aluchip" + (st.full ? " warn" : "")}>{st.skaters} skaters</span>
       <span className={"aluchip" + (st.fullG ? " warn" : "")}>
-        {st.goalies} of {MAX_GOALIES} goaltenders
+        {st.goalies} goaltender{st.goalies === 1 ? "" : "s"}
       </span>
       <span className="aluchip">{lu.starters.length} of 5 starting</span>
     </>
@@ -15335,8 +15361,8 @@ function LiveLineup({ game, roster, oppName, previous, opponent, setOpp, setGame
             <Chips st={homeState} lu={home} />
             <span style={{ flex: 1 }} />
             <button className="btn bGhost bSm"
-              title={"Dresses the first " + MAX_SKATERS + " skaters by number, and every goaltender"}
-              onClick={() => fillTo(roster, writeHome, home)}>Fill to {MAX_SKATERS}</button>
+              title={"Dresses the goaltenders, then skaters by number up to " + MAX_DRESSED}
+              onClick={() => fillTo(roster, writeHome, home)}>Fill to {MAX_DRESSED}</button>
             <button className="btn bGhost bSm" disabled={!home.dressed.size}
               title="Take everyone out of the lineup"
               onClick={() => clearAll(writeHome)}>Deselect all</button>
@@ -15346,8 +15372,9 @@ function LiveLineup({ game, roster, oppName, previous, opponent, setOpp, setGame
                 onClick={() => {
                   const byNum = (a, b) => (Number(a.number) || 0) - (Number(b.number) || 0);
                   const was = roster.filter((p) => previous.ids.includes(p.id));
-                  const skatersFirst = was.filter((p) => p.position !== "G").sort(byNum).slice(0, MAX_SKATERS);
                   const keepers = was.filter((p) => p.position === "G").sort(byNum).slice(0, MAX_GOALIES);
+                  const room = Math.min(MAX_SKATERS, MAX_DRESSED - keepers.length);
+                  const skatersFirst = was.filter((p) => p.position !== "G").sort(byNum).slice(0, room);
                   const ids = [...skatersFirst, ...keepers].map((p) => p.id);
                   writeHome({
                     dressed: ids,
@@ -15365,7 +15392,7 @@ function LiveLineup({ game, roster, oppName, previous, opponent, setOpp, setGame
             <span style={{ flex: 1 }} />
             {theirs.length > 0 && (
               <button className="btn bGhost bSm"
-                onClick={() => fillTo(theirs, writeAway, away)}>Fill to {MAX_SKATERS}</button>
+                onClick={() => fillTo(theirs, writeAway, away)}>Fill to {MAX_DRESSED}</button>
             )}
             {theirs.length > 0 && (
               <button className="btn bGhost bSm" disabled={!away.dressed.size}
