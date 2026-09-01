@@ -1233,7 +1233,7 @@ table.stats.gcpen th:first-child, table.stats.gcpen td:first-child { padding-lef
 .gcbt th:nth-child(1), .gcbt td:nth-child(1) { width: 46px; }
 .gcbt th:nth-child(2), .gcbt td:nth-child(2) { width: 210px; }
 .gcbt th:nth-child(3), .gcbt td:nth-child(3) { width: 52px; }
-.gcbtdec { font-weight: 800; }
+
 .gcbtspot { font-weight: 500; color: var(--ink); }
 .gcbtname { font-weight: 700; }
 .gcbtpts { font-weight: 800; color: var(--ink); }
@@ -2440,7 +2440,12 @@ button.gtrow:hover { background: var(--page); }
   color: var(--blue); margin: 0 0 16px; text-transform: none; }
 
 /* Glossary, now at the foot of the page. */
-.glosswrap { margin-top: 22px; border-top: 1px solid var(--border); padding-top: 18px; }
+/* A heading that will explain itself if you hover it, and says so with the
+   underline that means exactly that everywhere else on the web. */
+.statabbr[title] { text-decoration: underline dotted var(--border); text-underline-offset: 3px;
+  cursor: help; }
+.sortbtn[title] { cursor: pointer; }
+
 .glossbar { display: inline-flex; align-items: center; gap: 8px; background: none; border: 0;
   cursor: pointer; font-family: var(--body); font-weight: 650; font-size: 13.5px;
   color: var(--muted); padding: 4px 0; }
@@ -6344,7 +6349,7 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
                   onPlayer={onPlayer} />
                 <GoalieTable rows={goalies.map((e) => ({
                   id: e.p.id, number: e.p.number, name: e.p.name, l: e.l,
-                }))} onPlayer={onPlayer} result={game.result} mine />
+                }))} onPlayer={onPlayer} plays={plays} mine />
                 <UnnamedShots n={unnamedShots(true)} />
               </>
             ) : oppRows.length ? (
@@ -6360,7 +6365,7 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
                   .map((x) => withShots({ id: x.id, number: x.number, name: x.name, l: x }, false))} />
                 <GoalieTable rows={oppGoalies.map((x) => ({
                   id: x.id, number: x.number, name: x.name, l: x,
-                }))} result={game.result} />
+                }))} plays={plays} />
               </>
             ) : (
               <div className="emptybox">
@@ -7147,13 +7152,11 @@ function BoxTable({ title, rows, onPlayer, showSpot }) {
         <table className="stats gcbt">
           <thead>
             <tr>
-              <th>#</th><th>Player</th>
-              {showSpot && <th>Pos</th>}
-              <th>G</th><th>A</th><th>P</th>
-              <th title="Shots on goal">S</th>
-              <th title="Face-offs won and lost">FO</th>
-              <th title="Face-off win percentage">FO%</th>
-              <th>PIM</th><th>PPG</th><th>SHG</th>
+              <StatTh label="#" /><th>Player</th>
+              {showSpot && <StatTh label="Pos" />}
+              <StatTh label="G" /><StatTh label="A" /><StatTh label="P" />
+              <StatTh label="S" /><StatTh label="FO" /><StatTh label="FO%" />
+              <StatTh label="PIM" /><StatTh label="PPG" /><StatTh label="SHG" />
             </tr>
           </thead>
           <tbody>
@@ -7213,34 +7216,153 @@ function UnnamedShots({ n }) {
   );
 }
 
-/* Which of W, L or T a goaltender takes for the game.
+/* Seconds since the opening face-off, read off a play's period and clock, so
+   two plays from different periods can be put in order against each other. */
+/* What every abbreviation on the site means.
  *
- * The decision belongs to whoever was in net for the winning goal, and where
- * two keepers played there is nothing on an imported sheet that says which.
- * So it is only given when one of them played the whole game, and a dash
- * otherwise: a decision credited to both would be one more than the team
- * actually earned. */
-function goalieDecision(rows, result, mine) {
-  if (!result) return null;
-  const played = rows.filter((r) => Number(r.l.saves) || Number(r.l.ga) || Number(r.l.minutes));
-  if (played.length !== 1) return null;
-  const us = Number(result.us) || 0, them = Number(result.them) || 0;
-  const ours = mine ? us : them, theirs = mine ? them : us;
-  return { id: played[0].id, mark: ours > theirs ? "W" : ours < theirs ? "L" : "T" };
+ * Held out here rather than on the stats page because the box score, the
+ * game log and a player's own page use the same letters and had no way to
+ * explain them - a glossary at the foot of one page cannot label a column on
+ * another. Keyed by exactly the text the heading shows. */
+const STAT_MEANING = {
+  GP: "Games played",
+  G: "Goals",
+  A: "Assists",
+  P: "Points (goals + assists)",
+  PTS: "Points (goals + assists)",
+  S: "Shots on goal",
+  SH: "Shots on goal",
+  FO: "Face-offs won and lost",
+  "FO%": "Face-off win percentage",
+  PIM: "Penalty minutes",
+  PPG: "Power-play goals",
+  SHG: "Short-handed goals",
+  SOG: "Shootout goals",
+  GWG: "Game-winning goals",
+  TG: "Tying goals",
+  Pos: "Position",
+  "#": "Jersey number",
+  /* Goaltenders */
+  "W-L-T": "Wins, losses, ties",
+  SA: "Shots against",
+  SV: "Saves",
+  "SV%": "Save percentage",
+  GA: "Goals against",
+  "EV GA": "Goals against at even strength",
+  "PP GA": "Goals against on the power play",
+  "SH GA": "Goals against while short-handed",
+  GAA: "Goals against average",
+  SO: "Shutouts",
+  TOI: "Time on ice",
+  /* Team, game by game */
+  GF: "Goals for",
+  SHA: "Shots against",
+};
+
+const statMeaning = (label) => STAT_MEANING[String(label || "").trim()] || null;
+
+/* A column heading that says what it means when you hover it, and looks like
+   it will. Falls back to a plain heading for anything not in the list, rather
+   than promising an explanation it does not have. */
+function StatTh({ label, title, ...rest }) {
+  const meaning = title || statMeaning(label);
+  return (
+    <th {...rest} title={meaning || undefined}
+      className={meaning ? "statabbr" : undefined}>
+      {label}
+    </th>
+  );
 }
 
-function GoalieTable({ rows, onPlayer, result, mine }) {
+function playElapsed(x) {
+  const order = ["1", "2", "3", "OT", "SO"];
+  const i = Math.max(0, order.indexOf(String((x && x.period) || "1")));
+  const before = order.slice(0, i).reduce((n, k) => n + periodSecs(k), 0);
+  const bits = String((x && x.clock) || "0:00").split(":");
+  const remain = (Number(bits[0]) || 0) * 60 + (Number(bits[1]) || 0);
+  return before + Math.max(0, periodSecs(order[i]) - remain);
+}
+
+/**
+ * How the goals against each goaltender went in: even strength, power play,
+ * short-handed.
+ *
+ * Counted off the play-by-play. Every goal the other team scored carries the
+ * strength it was scored at, and who was in net comes from the goaltender
+ * changes - the keeper who started, then whoever came on, matched against the
+ * clock each goal went in on.
+ *
+ * Returns null when it cannot be said honestly: two keepers with nothing
+ * recording the change between them, or a play-by-play whose goals do not add
+ * up to the goals against on the lines. A split that does not reconcile with
+ * the total beside it is a confident answer built on an incomplete log.
+ *
+ * An empty-net goal counts with the even-strength ones rather than vanishing,
+ * so the three columns always add up to the GA column next to them.
+ */
+function goalieGaSplit(rows, plays, mine) {
+  const against = (plays || []).filter((x) => x.kind === "goal"
+    && x.team === (mine ? "them" : "us") && x.period !== "SO");
+  const total = rows.reduce((n, r) => n + (Number(r.l.ga) || 0), 0);
+  if (against.length !== total) return null;
+
+  const played = rows.filter((r) => Number(r.l.saves) || Number(r.l.ga) || Number(r.l.minutes));
+  const changes = (plays || [])
+    .filter((x) => x.kind === "goalie" && x.team === (mine ? "us" : "them"))
+    .sort((a, b) => playElapsed(a) - playElapsed(b));
+
+  let whoAt = null;
+  if (changes.length) {
+    const opening = changes[0].out || (played[0] || {}).name || "";
+    whoAt = (t) => {
+      let cur = opening;
+      for (const c of changes) {
+        if (playElapsed(c) <= t) cur = c.player || ""; else break;
+      }
+      return cur;
+    };
+  } else if (played.length === 1) {
+    whoAt = () => played[0].name;
+  } else if (!against.length) {
+    /* Nobody was beaten, so there is nothing to attribute and every keeper
+       honestly has none. */
+    whoAt = () => null;
+  } else return null;
+
+  const out = {};
+  for (const r of rows) out[r.id] = { ev: 0, pp: 0, sh: 0 };
+  for (const g of against) {
+    const nm = String(whoAt(playElapsed(g)) || "").toLowerCase();
+    const row = rows.find((r) => String(r.name || "").toLowerCase() === nm);
+    if (!row) return null;
+    out[row.id][g.strength === "PP" ? "pp" : g.strength === "SH" ? "sh" : "ev"]++;
+  }
+  return out;
+}
+
+/* Minutes as a scoreboard writes them. The field is a number because it is
+   typed as one; 40.5 is forty minutes and thirty seconds. */
+function fmtTOI(v) {
+  const m = Number(v);
+  if (!m) return "\u2014";
+  const whole = Math.floor(m);
+  const secs = Math.round((m - whole) * 60);
+  return whole + ":" + String(secs).padStart(2, "0");
+}
+
+function GoalieTable({ rows, onPlayer, plays, mine }) {
   if (!rows.length) return null;
-  const dec = goalieDecision(rows, result, mine);
+  const split = goalieGaSplit(rows, plays, mine);
   return (
     <section className="gcpad gcboxsec">
       <h2 className="statsec">Goaltending</h2>
       <div className="twrap">
         <table className="stats gcbt">
           <thead>
-            <tr><th>#</th><th>Goaltender</th>
-              <th title="Decision — win, loss or tie">DEC</th>
-              <th>SA</th><th>SV</th><th>GA</th><th>SV%</th></tr>
+            <tr><StatTh label="#" /><th>Goaltender</th>
+              <StatTh label="SA" /><StatTh label="SV" /><StatTh label="GA" />
+              <StatTh label="EV GA" /><StatTh label="PP GA" /><StatTh label="SH GA" />
+              <StatTh label="SV%" /><StatTh label="TOI" /></tr>
           </thead>
           <tbody>
             {rows.map((r) => {
@@ -7255,11 +7377,14 @@ function GoalieTable({ rows, onPlayer, result, mine }) {
                       ? <button className="pboxname" onClick={() => onPlayer(r.id)}>{r.name}</button>
                       : r.name}
                   </td>
-                  <td className="gcbtdec">{dec && dec.id === r.id ? dec.mark : "\u2014"}</td>
                   <td>{sa}</td>
                   <td>{sv}</td>
                   <td>{ga}</td>
+                  <td>{split ? split[r.id].ev : "\u2014"}</td>
+                  <td>{split ? split[r.id].pp : "\u2014"}</td>
+                  <td>{split ? split[r.id].sh : "\u2014"}</td>
                   <td className="gcbtpts">{sa ? (sv / sa).toFixed(3).replace(/^0/, "") : "—"}</td>
+                  <td>{fmtTOI(r.l.minutes)}</td>
                 </tr>
               );
             })}
@@ -9723,7 +9848,6 @@ function StatsPage({ site, onPlayer, onGame }) {
   const [sel, setSel] = useState(site.currentSeason);
   const [tab, setTab] = useSticky("stats.tab", "player");
   const [cat, setCat] = useSticky("stats.category", "offensive");
-  const [glossary, setGlossary] = useState(false);
   const [pdfOpen, setPdfOpen] = useState(false);
   const season = site.seasons[sel] || { roster: [], schedule: [] };
   const s = schedStats(season.schedule, season.record);
@@ -9812,31 +9936,6 @@ function StatsPage({ site, onPlayer, onGame }) {
    goaltender table, then the team columns on game-by-game. Anyone looking a
    letter up has just met it in a header, so the list should follow the header
    rather than make them hunt. */
-  const GLOSSARY = [
-    /* Skaters */
-    ["GP", "Games played"],
-    ["G", "Goals"],
-    ["A", "Assists"],
-    ["PTS", "Points (G + A)"],
-    ["S", "Shots"],
-    ["PIM", "Penalty minutes"],
-    ["PPG", "Power play goals"],
-    ["SHG", "Short handed goals"],
-    ["SOG", "Shootout goals"],
-    ["GWG", "Game winning goals"],
-    ["TG", "Tying goals"],
-    /* Goaltenders */
-    ["W-L-T", "Wins, losses, ties"],
-    ["GA", "Goals against"],
-    ["SV", "Saves"],
-    ["SV%", "Save percentage"],
-    ["GAA", "Goals against average"],
-    ["SO", "Shutouts"],
-    /* Game by game */
-    ["GF", "Goals for"],
-    ["SHA", "Shots against"],
-  ];
-
   /* Goaltenders are judged on entirely different numbers, so they get their
    * own table rather than skater columns that read as zeroes — and their own
    * sort state, because "most saves" and "most points" are different questions. */
@@ -9925,7 +10024,8 @@ function StatsPage({ site, onPlayer, onGame }) {
           {GOALIE_COLS.map((col) => {
             const on = gSortKey === col.key;
             return (
-              <th key={col.key} title={col.title}
+              <th key={col.key}
+                title={(statMeaning(col.label) || col.title || col.label) + " — click to sort"}
                 aria-sort={on ? (gSortDir === "asc" ? "ascending" : "descending") : "none"}>
                 <button className={`sortbtn ${on ? "on" : ""}`}
                   onClick={() => {
@@ -9974,8 +10074,11 @@ function StatsPage({ site, onPlayer, onGame }) {
             const on = sortKey === col.key;
             return (
               <th key={col.key} aria-sort={on ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
+                {/* What the letters mean first - that is what someone hovering
+                    is asking - and what the click does after it. */}
                 <button className={`sortbtn ${on ? "on" : ""}`} onClick={() => toggleSort(col)}
-                  title={"Sort by " + col.label}>
+                  title={(statMeaning(col.label) || col.title || col.label)
+                    + " — click to sort"}>
                   {col.label}
                   <span className="sortcaret" aria-hidden="true">
                     {on ? (sortDir === "asc" ? "▲" : "▼") : "▾"}
@@ -10215,20 +10318,6 @@ function StatsPage({ site, onPlayer, onGame }) {
             )}
           </div>
 
-          {/* Glossary lives at the foot of the page — reference material, not a
-              control, so it should not sit between the filter and the numbers. */}
-          <div className="glosswrap">
-            <button className="glossbar" aria-expanded={glossary} onClick={() => setGlossary((v) => !v)}>
-              {glossary ? <IcMinusC size={17} /> : <IcPlusC size={17} />} Glossary of abbreviations
-            </button>
-            {glossary && (
-              <div className="glossgrid">
-                {GLOSSARY.map(([k, v]) => (
-                  <p className="glossitem" key={k}><strong>{k}</strong> — {v}</p>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
       </section>
 
