@@ -6210,6 +6210,7 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
                     : x.kind === "game" ? "Game End"
                     : x.kind === "period" ? (x.phase === "start" ? "Period Start" : "Period End")
                     : x.kind === "shot" ? "Shot On Goal"
+                    : x.kind === "miss" ? "Missed Shot"
                     : x.kind === "faceoff" ? "Face-off"
                     : x.kind === "timeout" ? "Timeout"
                     : x.reason || "Stoppage";
@@ -6229,11 +6230,16 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
                     : x.kind === "shot"
                       ? (x.shooter ? withNumber(x.shooter, x.shooterId, mine) : abbr) + " shot"
                         + (x.goalie ? " saved by " + x.goalie : " on goal")
+                    : x.kind === "miss"
+                      ? (x.shooter ? withNumber(x.shooter, x.shooterId, mine) : abbr)
+                        + " missed the net"
                     : x.kind === "faceoff"
                       ? (x.winner
                         ? withNumber(x.winner, x.winnerId, mine) + " won it for " + abbr
                         : abbr + " won the face-off")
                     : x.kind === "timeout" ? abbr + " timeout"
+                    : x.kind === "stoppage"
+                      ? (x.reason || "Play stopped") + (x.by ? " — " + x.by : "")
                       : "Play stopped";
 
                   /* Anything a team did carries that team's mark; a whistle
@@ -6241,7 +6247,7 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
                      taking a shot, so it takes the crest too. */
                   const owned = x.kind === "penalty" || x.kind === "shot"
                     || x.kind === "timeout" || x.kind === "faceoff"
-                    || x.kind === "shootout";
+                    || x.kind === "miss" || x.kind === "shootout";
                   return (
                     <div className="pbrow" key={x.id}>
                       <Time />
@@ -16033,6 +16039,8 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
   /* Stopping the clock happens first and is asked about second: the whistle
      has already gone, and making someone pick a reason before the clock
      stops would cost real seconds. */
+  const ourKeeperId = live.goalieUs && live.goalieUs !== "empty" ? live.goalieUs : "";
+  const ourKeeperName = ourKeeperId ? nameOf(ourKeeperId) : "";
   const [stopAsk, setStopAsk] = useState(false);
   /* And who it was about. The reason is written first so the stoppage is on
      the sheet whatever happens next, and the name is attached to that same
@@ -16964,18 +16972,23 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
                 : out.map(opt);
             })()}
           </select>
-          {theirs.length ? (
+          {/* Most draws are a scramble and nobody is sure who came out with
+              it. The split has always counted the team rather than the name,
+              so a side on its own is a complete answer, not a partial one. */}
+          <button className="btn bGhost bSm" onClick={() => winFaceoff("us", "")}>
+            {usLabel} won it
+          </button>
+          {theirs.length > 0 && (
             <select value="" onChange={(e) => winFaceoff("them", e.target.value)}>
               <option value="">{oppName || "Them"} — pick a player</option>
               {theirs.map((p) => (
                 <option key={p.id} value={p.name}>#{p.number} {p.name}</option>
               ))}
             </select>
-          ) : (
-            <button className="btn bGhost bSm" onClick={() => winFaceoff("them", "")}>
-              {oppName || "Them"} won it
-            </button>
           )}
+          <button className="btn bGhost bSm" onClick={() => winFaceoff("them", "")}>
+            {oppName || "Them"} won it
+          </button>
           <button className="btn bGhost bSm austopskip" onClick={() => setFaceoffAsk(null)}>
             Skip
           </button>
@@ -17137,11 +17150,30 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
         </div>
       )}
 
-      {stopWho && (
+      {stopWho && stopWho.reason === "Goalie freeze" && (
+        <div className="austop">
+          <span className="h6">{STOP_WHO["Goalie freeze"]}</span>
+          {/* Only one player a side can freeze a puck, and the sheet already
+              knows which one is in net. Two buttons, each naming who it will
+              credit, rather than two rosters and a decision. */}
+          <button className="btn bGhost bSm"
+            onClick={() => nameStopper("us", ourKeeperId)}>
+            {usLabel}{ourKeeperName ? " — " + ourKeeperName : ""}
+          </button>
+          <button className="btn bGhost bSm"
+            onClick={() => nameStopper("them", live.goalieThem || "")}>
+            {oppName || "Them"}{live.goalieThem ? " — " + live.goalieThem : ""}
+          </button>
+          <button className="btn bGhost bSm austopskip" onClick={() => setStopWho(null)}>
+            Don't know
+          </button>
+        </div>
+      )}
+
+      {stopWho && stopWho.reason !== "Goalie freeze" && (
         <div className="austop">
           <span className="h6">{STOP_WHO[stopWho.reason] || "Who did it?"}</span>
-          {/* Goaltenders included: a freeze is the one stoppage that is
-              nearly always theirs. */}
+          {/* Goaltenders are in the list: they play the puck too. */}
           <select value="" onChange={(e) => nameStopper("us", e.target.value)}>
             <option value="">{usLabel} — pick a player</option>
             {skaters.map((p) => (
@@ -17483,7 +17515,9 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
                     ) : p.kind === "faceoff" ? (
                       <>
                         <span className="auplaykind stop">FO</span>
-                        <span className="auplaywho">{p.winner || "Faceoff won"}</span>
+                        <span className="auplaywho">
+                          {p.winner || (p.team === "us" ? usLabel : oppName || "Them") + " won the draw"}
+                        </span>
                       </>
                     ) : p.kind === "timeout" ? (
                       <>
@@ -18997,7 +19031,9 @@ function RetroPlays({ game, oppName, roster, lines, oppLines, setGame, usLabel }
                     ) : p.kind === "faceoff" ? (
                       <>
                         <span className="auplaykind stop">FO</span>
-                        <span className="auplaywho">{p.winner || "Faceoff won"}</span>
+                        <span className="auplaywho">
+                          {p.winner || (p.team === "us" ? usLabel : oppName || "Them") + " won the draw"}
+                        </span>
                       </>
                     ) : p.kind === "timeout" ? (
                       <>
