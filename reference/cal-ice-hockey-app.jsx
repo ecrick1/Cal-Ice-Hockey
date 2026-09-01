@@ -489,6 +489,15 @@ function keeperLine(t) {
   };
 }
 
+/* Tags are stored shouting - PREVIEW, RECAP, ANNOUNCEMENT - because that is
+   how they were typed into the console. Where one is set as a label rather
+   than a chip it reads better spoken. */
+function sentenceCase(t) {
+  const x = String(t || "").trim();
+  if (!x) return "";
+  return x === x.toUpperCase() ? x.charAt(0) + x.slice(1).toLowerCase() : x;
+}
+
 const pctText = (v) => (v == null ? "—" : v.toFixed(3).replace(/^0/, ""));
 
 function hydrate(site) {
@@ -831,6 +840,8 @@ table.stats.sortable .gcbtgroup th { padding: 9px 16px; font-size: 11.5px;
 .gcgoals { display: grid; gap: 8px; }
 
 /* Recap */
+.gcrecapkick { margin: 0; font-family: var(--body); font-weight: 700; font-size: 13px;
+  letter-spacing: 0; text-transform: none; color: var(--blue); }
 .gcrecaptitle { font-family: var(--body); font-weight: 800; letter-spacing: -0.025em;
   font-size: clamp(1.4rem, 2.4vw, 1.9rem); line-height: 1.15; color: var(--ink);
   margin: 8px 0 0; }
@@ -6709,7 +6720,7 @@ function GameStory({ story, label, openPost, lead }) {
   if (!story) return null;
   return (
     <section className={"statcard gcpad gcrecap" + (lead ? " lead" : "")}>
-      <p className="eyebrow" style={{ color: "var(--blue)" }}>{story.tag || label.toUpperCase()}</p>
+      <p className="gcrecapkick">{sentenceCase(story.tag || label)}</p>
       <h2 className="gcrecaptitle">{story.title}</h2>
       {story.blurb && <p className="gcrecapsub">{story.blurb}</p>}
       {story.image && (
@@ -7881,14 +7892,6 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
         </div>
       ) : (
         <p className="bsm gcnone">{rosterSide === "them" ? "No roster published." : "No roster on file."}</p>
-      )}
-      {rosterSide === "them" && (
-        <p className="bsm gcnone gpnote">
-          {theirStats
-            ? "Roster and totals live from the league" + (theirStats.games ? " \u2014 " + theirStats.games + " games" : "")
-              + ". A player with no line in any box score shows dashes."
-            : "Their roster is live from the league; it carries no season totals."}
-        </p>
       )}
       </section>
       </div>
