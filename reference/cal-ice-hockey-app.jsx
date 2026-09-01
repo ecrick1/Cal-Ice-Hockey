@@ -6536,11 +6536,22 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
                   /* A whistle is not a play. It gets the width of the sheet
                      and nothing but the reason, because everything that stops
                      play already says what it was in two words. */
-                  if (x.kind === "stoppage") {
+                  /* The clock doing something, rather than a player: a whistle,
+                     or a period beginning or ending. All of it gets the width of
+                     the sheet and nothing but the words, so the eye can sort the
+                     two kinds apart without reading either. */
+                  if (x.kind === "stoppage" || x.kind === "period") {
+                    const said = x.kind === "stoppage"
+                      ? (x.reason || "Play stopped")
+                      : (PERIOD_LABEL[x.period] || x.period)
+                        /* "1st period over", but just "OT over" - there is only
+                           ever one, so the noun adds nothing. */
+                        + (x.period === "OT" || x.period === "SO" ? " " : " period ")
+                        + (x.phase === "start" ? "under way" : "over");
                     return (
                       <div className="pbstop" key={x.id}>
                         <span className="pbstopicon" aria-hidden="true"><IcWhistle size={20} /></span>
-                        <span className="pbstoplab">{x.reason || "Play stopped"}</span>
+                        <span className="pbstoplab">{said}</span>
                       </div>
                     );
                   }
@@ -6548,7 +6559,6 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
                   const title = x.kind === "penalty" ? "Penalty"
                     : x.kind === "shootout" ? shotResultLabel(x)
                     : x.kind === "game" ? "Game End"
-                    : x.kind === "period" ? (x.phase === "start" ? "Period Start" : "Period End")
                     : x.kind === "shot" ? "Shot On Goal"
                     : x.kind === "goalie" ? (x.phase === "pulled" ? "Goaltender Pulled"
                       : x.phase === "back" ? "Goaltender Returns" : "Goaltender Change")
@@ -6564,12 +6574,6 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
                     : x.kind === "game"
                       ? "Final \u00b7 " + usAbbr + " " + (x.us != null ? x.us : scoreUs)
                         + ", " + themShort + " " + (x.them != null ? x.them : scoreThem)
-                    : x.kind === "period"
-                      ? (PERIOD_LABEL[x.period] || x.period)
-                        /* "1st period over", but just "OT over" - there is
-                           only ever one, so the noun adds nothing. */
-                        + (x.period === "OT" || x.period === "SO" ? " " : " period ")
-                        + (x.phase === "start" ? "under way" : "over")
                     : x.kind === "shot"
                       ? (x.shooter ? withNumber(x.shooter, x.shooterId, mine) : abbr) + " shot"
                         + (x.goalie ? " saved by " + x.goalie : " on goal")
