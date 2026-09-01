@@ -653,15 +653,23 @@ html { scrollbar-gutter: stable; }
 /* The hero carries an image when there is one and the navy when there is
    not, so a page with no picture is still a header rather than a gap. */
 .pbhero { background: var(--deep); color: #fff; background-size: cover;
-  background-position: center; padding-top: 64px; padding-bottom: 64px; position: relative; }
+  background-position: center; position: relative; }
 .pbhero::before { content: ""; position: absolute; inset: 0;
   background: linear-gradient(180deg, rgba(4,30,66,0.55), rgba(4,30,66,0.8)); }
 .pbhero > * { position: relative; }
 .pbeyebrow { margin: 0 0 10px; font-size: 11px; font-weight: 800; letter-spacing: 0.14em;
   text-transform: uppercase; color: var(--gold); }
-.pbherotitle { color: #fff; margin: 0; }
-.pbherblurb { margin: 12px 0 0; max-width: 60ch; font-size: 16px; line-height: 1.6;
+/* A page title, not a section heading. The heading style is a navy rule
+   beside dark text, which on a navy hero is an invisible bar in front of
+   white type. */
+.pbherotitle { margin: 0; color: #fff; font-family: var(--body); font-weight: 800;
+  font-size: clamp(2rem, 5vw, 3.1rem); line-height: 1.05; letter-spacing: -0.01em; }
+.pbherblurb { margin: 14px 0 0; max-width: 60ch; font-size: 17px; line-height: 1.6;
   color: rgba(255,255,255,0.86); }
+/* Prose is held to a readable line by narrowing the text, not the column, so
+   a paragraph ends where a paragraph should and still begins where every
+   other block on the page begins. */
+.pbprose > * { max-width: 68ch; }
 
 .pbcards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 16px; margin-top: 18px; }
@@ -4218,9 +4226,9 @@ function PageBlock({ block, goto }) {
     return (
       <section className="section pbhero"
         style={b.image ? { backgroundImage: `url(${b.image})` } : undefined}>
-        <div className="wrap" style={{ maxWidth: 900 }}>
+        <div className="wrap">
           {has("eyebrow") && <p className="pbeyebrow">{b.eyebrow}</p>}
-          {has("title") && <h1 className="stitle pbherotitle">{b.title}</h1>}
+          {has("title") && <h1 className="pbherotitle">{b.title}</h1>}
           {has("blurb") && <p className="pbherblurb">{b.blurb}</p>}
         </div>
       </section>
@@ -4230,9 +4238,11 @@ function PageBlock({ block, goto }) {
   if (b.type === "rich") {
     return (
       <section className="section">
-        <div className="wrap" style={{ maxWidth: 760 }}>
+        <div className="wrap">
           {has("title") && <h2 className="stitle">{b.title}</h2>}
-          {has("body") && <div className="legalbody">{renderArticle(b.body, goto || (() => {}))}</div>}
+          {has("body") && (
+            <div className="legalbody pbprose">{renderArticle(b.body, goto || (() => {}))}</div>
+          )}
         </div>
       </section>
     );
@@ -4288,7 +4298,7 @@ function PageBlock({ block, goto }) {
     if (!has("image")) return null;
     return (
       <section className="section">
-        <div className="wrap" style={{ maxWidth: 900 }}>
+        <div className="wrap">
           <img className="pbimage" src={b.image} alt={b.caption || ""} />
           {has("caption") && <p className="pbcaption">{b.caption}</p>}
         </div>
@@ -4322,7 +4332,7 @@ function PageBlock({ block, goto }) {
     if (!items.length) return null;
     return (
       <section className="section">
-        <div className="wrap" style={{ maxWidth: 760 }}>
+        <div className="wrap pbprose">
           {has("title") && <h2 className="stitle">{b.title}</h2>}
           {items.map((it, i) => (
             <details className="pbfaq" key={i}>
@@ -4347,7 +4357,7 @@ function CustomPage({ page, goto }) {
     <main style={{ background: "var(--page)", minHeight: "50vh" }}>
       {blocks.length ? blocks.map((b) => <PageBlock key={b.id} block={b} goto={goto} />) : (
         <section className="section" style={{ paddingTop: 40 }}>
-          <div className="wrap" style={{ maxWidth: 900 }}>
+          <div className="wrap">
             <h1 className="stitle">{page.title || "Untitled"}</h1>
             <div className="emptybox">
               <p style={{ margin: 0, fontWeight: 700, color: "var(--ink)" }}>Nothing here yet</p>
