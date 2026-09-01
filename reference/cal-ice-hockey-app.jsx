@@ -407,9 +407,8 @@ function boxScoreTotals(site, season, player) {
   const t = {
     gp: 0, g: 0, a: 0, pim: 0, saves: 0, ga: 0,
     ppg: 0, shg: 0, gwg: 0, minutes: 0,
-    /* Counted off the play-by-play as the game is scored. A draw records
-       both ends, so a centre's record reads against something. */
-    shots: 0, fow: 0, fol: 0,
+    /* Counted off the play-by-play as the game is scored. */
+    shots: 0,
     // Goaltender decisions, taken from the result of games they dressed for.
     w: 0, l: 0, tie: 0, so: 0,
   };
@@ -435,8 +434,6 @@ function boxScoreTotals(site, season, player) {
     t.ga += Number(line.ga) || 0;
     t.minutes += Number(line.minutes) || 0;
     t.shots += Number(line.shots) || 0;
-    t.fow += Number(line.fow) || 0;
-    t.fol += Number(line.fol) || 0;
 
     if (player.position === "G" && game.result) {
       const { us, them } = game.result;
@@ -454,7 +451,7 @@ function boxScoreTotals(site, season, player) {
      `noRecord` marks the case where it genuinely is not. */
   const st = player.stats || {};
   const keys = ["gp", "g", "a", "pim", "ppg", "shg", "gwg", "saves", "ga", "minutes", "so",
-    "w", "l", "tie", "shots", "fow", "fol",
+    "w", "l", "tie", "shots",
     /* Rates, not counts. Some sources publish a goaltender's GAA and save
        percentage without the saves and ice time behind them; carried through
        so the season can show what is known instead of a row of zeroes. */
@@ -7173,7 +7170,7 @@ function BoxTable({ title, rows, onPlayer, showSpot }) {
               <StatTh label="#" /><th>Player</th>
               {showSpot && <StatTh label="Pos" />}
               <StatTh label="G" /><StatTh label="A" /><StatTh label="P" />
-              <StatTh label="S" /><StatTh label="FO" /><StatTh label="FO%" />
+              <StatTh label="S" />
               <StatTh label="PIM" /><StatTh label="PPG" /><StatTh label="SHG" />
             </tr>
           </thead>
@@ -7191,8 +7188,6 @@ function BoxTable({ title, rows, onPlayer, showSpot }) {
                 <td>{r.l.a || 0}</td>
                 <td className="gcbtpts">{pts(r.l)}</td>
                 <td>{r.l.shots || 0}</td>
-                <td>{foRecord(r.l)}</td>
-                <td className="gcbtpts">{foPct(r.l)}</td>
                 <td>{r.l.pim || 0}</td>
                 <td>{r.l.ppg || 0}</td>
                 <td>{r.l.shg || 0}</td>
@@ -7209,17 +7204,6 @@ function pts(l) {
   return (Number(l.g) || 0) + (Number(l.a) || 0);
 }
 
-/* Draws won and lost. A dash rather than 0-0 for anyone who never took one,
-   because never being sent to the circle and losing every draw are not the
-   same thing to read. */
-function foRecord(l) {
-  const w = Number(l.fow) || 0, x = Number(l.fol) || 0;
-  return w + x ? w + "-" + x : "\u2014";
-}
-function foPct(l) {
-  const w = Number(l.fow) || 0, x = Number(l.fol) || 0;
-  return w + x ? Math.round((w / (w + x)) * 100) + "%" : "\u2014";
-}
 
 /* Shots the scorekeeper counted for the team without naming a shooter. The
    S column adds up to less than the team's own total when this happens, and
@@ -7248,8 +7232,6 @@ const STAT_MEANING = {
   PTS: "Points (goals + assists)",
   S: "Shots on goal",
   SH: "Shots on goal",
-  FO: "Face-offs won and lost",
-  "FO%": "Face-off win percentage",
   PIM: "Penalty minutes",
   PPG: "Power-play goals",
   SHG: "Short-handed goals",
@@ -16820,42 +16802,21 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
     setShotAsk(null);
   };
 
-  /* A draw is two players. Recording only the winner threw away half of it:
-     a centre's record is what he won against what he took. */
-  const commitFaceoff = (team, won, lost) => {
+  /* One question. Who lost a draw was collected for a per-player record that
+     is no longer kept, and it cost a press at every face-off. */
+  const winFaceoff = (team, value) => {
+    const us = team === "us";
     push({
       plays: [...plays, {
         id: uid(), kind: "faceoff", team,
         period: curPeriod,
         /* The draw happened when play resumed, not when the name was picked. */
         clock: (faceoffAsk && faceoffAsk.clock) || fmtClock(left),
-        ...won, ...lost,
+        winnerId: us ? value || null : null,
+        winner: us ? nameOf(value) : value,
       }],
     });
     setFaceoffAsk(null);
-  };
-
-  /* Who won, and then who lost - but only when the winner was named. Most
-     draws are a scramble and the honest answer is a side rather than a man;
-     if nobody could say who won it, nobody can say who lost it either. */
-  const pickWinner = (team, value) => {
-    const us = team === "us";
-    const won = {
-      winnerId: us ? value || null : null,
-      winner: us ? nameOf(value) : value,
-    };
-    if (!value) return commitFaceoff(team, won, {});
-    setFaceoffAsk({ ...(faceoffAsk || {}), team, won });
-  };
-
-  const pickLoser = (value) => {
-    const a = faceoffAsk || {};
-    /* The loser is on the other bench from the winner. */
-    const theirsLost = a.team === "us";
-    commitFaceoff(a.team, a.won, {
-      loserId: theirsLost ? null : value || null,
-      loser: theirsLost ? value : nameOf(value),
-    });
   };
 
   /* A timeout is not a reason play stopped, it is a thing a team did - and
@@ -17016,12 +16977,7 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
     for (const x of nextPlays || []) {
       if (x.kind === "shot" && x.team === "us") add(x.shooterId, "shots");
       else if (x.kind === "goal" && x.team === "us" && x.period !== "SO") add(x.scorerId, "shots");
-      else if (x.kind === "faceoff") {
-        /* The play is filed under whoever won it, so ours is the winner on
-           our draws and the loser on theirs. */
-        if (x.team === "us") add(x.winnerId, "fow");
-        else add(x.loserId, "fol");
-      }
+
     }
     setDraft((st) => {
       const all = st.gameStats || {};
@@ -17033,8 +16989,8 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
       for (const id of ids) {
         const t = tally[id] || {};
         const cur = forGame[id] || { dressed: true, g: 0, a: 0, pim: 0 };
-        const next = { ...cur, shots: t.shots || 0, fow: t.fow || 0, fol: t.fol || 0 };
-        if (cur.shots !== next.shots || cur.fow !== next.fow || cur.fol !== next.fol) {
+        const next = { ...cur, shots: t.shots || 0 };
+        if (cur.shots !== next.shots) {
           forGame[id] = next;
           touched = true;
         }
@@ -17082,24 +17038,16 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
             add(find(x.playerId, x.player), "pim", Number(x.minutes) || 0);
           } else if (x.kind === "shot") {
             add(find(x.shooterId, x.shooter), "shots");
-          } else if (x.kind === "faceoff") {
-            add(find(x.winnerId, x.winner), "fow");
           }
-        } else if (x.kind === "faceoff" && x.team === "us") {
-          /* Our draw, so theirs is the one who lost it. */
-          add(find(x.loserId, x.loser), "fol");
         }
       }
 
       let touched = false;
       const next = rows.map((r) => {
         const c = t.get(r.id) || {};
-        const m = {
-          ...r, g: c.g || 0, a: c.a || 0, pim: c.pim || 0,
-          shots: c.shots || 0, fow: c.fow || 0, fol: c.fol || 0,
-        };
+        const m = { ...r, g: c.g || 0, a: c.a || 0, pim: c.pim || 0, shots: c.shots || 0 };
         if (m.g !== r.g || m.a !== r.a || m.pim !== r.pim
-          || m.shots !== r.shots || m.fow !== r.fow || m.fol !== r.fol) touched = true;
+          || m.shots !== r.shots) touched = true;
         return m;
       });
       return touched ? { ...st, opponentStats: { ...all, [game.id]: next } } : st;
@@ -17931,47 +17879,10 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
         </div>
       )}
 
-      {faceoffAsk && faceoffAsk.won && (
-        <div className="austop">
-          <span className="h6">
-            {faceoffAsk.won.winner} won it \u2014 who lost it?
-          </span>
-          {faceoffAsk.team === "us" ? (
-            theirs.length > 0 ? (
-              <select value="" onChange={(e) => pickLoser(e.target.value)}>
-                <option value="">{oppName || "Them"} \u2014 pick a player</option>
-                {theirs.map((pl) => (
-                  <option key={pl.id} value={pl.name}>#{pl.number} {pl.name}</option>
-                ))}
-              </select>
-            ) : null
-          ) : (
-            <select value="" onChange={(e) => pickLoser(e.target.value)}>
-              <option value="">{usLabel} \u2014 pick a player</option>
-              {(() => {
-                const out = skaters.filter((pl) => pl.position !== "G");
-                const centres = out.filter((pl) => pl.spot === "C");
-                const rest = out.filter((pl) => pl.spot !== "C");
-                const opt = (pl) => <option key={pl.id} value={pl.id}>#{pl.number} {pl.name}</option>;
-                return centres.length
-                  ? [<optgroup key="c" label="Centers">{centres.map(opt)}</optgroup>,
-                     <optgroup key="r" label="Others">{rest.map(opt)}</optgroup>]
-                  : out.map(opt);
-              })()}
-            </select>
-          )}
-          {/* Counted for the winner alone, which is what it did before the
-              second name was asked for and better than a guess. */}
-          <button className="btn bGhost bSm austopskip" onClick={() => pickLoser("")}>
-            Don't know
-          </button>
-        </div>
-      )}
-
-      {faceoffAsk && !faceoffAsk.won && (
+      {faceoffAsk && (
         <div className="austop">
           <span className="h6">Who won the faceoff?</span>
-          <select value="" onChange={(e) => pickWinner("us", e.target.value)}>
+          <select value="" onChange={(e) => winFaceoff("us", e.target.value)}>
             <option value="">{usLabel} — pick a player</option>
             {(() => {
               const out = skaters.filter((p) => p.position !== "G");
@@ -17991,18 +17902,18 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
           {/* Most draws are a scramble and nobody is sure who came out with
               it. The split has always counted the team rather than the name,
               so a side on its own is a complete answer, not a partial one. */}
-          <button className="btn bGhost bSm" onClick={() => pickWinner("us", "")}>
+          <button className="btn bGhost bSm" onClick={() => winFaceoff("us", "")}>
             {usLabel} won it
           </button>
           {theirs.length > 0 && (
-            <select value="" onChange={(e) => pickWinner("them", e.target.value)}>
+            <select value="" onChange={(e) => winFaceoff("them", e.target.value)}>
               <option value="">{oppName || "Them"} — pick a player</option>
               {theirs.map((p) => (
                 <option key={p.id} value={p.name}>#{p.number} {p.name}</option>
               ))}
             </select>
           )}
-          <button className="btn bGhost bSm" onClick={() => pickWinner("them", "")}>
+          <button className="btn bGhost bSm" onClick={() => winFaceoff("them", "")}>
             {oppName || "Them"} won it
           </button>
           <button className="btn bGhost bSm austopskip" onClick={() => setFaceoffAsk(null)}>
