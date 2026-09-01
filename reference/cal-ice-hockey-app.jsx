@@ -5404,14 +5404,20 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
   /* Goals only, in the order they were scored - the running score on a
      play-by-play row is counted off this, not off every play. */
   const goals = (Array.isArray(game.plays) ? game.plays : []).filter((p) => p.kind === "goal");
-  const numberOf = (id) => {
-    const p = (season.roster || []).find((x) => x.id === id);
+  /* By id, or by name for anything recorded before the id was written down
+     and for games typed up off a paper scoresheet, which never have one.
+     The visitors' side has always worked this way. */
+  const numberOf = (id, name) => {
+    const roster = season.roster || [];
+    const p = (id && roster.find((x) => x.id === id))
+      || (name && roster.find((x) => (x.name || "").toLowerCase()
+        === String(name).toLowerCase()));
     return p && p.number ? p.number : "";
   };
   /* "Kodai Mizuno #9" the way the league sheet writes it. Falls back to the
      bare name when we do not hold a number for them. */
   const withNumber = (name, id, mine) => {
-    const n = mine ? numberOf(id) : oppNumberOf(name, id);
+    const n = mine ? numberOf(id, name) : oppNumberOf(name, id);
     return n ? name + " #" + n : name;
   };
   /* Id first: two of their players can share a name, and the first match is
@@ -5562,7 +5568,8 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
      team went to the box: 0 for 0 is not 0%, it is a game without a power
      play in it. */
   /* The shirt, from whichever side the player is on. */
-  const penNumber = (x, mine) => (mine ? numberOf(x.playerId) : oppNumberOf(x.player, x.playerId));
+  const penNumber = (x, mine) => (mine
+    ? numberOf(x.playerId, x.player) : oppNumberOf(x.player, x.playerId));
   /* Infractions are stored lowercase; the line reads better with the offence
      capitalised, and it is the only capital in the sentence. */
   const sentence = (t) => (t ? String(t).charAt(0).toUpperCase() + String(t).slice(1) : t);
@@ -6298,7 +6305,7 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
                   if (x.kind === "goal") {
                     const at = scoreAfter(goals, x);
                     const n = seasonGoals(x);
-                    const jersey = mine ? numberOf(x.scorerId) : oppNumberOf(x.scorer);
+                    const jersey = mine ? numberOf(x.scorerId, x.scorer) : oppNumberOf(x.scorer);
                     return (
                       <div className="pbgoal" key={x.id}>
                         {/* The score as it stood the moment it went in, in the
@@ -6341,7 +6348,7 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
                               {x.assists && x.assists.length
                                 ? "Assists: " + x.assists.map((nm, k) => {
                                     const id = (x.assistIds || [])[k];
-                                    const jn = mine ? numberOf(id) : oppNumberOf(nm);
+                                    const jn = mine ? numberOf(id, nm) : oppNumberOf(nm);
                                     const an = seasonAssists(x, id);
                                     return nm + (jn ? " #" + jn : "") + (an ? " (" + an + ")" : "");
                                   }).join(", ")
@@ -16722,7 +16729,9 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
 
     const newPlays = pens.map((p) => ({
       id: p.id, kind: "penalty", team: penTeam, ...when,
-      player, minutes: p.minutes,
+      /* The id as well as the name: the summary prints the number off the
+         roster, and a name alone leaves it to guess. */
+      player, playerId, minutes: p.minutes,
       infraction: p.kind === "misconduct" && rows.length > 1 ? "Misconduct" : penWhat,
       ...(madeIt && penaltyKind(p.kind).shorts ? { strength: madeIt } : {}),
     }));
