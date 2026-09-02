@@ -2507,6 +2507,15 @@ button.gtrow:hover { background: var(--page); }
 }
 
 /* Share */
+/* The byline and the share row on one line, wrapping to two when there is
+   not room - the date reads first on both, which is the order it is wanted
+   in. */
+.artbyline { display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px 18px; margin: 16px 0 6px;
+  padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.artbylinewho { margin: 0; font-size: 13.5px; font-weight: 600; color: var(--muted); }
+.artbyline .artshare { margin: 0; padding: 0; border: 0; }
+
 .artshare { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px;
   margin-top: 40px; border-top: 1px solid var(--border); padding-top: 18px; }
 /* The small labels around a story: the tag, Share, More headlines.
@@ -16113,8 +16122,10 @@ function ShareRow({ site, post }) {
   };
 
   return (
+    /* No "Share" in front of it: a row reading X, Facebook, Email, Copy link
+       says what it is. The label existed because this used to open a section
+       of its own rather than sit inside a line. */
     <div className="artshare">
-      <p className="artlabel">Share</p>
       <div className="artsharebtns">
         {native && (
           <button className="sharebtn" onClick={() => navigator.share({ title, url }).catch(() => {})}>
@@ -16172,21 +16183,26 @@ function NewsPage({ site, postId, onBack, onPlayerName }) {
           {post.title}
         </h1>
         {post.blurb && <p className="artdeck">{post.blurb}</p>}
-        <p className="bsm" style={{ color: "var(--muted)", fontWeight: 600 }}>
-          {post.author ? post.author + " · " : ""}{fmtDate(post.date)}
-        </p>
 
         {post.image && (
           <img className="artcover" src={post.image} alt="" />
         )}
+
+        {/* Who wrote it, when, and what you can do with it - one band under
+            the picture and above the first paragraph, which is where a reader
+            is deciding whether to go on. */}
+        <div className="artbyline">
+          <p className="artbylinewho">
+            {post.author ? post.author + " · " : ""}{fmtDate(post.date)}
+          </p>
+          <ShareRow site={site} post={post} />
+        </div>
 
         <div className="article">
           {/* The subheader is above now, so an empty body has nothing left to
               fall back on - repeating it under itself just read as a mistake. */}
           {renderArticle(post.body || "", onPlayerName)}
         </div>
-
-        <ShareRow site={site} post={post} />
 
         {others.length > 0 && (
           <div style={{ marginTop: 34, borderTop: "1px solid var(--border)", paddingTop: 24 }}>
