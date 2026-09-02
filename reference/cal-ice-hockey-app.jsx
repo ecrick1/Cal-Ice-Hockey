@@ -17343,10 +17343,16 @@ function PickOrAdd({ value, options, onChange, placeholder, addLabel }) {
 function LinksMenu({ items }) {
   const [at, setAt] = useState(null);
   const btn = useRef(null);
+  const wrap = useRef(null);
   useEffect(() => {
     if (!at) return;
     const shut = () => setAt(null);
-    const away = (e) => { if (!btn.current || !btn.current.contains(e.target)) setAt(null); };
+    /* Against the whole menu, not the button. The items are the button's
+       siblings, so a guard that only knows about the button reads a press on
+       an item as a press outside, closes on mousedown, and takes the item out
+       of the document before the click that was meant for it arrives. Every
+       link in here did nothing at all. */
+    const away = (e) => { if (!wrap.current || !wrap.current.contains(e.target)) setAt(null); };
     window.addEventListener("scroll", shut, true);
     window.addEventListener("resize", shut);
     document.addEventListener("mousedown", away);
@@ -17373,7 +17379,7 @@ function LinksMenu({ items }) {
     setAt({ top: r.bottom + 6, right: Math.max(8, vw - hr.right) });
   };
   return (
-    <div className="linksmenu">
+    <div className="linksmenu" ref={wrap}>
       <button ref={btn} className={"linksbtn" + (at ? " on" : "")} aria-expanded={!!at}
         onClick={toggle}>
         Links <IcChevD size={14} />
