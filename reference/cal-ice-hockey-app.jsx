@@ -2798,6 +2798,10 @@ button.gtrow:hover { background: var(--page); }
    rather than .sortable, which the game-centre box scores also wear - those
    sit inside a card and want the pale grey they have. */
 table.stats.statstable th { background: var(--deep); color: #fff; }
+/* The totals line. Heavier and on its own ground, with a rule above it, so
+   it reads as the sum of the rows rather than as one more of them. */
+.statstable tfoot td { font-weight: 800; background: #F1F5F8; color: var(--ink);
+  border-top: 2px solid #D8E0E8; }
 /* Even columns, and the figures next to the name rather than across the room
    from it.
  *
@@ -2887,6 +2891,9 @@ table.stats.sortable.statstable td:first-child { padding-left: 10px; }
   .statstable tbody tr:nth-child(even) td:nth-child(2) { background: #FAFBFC; }
   .statstable tbody tr:hover td:first-child,
   .statstable tbody tr:hover td:nth-child(2) { background: #F1F5F8; }
+  /* The frozen pair of the totals line needs its own ground too, or the
+     figures slide straight through it. */
+  .statstable tfoot td:first-child, .statstable tfoot td:nth-child(2) { background: #F1F5F8; }
 }
 .statstable .sortbtn { color: #fff; }
 .statstable .sortbtn:hover { color: #fff; background: rgba(255, 255, 255, 0.14); }
@@ -11371,6 +11378,43 @@ function StatsPage({ site, onPlayer, onGame }) {
           );
         })}
       </tbody>
+      {/* Saves and goals against add up; a save percentage and a goals-against
+          average do not. So the counts are summed and then put through the
+          same keeperLine the rows above use, which derives the rates from the
+          totals - averaging the averages would weight a one-game backup the
+          same as a starter. */}
+      {!!list.length && (() => {
+        const sum = list.reduce((a, p) => {
+          const t = gTot(p);
+          return {
+            saves: a.saves + (Number(t.saves) || 0), ga: a.ga + (Number(t.ga) || 0),
+            so: a.so + (Number(t.so) || 0), minutes: a.minutes + (Number(t.minutes) || 0),
+            w: a.w + (Number(t.w) || 0), l: a.l + (Number(t.l) || 0),
+            tie: a.tie + (Number(t.tie) || 0),
+            noRecord: a.noRecord && !!t.noRecord,
+          };
+        }, { saves: 0, ga: 0, so: 0, minutes: 0, w: 0, l: 0, tie: 0, noRecord: true });
+        const k = keeperLine(sum);
+        return (
+          <tfoot>
+            <tr>
+              <td />
+              <td>Total</td>
+              <td>{s.gp || "—"}</td>
+              {/* The team's record, not the sum of the goaltenders'. A game
+                  with two goaltenders in it credits the win to both, so
+                  adding the column up gave 26-11 across 37 decisions in a
+                  thirty-game season the team finished 20-10. */}
+              <td>{s.gp ? s.w + "-" + s.l + "-" + (s.t || 0) : "—"}</td>
+              <td>{k.gaText}</td>
+              <td>{k.svText}</td>
+              <td style={{ fontWeight: 800 }}>{pctText(k.svpct)}</td>
+              <td>{k.gaa === null ? "—" : k.gaa.toFixed(2)}</td>
+              <td>{k.so}</td>
+            </tr>
+          </tfoot>
+        );
+      })()}
     </table>
   );
 
@@ -11415,6 +11459,29 @@ function StatsPage({ site, onPlayer, onGame }) {
           </tr>
         ))}
       </tbody>
+      {/* Games played is the team's, not the sum of everyone's - twenty-seven
+          skaters at twenty-odd games each adds to a figure that is true of
+          nobody. Everything else here is a count and does add up.
+          A column that is null the whole way down stays a dash: no
+          play-by-play means the question was never answered, and a nought
+          would answer it. */}
+      {!!list.length && (
+        <tfoot>
+          <tr>
+            {STAT_COLS.map((col) => {
+              if (col.key === "number" || col.key === "pos") return <td key={col.key} />;
+              if (col.key === "name") return <td key={col.key}>Total</td>;
+              if (col.key === "gp") return <td key={col.key}>{s.gp || "—"}</td>;
+              const vals = list.map((p) => col.get(p)).filter((v) => v != null);
+              return (
+                <td key={col.key} style={col.key === "pts" ? { fontWeight: 800 } : undefined}>
+                  {vals.length ? vals.reduce((n, v) => n + v, 0) : "—"}
+                </td>
+              );
+            })}
+          </tr>
+        </tfoot>
+      )}
     </table>
   );
 
