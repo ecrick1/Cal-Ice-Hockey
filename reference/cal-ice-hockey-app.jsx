@@ -3033,11 +3033,15 @@ button.watchbtn { border: 0; cursor: pointer; }
   font-family: var(--body); font-weight: 800; font-size: 11.5px;
   letter-spacing: 0; white-space: nowrap; }
 .spectags { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 5px; }
-/* What a game counts for, which is not the same kind of fact as what it is
-   called. Senior Night is an occasion; a semifinal is the stakes. Navy and
-   outlined so the two read as different sorts of label when a game carries
-   both, and so the gold stays the thing worth spotting from across the
-   page. */
+/* A game that decided something says so above the card rather than inside
+   it - the way a bowl game or a final is billed, with the round as the
+   heading and the matchup underneath. A pill beside the opponent's name made
+   the stakes look like one more attribute of the fixture. */
+.gameblock { display: grid; gap: 8px; min-width: 0; }
+.gameband { margin: 0; background: var(--deep); color: #fff; border-radius: 8px;
+  font-family: var(--body); font-weight: 800; font-size: 15.5px; padding: 13px 22px; }
+@media (max-width: 640px) { .gameband { font-size: 14px; padding: 11px 16px; } }
+/* Still a pill in the table, where there is no room to bill anything. */
 .roundtag { display: inline-flex; align-items: center; border-radius: 999px;
   background: transparent; color: var(--blue); border: 1.5px solid var(--blue);
   padding: 1px 9px; font-family: var(--body); font-weight: 800; font-size: 11.5px;
@@ -9817,7 +9821,11 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
                 const r = resultText(g);
                 const open = openInfo === g.id;
                 return (
-                  <article className="gamecard" key={g.id}>
+                  <div className="gameblock" key={g.id}>
+                  {gameType(g) !== "regular" && (
+                    <p className="gameband">{roundName(g)}</p>
+                  )}
+                  <article className="gamecard">
                     <div className="gamemain">
                       <span style={{ position: "relative", flex: "0 0 auto" }}>
                         <OppBadge name={g.opponent} logo={g.opponentLogo} size={48} />
@@ -9829,18 +9837,11 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
                         )}
                       </span>
                       <div style={{ minWidth: 0 }}>
-                        {(gameType(g) !== "regular" || !!(g.specials || []).length) && (
+                        {/* The round is billed above the card, so only the
+                            name a game goes by belongs in here. */}
+                        {!!(g.specials || []).length && (
                           <div className="spectags">
-                            {/* Stakes first, then any name the game goes by.
-                                This card is where a season is read, and a
-                                playoff was only admitting to being one inside
-                                Quick look - a panel most people never open. */}
-                            {gameType(g) !== "regular" && (
-                              <span className="roundtag">
-                                {roundName(g)}
-                              </span>
-                            )}
-                            {(g.specials || []).map((n) => <span className="spectag" key={n}>{n}</span>)}
+                            {g.specials.map((n) => <span className="spectag" key={n}>{n}</span>)}
                           </div>
                         )}
                         <p style={{ margin: 0, fontWeight: 700, fontSize: 17, color: "var(--ink)" }}>{g.opponent}</p>
@@ -9900,6 +9901,7 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
                         onPlayer={(id) => onPlayer && onPlayer(id)} />
                     )}
                   </article>
+                  </div>
                 );
               })}
             </div>
