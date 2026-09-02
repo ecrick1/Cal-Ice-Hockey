@@ -2798,6 +2798,11 @@ button.gtrow:hover { background: var(--page); }
    rather than .sortable, which the game-centre box scores also wear - those
    sit inside a card and want the pale grey they have. */
 table.stats.statstable th { background: var(--deep); color: #fff; }
+/* The card the tables sit in. Its padding was written inline, which put it
+   out of reach of a phone rule - it is a class now so the width can have it
+   back where the width is scarce. */
+.statbody { padding: 26px 22px; }
+@media (max-width: 640px) { .statbody { padding: 18px 8px; } }
 /* Taller, and starting nearer the edge than the 16px the sortable tables use
    for their first column. */
 .statstable .sortbtn { padding-top: 17px; padding-bottom: 17px; }
@@ -2829,6 +2834,11 @@ table.stats.sortable.statstable td:first-child { padding-left: 10px; }
   /* Square across the top, so the navy head meets the edges of what holds
      it rather than being clipped by a corner it did not ask for. */
   .twrap:has(.statstable) { border-radius: 0; }
+  /* Eight rather than ten, now that the card around it has given up its own
+     twenty-two. Every pixel between the screen edge and the first figure is
+     one the figures do not get. */
+  table.stats.sortable.statstable th:first-child .sortbtn { padding-left: 8px; }
+  table.stats.sortable.statstable td:first-child { padding-left: 8px; }
   .statstable th:first-child, .statstable td:first-child {
     position: sticky; left: 0; z-index: 2;
     width: 40px; min-width: 40px; max-width: 40px; box-sizing: border-box; }
@@ -11400,7 +11410,7 @@ function StatsPage({ site, onPlayer, onGame }) {
           </div>
 
           {/* Content card */}
-          <div className="statcard" style={{ padding: "26px 22px" }}>
+          <div className="statcard statbody">
             {tab === "player" && (
               <>
                 <h2 className="statsec">{cat === "goalies" ? "Goaltenders" : "Skaters"}</h2>
