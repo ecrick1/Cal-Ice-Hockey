@@ -5202,14 +5202,31 @@ export default function CalIceHockey() {
       if (hit) return openPlayer(hit.id);
     }
   };
-  /* The passcode gate is a prototype stand-in, so it should not re-ask on every
-   * reload. Remembered until you sign out from Settings > Account. */
+  /* Who is allowed to edit.
+   *
+   * With a database behind the site this is a real signed-in identity, and
+   * the answer that matters is the one the database gives when a write
+   * arrives - this only decides whether to show the console. The passcode it
+   * replaces was compared in the browser against a constant in the bundle,
+   * which was honest enough while the data was your own and would be an open
+   * door now that a save reaches everybody.
+   *
+   * Without a database it is still that stand-in, remembered across reloads,
+   * because a local copy has nobody to keep out. */
+  const remoteAuth = typeof window !== "undefined" && window.auth && window.auth.available;
   const [authed, setAuthed] = useState(() => {
+    if (remoteAuth) return !!(window.auth && window.auth.user);
     try { return localStorage.getItem(AUTH_KEY) === "1"; } catch { return false; }
   });
   useEffect(() => {
+    if (!remoteAuth) return;
+    setAuthed(!!window.auth.user);
+    return window.auth.onChange((user) => setAuthed(!!user));
+  }, [remoteAuth]);
+  useEffect(() => {
+    if (remoteAuth) return;
     try { localStorage.setItem(AUTH_KEY, authed ? "1" : "0"); } catch { /* private mode */ }
-  }, [authed]);
+  }, [authed, remoteAuth]);
   const loaded = useRef(false);
   /* { site, savedAt, publishAt } or null. Held here rather than in the
      console because the app has to look at it on load, before anyone has
@@ -5234,7 +5251,11 @@ export default function CalIceHockey() {
       if (!s) {
         s = (await shippedSite()) || SEED_SITE;
       } else {
-        const up = await shippedRev();
+        /* The shipped file is what a static copy falls back to, not an
+           authority over a shared store. When the site is coming from a
+           database, a build deployed later must not be allowed to roll it
+           back to whatever the data looked like when that build was cut. */
+        const up = window.storage.remote ? null : await shippedRev();
         if (up != null && up > Number(s.rev || 0)) {
           const fresh = await shippedSite();
           if (fresh) { s = fresh; tookUpdate = true; }
@@ -15164,6 +15185,27 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
   const [liveSeed, setLiveSeed] = useState(null);
   const [pass, setPass] = useState("");
   const [err, setErr] = useState(false);
+  /* Sign-in by emailed link: the address typed, whether it has been sent, and
+     anything the server said went wrong. */
+  const remoteAuth = typeof window !== "undefined" && window.auth && window.auth.available;
+  const [email, setEmail] = useState("");
+  const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [authErr, setAuthErr] = useState("");
+  const sendLink = async () => {
+    const addr = email.trim();
+    if (!addr || sending) return;
+    setSending(true);
+    setAuthErr("");
+    try {
+      await window.auth.signIn(addr);
+      setSent(true);
+    } catch (e) {
+      setAuthErr(String((e && e.message) || e));
+    } finally {
+      setSending(false);
+    }
+  };
 
   /* Edits go to a working copy. Nothing reaches storage until Save is pressed,
    * so a mis-click in a 30-row grid is recoverable with Discard.
@@ -15289,23 +15331,61 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
                 <span className="auenv">internal · staff only</span>
               </div>
             </div>
-            <div className="field">
-              <label className="h6">Passcode</label>
-              <input type="password" value={pass} autoFocus
-                onChange={(e) => { setPass(e.target.value); setErr(false); }}
-                onKeyDown={(e) => e.key === "Enter" && submit()} />
-            </div>
-            {err && (
-              <p className="bsm" style={{ color: "var(--au-danger)", marginTop: 8 }}>
-                Incorrect passcode.
-              </p>
+            {remoteAuth ? (
+              sent ? (
+                <>
+                  <p className="bsm" style={{ margin: 0 }}>
+                    A sign-in link is on its way to <strong>{email}</strong>. Open it on this
+                    device and you will land back here signed in.
+                  </p>
+                  <button className="btn bGhost" style={{ marginTop: 16, width: "100%" }}
+                    onClick={() => { setSent(false); setAuthErr(""); }}>
+                    Use a different address
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="field">
+                    <label className="h6">Email</label>
+                    <input type="email" value={email} autoFocus autoComplete="email"
+                      placeholder="you@berkeley.edu"
+                      onChange={(e) => { setEmail(e.target.value); setAuthErr(""); }}
+                      onKeyDown={(e) => e.key === "Enter" && sendLink()} />
+                  </div>
+                  {authErr && (
+                    <p className="bsm" style={{ color: "var(--au-danger)", marginTop: 8 }}>{authErr}</p>
+                  )}
+                  <button className="btn bNavy" style={{ marginTop: 16, width: "100%" }}
+                    disabled={sending || !email.trim()} onClick={sendLink}>
+                    {sending ? "Sending…" : "Email me a sign-in link"}
+                  </button>
+                  <p className="bsm" style={{ color: "var(--au-faint)", marginTop: 16, fontSize: 11.5 }}>
+                    Only addresses on the editors list can change the site. Anyone else who
+                    signs in sees the console but cannot save.
+                  </p>
+                </>
+              )
+            ) : (
+              <>
+                <div className="field">
+                  <label className="h6">Passcode</label>
+                  <input type="password" value={pass} autoFocus
+                    onChange={(e) => { setPass(e.target.value); setErr(false); }}
+                    onKeyDown={(e) => e.key === "Enter" && submit()} />
+                </div>
+                {err && (
+                  <p className="bsm" style={{ color: "var(--au-danger)", marginTop: 8 }}>
+                    Incorrect passcode.
+                  </p>
+                )}
+                <button className="btn bNavy" style={{ marginTop: 16, width: "100%" }} onClick={submit}>
+                  Continue
+                </button>
+                <p className="bsm" style={{ color: "var(--au-faint)", marginTop: 16, fontSize: 11.5 }}>
+                  No database configured — this copy edits your own browser only.
+                </p>
+              </>
             )}
-            <button className="btn bNavy" style={{ marginTop: 16, width: "100%" }} onClick={submit}>
-              Continue
-            </button>
-            <p className="bsm" style={{ color: "var(--au-faint)", marginTop: 16, fontSize: 11.5 }}>
-              Prototype gate only — production uses a magic-link sign-in.
-            </p>
           </div>
         </div>
       </main>
