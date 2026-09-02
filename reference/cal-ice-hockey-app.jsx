@@ -840,6 +840,17 @@ a.pbcard:hover { border-color: var(--rule-on); }
   .sctrl { gap: 10px; }
   .sctrl .rsel { flex: 1 1 100%; width: 100%; padding: 14px 38px 14px 14px;
     font-size: 15px; background-position: right 14px center; }
+  /* The buttons and the view toggles share the first line, and the selects
+     come under them. In the markup the selects sit between the two, which is
+     right on a wide screen where the whole thing is one row - here they are
+     full width, so left alone they would push the toggles onto a line of
+     their own below two stacked selects, a long way from the button they
+     belong beside. */
+  .sctrl > * { order: 2; }
+  .sctrl > button, .sctrl > .vtgroup { order: 1; }
+  /* Two words to label three obvious icons, on the screen with the least
+     room for them. */
+  .vtlabel { display: none; }
 }
 .section { padding: clamp(48px, 7vw, 88px) 0; }
 .ice { background: var(--ice); }
@@ -3344,9 +3355,10 @@ a.faffil:hover .faffilmark { opacity: 0.82; }
   .navbar { padding: 8px 16px; gap: 8px; }
   .goldpill { font-size: 13px; padding: 9px 14px; }
   .navpanelcta { padding-left: 16px; padding-right: 16px; }
-  /* The control reads as part of the row of filters above it rather than
-     drifting off to the right on its own. */
-  .vtgroup { margin-left: 0; }
+  /* Was pinned left here, back when it sat on a line below the filters and
+     drifting right would have left it stranded. It shares the first line
+     with the print button now, so the auto margin is what puts one at each
+     end of that line instead. */
   /* The schedule already prints from the browser; a PDF button is a desktop
      affordance and the toolbar has no room for it. */
   .sctrl .ghostbtn { display: none; }
@@ -9907,7 +9919,7 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
               <option value="upcoming">Upcoming</option>
             </select>
             <div className="vtgroup">
-              <span className="bsm" style={{ color: "var(--muted)", lineHeight: 1.2 }}>View<br />Type:</span>
+              <span className="bsm vtlabel" style={{ color: "var(--muted)", lineHeight: 1.2 }}>View<br />Type:</span>
               <button className={`vtbtn ${viewType === "list" ? "on" : ""}`} aria-label="List view" onClick={() => setViewType("list")}><IcList /></button>
               <button className={`vtbtn ${viewType === "table" ? "on" : ""}`} aria-label="Table view" onClick={() => setViewType("table")}><IcTable /></button>
               <button className={`vtbtn ${viewType === "calendar" ? "on" : ""}`} aria-label="Calendar view" onClick={() => setViewType("calendar")}><IcCalendar /></button>
@@ -10241,8 +10253,8 @@ function RosterPage({ site, onPlayer }) {
               <option value="position">Position</option>
               <option value="year">Class</option>
             </select>
-            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
-              <span className="bsm" style={{ color: "var(--muted)", lineHeight: 1.2 }}>View<br />Type:</span>
+            <div className="vtgroup">
+              <span className="bsm vtlabel" style={{ color: "var(--muted)", lineHeight: 1.2 }}>View<br />Type:</span>
               <button className={`vtbtn ${mode === "list" ? "on" : ""}`} aria-label="List view" onClick={() => setMode("list")}><IcList /></button>
               <button className={`vtbtn ${mode === "card" ? "on" : ""}`} aria-label="Card view" onClick={() => setMode("card")}><IcGrid /></button>
               <button className={`vtbtn ${mode === "table" ? "on" : ""}`} aria-label="Table view" onClick={() => setMode("table")}><IcTable /></button>
