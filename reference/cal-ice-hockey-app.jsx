@@ -2763,12 +2763,20 @@ table.stats th { background: #F4F7F9; color: var(--blue); font-family: var(--bod
    and ten columns need a band strong enough to hold them together.
    Wide enough that it scrolls rather than crushing ten columns into a phone,
    which the wrapper is already set up for. */
-table.stats.schedtable th { background: var(--deep); color: #fff; }
+/* Smaller than the stats tables use. These are labels over a wide table, and
+   at 13 they competed with the rows for attention. */
+table.stats.schedtable th { background: var(--deep); color: #fff; font-size: 11px;
+  padding-top: 13px; padding-bottom: 13px; }
 table.stats.schedtable { min-width: 920px; }
-table.stats.schedtable td { font-size: 13.5px; white-space: nowrap; }
-/* Last column against the right edge, where the menu drops from. */
-table.stats.schedtable th:last-child, table.stats.schedtable td:last-child {
-  text-align: right; }
+/* Room around each game, so a schedule reads as a list of games rather than
+   a block of text. */
+table.stats.schedtable td { font-size: 13.5px; white-space: nowrap;
+  padding-top: 17px; padding-bottom: 17px; }
+/* The links sit against the right edge, where the menu drops from. Their
+   label does not follow them: every heading on this table starts at the left
+   of its column, and one heading breaking ranks to chase a button reads as a
+   mistake. */
+table.stats.schedtable td:last-child { text-align: right; }
 /* One colour across the result. The gold W is the team's yellow and reads on
    navy; on a white table row beside its own score it is the palest thing in
    the line and the letter carrying the meaning is the one that disappears. */
@@ -9929,7 +9937,7 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
                           )}
                         </td>
                         <td>{r
-                          ? <strong style={{ color: "var(--blue)" }}><span className={"rtag " + r.tag}>{r.tag}</span>, {g.result.us} - {g.result.them}{decidedIn(g.result)}</strong>
+                          ? <span style={{ color: "var(--blue)" }}><span className={"rtag " + r.tag}>{r.tag}</span>, {g.result.us} - {g.result.them}{decidedIn(g.result)}</span>
                           : "—"}</td>
                         <td>
                           <LinksMenu items={[
