@@ -2869,7 +2869,7 @@ table.stats.sortable.statstable td:nth-child(2) { width: auto; }
  *
  * statstable divides everything after the name into equal columns, which is
  * right for GP, G, A and PIM - four characters and a number. The roster's
- * last two hold "Hometown / Prior Team" and "Previous School" over a city and
+ * last two hold "Hometown" and "Previous School" over a city and
  * a school name, and an equal share came to 120px. The headings do not wrap,
  * so each ran straight across the one beside it and the two collided.
  *
@@ -10433,7 +10433,7 @@ function RosterPage({ site, onPlayer }) {
     }, true],
     ["weight", "Wt", (p) => num(p.weight), true],
     ["year", "Class", (p) => p.year || "", false],
-    ["hometown", "Hometown / Prior Team", (p) => splitHome(p.hometown).home || "", false],
+    ["hometown", "Hometown", (p) => splitHome(p.hometown).home || "", false],
     ["prior", "Previous School", (p) => splitHome(p.hometown).prev || "", false],
   ];
 
