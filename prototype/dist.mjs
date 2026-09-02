@@ -14,6 +14,7 @@
  * served at a domain root rather than in a subdirectory.
  */
 import { cp, mkdir, rm, writeFile, readFile, stat } from "node:fs/promises";
+import { readdirSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -24,7 +25,19 @@ const root = path.resolve(here, "..");
 const out = path.join(root, "dist");
 
 const ASSET_DIRS = ["logos", "photos", "covers", "staff", "articles"];
-const SITE_DATA = path.join(root, "data", "backup-2026-08-31", "site.json");
+/* The newest backup, not a named one. The date was written in here, which
+   meant that taking a fresh export and shipping it were two jobs rather than
+   one - and forgetting the second silently deploys the older season. The
+   folders are ISO-dated, so newest is last in sort order. */
+const BACKUPS = path.join(root, "data");
+const SITE_DATA = (() => {
+  const dirs = readdirSync(BACKUPS)
+    .filter((d) => /^backup-\d{4}-\d{2}-\d{2}$/.test(d))
+    .filter((d) => existsSync(path.join(BACKUPS, d, "site.json")))
+    .sort();
+  if (!dirs.length) throw new Error("no data/backup-*/site.json to ship");
+  return path.join(BACKUPS, dirs[dirs.length - 1], "site.json");
+})();
 
 const TITLE = "Cal Ice Hockey";
 const DESCRIPTION =
