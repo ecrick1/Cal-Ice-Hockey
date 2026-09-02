@@ -2758,6 +2758,25 @@ table.stats { width: 100%; border-collapse: collapse; min-width: 620px; backgrou
 table.stats th { background: #F4F7F9; color: var(--blue); font-family: var(--body);
   font-weight: 600; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase;
   text-align: left; padding: 11px 14px; }
+/* The schedule's own table. Navy across the head rather than the pale grey
+   the stats tables use: this one is the page rather than a panel inside it,
+   and ten columns need a band strong enough to hold them together.
+   Wide enough that it scrolls rather than crushing ten columns into a phone,
+   which the wrapper is already set up for. */
+table.stats.schedtable { min-width: 1040px; }
+table.stats.schedtable th { background: var(--deep); color: #fff; }
+table.stats.schedtable td { font-size: 13.5px; white-space: nowrap; }
+/* The one column with something long in it. */
+table.stats.schedtable td:nth-child(5) { white-space: normal; min-width: 190px; }
+.schedround { display: block; font-size: 11.5px; color: var(--muted); font-weight: 600; }
+.schedlinks { display: inline-flex; align-items: center; gap: 4px; }
+.schedlinks a, .schedlinks button { display: inline-grid; place-items: center; width: 28px;
+  height: 28px; border-radius: 6px; border: 0; background: none; color: var(--blue);
+  cursor: pointer; padding: 0; }
+.schedlinks a:hover, .schedlinks button:hover { background: rgba(4,30,66,0.07); }
+.schedlinks a:focus-visible, .schedlinks button:focus-visible {
+  outline: 2px solid var(--blue); outline-offset: -2px; }
+
 /* Sortable headers: the whole cell is the target, with a caret that only
    goes solid on the active column. */
 table.stats.sortable th { padding: 0; }
@@ -9868,23 +9887,61 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
               ticketsUrl={(site.settings || {}).ticketsUrl} />
           ) : viewType === "table" ? (
             <div className="twrap" style={{ marginTop: 32 }}>
-              <table className="stats">
-                <thead><tr><th>Date</th><th>Opponent</th><th>H/A</th><th>Venue</th><th>Result / Time</th></tr></thead>
+              <table className="stats schedtable">
+                <thead><tr>
+                  <th>Date</th><th>Time</th><th>At</th><th>Opponent</th><th>Location</th>
+                  <th>TV</th><th>Radio</th><th>Tournament</th><th>Result</th><th>Links</th>
+                </tr></thead>
                 <tbody>
                   {rows.map((g) => {
                     const r = resultText(g);
+                    const where = [g.venue, g.location].filter(Boolean).join(" · ");
+                    const meet = g.playoffSection
+                      || (gameType(g) !== "regular" ? roundName(g) : "")
+                      || (g.conferenceGame && g.conference ? g.conference : "");
                     return (
                       <tr key={g.id}>
                         <td>{fmtDateParen(g.date)}</td>
-                        <td style={{ fontWeight: 600 }}>
-                          {g.opponent}
-                          {gameType(g) !== "regular" && (
-                            <span className="roundtag" style={{ marginLeft: 8 }}>{roundName(g)}</span>
+                        <td>{localTime(g.date, g.time) || "—"}</td>
+                        <td>{SIDE_LABEL[g.homeAway] || "—"}</td>
+                        <td style={{ fontWeight: 600 }}>{g.opponent}</td>
+                        <td>{where || "—"}</td>
+                        <td>{g.tv || "—"}</td>
+                        <td>{g.radio || "—"}</td>
+                        <td>
+                          {meet || "—"}
+                          {g.playoffSection && gameType(g) !== "regular" && g.roundLabel && (
+                            <span className="schedround">{g.roundLabel}</span>
                           )}
                         </td>
-                        <td>{SIDE_LABEL[g.homeAway] || "—"}</td>
-                        <td>{g.venue}</td>
-                        <td>{r ? <strong style={{ color: "var(--blue)" }}><span className={"rtag " + r.tag}>{r.tag}</span>, {g.result.us} - {g.result.them}{decidedIn(g.result)}</strong> : localTime(g.date, g.time)}</td>
+                        <td>{r
+                          ? <strong style={{ color: "var(--blue)" }}><span className={"rtag " + r.tag}>{r.tag}</span>, {g.result.us} - {g.result.them}{decidedIn(g.result)}</strong>
+                          : "—"}</td>
+                        <td>
+                          <span className="schedlinks">
+                            {g.photosUrl && (
+                              <a href={g.photosUrl} target="_blank" rel="noreferrer noopener"
+                                title="Photos" aria-label={"Photos, " + g.opponent}><IcPhotos size={16} /></a>
+                            )}
+                            {g.highlightsUrl && (
+                              <a href={g.highlightsUrl} target="_blank" rel="noreferrer noopener"
+                                title="Highlights" aria-label={"Highlights, " + g.opponent}><IcPlayCircle size={16} /></a>
+                            )}
+                            {(g.replayUrl || g.streamUrl) && (
+                              <a href={g.replayUrl || g.streamUrl} target="_blank" rel="noreferrer noopener"
+                                title={g.replayUrl ? "Replay" : "Watch live"}
+                                aria-label={(g.replayUrl ? "Replay, " : "Watch, ") + g.opponent}><IcPlayCircle size={16} /></a>
+                            )}
+                            {!g.result && g.homeAway === "H" && ticketsFor(g, site) && (
+                              <a href={ticketsFor(g, site)} target="_blank" rel="noreferrer noopener"
+                                title="Tickets" aria-label={"Tickets, " + g.opponent}><IcTicket size={16} /></a>
+                            )}
+                            <button onClick={() => onGame && onGame(g.id)}
+                              title="Game center" aria-label={"Game center, " + g.opponent}>
+                              <IcGameCenter size={17} />
+                            </button>
+                          </span>
+                        </td>
                       </tr>
                     );
                   })}
@@ -17109,6 +17166,19 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
                   <label className="h6">Sponsor link</label>
                   <UrlField value={g.sponsorUrl || ""} placeholder="https://…"
                     onChange={(v) => setGame(g.id, { sponsorUrl: v })} />
+                </div>
+                {/* Who carried it. Free text rather than a link: what goes in
+                    the schedule's TV and Radio columns is a station's name,
+                    and a game is often on something with no URL at all. */}
+                <div className="field">
+                  <label className="h6">TV</label>
+                  <input value={g.tv || ""} placeholder="ESPN+ · YouTube"
+                    onChange={(e) => setGame(g.id, { tv: e.target.value })} />
+                </div>
+                <div className="field">
+                  <label className="h6">Radio</label>
+                  <input value={g.radio || ""} placeholder="KALX 90.7"
+                    onChange={(e) => setGame(g.id, { radio: e.target.value })} />
                 </div>
                 <div className="field">
                   <label className="h6">Photos</label>
