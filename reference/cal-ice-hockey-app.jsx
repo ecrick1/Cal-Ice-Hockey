@@ -1979,9 +1979,19 @@ table.stats.gcpen th:first-child, table.stats.gcpen td:first-child { padding-lef
   .newstier.rest { grid-template-columns: repeat(4, 1fr); }
 }
 /* The kinds of story, in the segmented control the rest of the site uses for
-   the same job. It wraps rather than scrolling: a tag invented later should
-   push the row taller, not off the side of the page. */
-.newskinds { flex-wrap: wrap; margin-bottom: 4px; }
+   the same job - but stretched across the page rather than shrunk to its
+   labels, so it reads as the header of the list below it.
+   Each tab grows to take an equal share of what is left over, so the row
+   stays even however long the words are. They still wrap rather than
+   scroll: a tag invented later should push the row taller, not off the side
+   of the page. Growing from the natural width rather than from nothing is
+   what keeps that true - at a basis of zero they would never wrap, they
+   would only squeeze. */
+/* Both class names sit on the element, and .gpsides is declared further
+   down the sheet, so a bare .newskinds rule loses the display to it on
+   order alone. Named with both so it wins on specificity instead. */
+.gpsides.newskinds { display: flex; flex-wrap: wrap; margin-bottom: 4px; }
+.newskinds .gpside { flex: 1 0 auto; justify-content: center; }
 .newskindn { font-size: 11px; font-weight: 800; opacity: 0.6; }
 @media (max-width: 900px) {
   .newstier.mid { grid-template-columns: repeat(2, 1fr); }
