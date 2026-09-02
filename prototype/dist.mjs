@@ -83,15 +83,47 @@ const vercel = JSON.stringify(
 const size = async (p) => (await stat(p)).size;
 const mb = (n) => (n / 1024 / 1024).toFixed(1) + " MB";
 
+/* The club's own data, so a visitor sees the real site rather than the seed. */
+const site = JSON.parse(await readFile(SITE_DATA, "utf8"));
+if (!site.seasons) throw new Error("site.json has no seasons — wrong file?");
+
+/**
+ * The migration guard, checked here rather than discovered by visitors.
+ *
+ * The page runs a one-time migration when the stored data's `v` is behind the
+ * source's SEED_VERSION, and that migration replaces every season with the
+ * built-in sample data. It exists so an old copy in somebody's browser gets
+ * rebuilt, and it is correct for that. Shipping data whose `v` is behind
+ * would aim it at the club's own seasons instead: each returning visitor
+ * would load the site, be handed fictional players, and save them over the
+ * real ones.
+ *
+ * The source is the authority on the number, so it is read from there rather
+ * than written down twice.
+ */
+const src = await readFile(path.join(root, "reference", "cal-ice-hockey-app.jsx"), "utf8");
+const seedVersion = Number((src.match(/const SEED_VERSION = (\d+)/) || [])[1]);
+if (!Number.isFinite(seedVersion)) {
+  throw new Error("cannot find SEED_VERSION in the source — refusing to build blind");
+}
+if (Number(site.v) !== seedVersion) {
+  throw new Error(
+    "data v=" + site.v + " but SEED_VERSION=" + seedVersion + ". Publishing this "
+    + "would replace every visitor's seasons with the seed. Bump `v` in "
+    + path.relative(root, SITE_DATA) + " to " + seedVersion + " once the data "
+    + "is known to suit the new version.");
+}
+
+/* A rev of zero means every returning visitor is already ahead and no update
+   ever reaches them; the site would look frozen and nobody would see why. */
+if (!Number(site.rev)) throw new Error("data has no rev — nothing would ever update");
+
 await rm(out, { recursive: true, force: true });
 await mkdir(out, { recursive: true });
 
 await writeFile(path.join(out, "index.html"), page);
 await cp(path.join(here, "app.js"), path.join(out, "app.js"));
 
-/* The club's own data, so a visitor sees the real site rather than the seed. */
-const site = JSON.parse(await readFile(SITE_DATA, "utf8"));
-if (!site.seasons) throw new Error("site.json has no seasons — wrong file?");
 await writeFile(path.join(out, "site.json"), JSON.stringify(site));
 
 for (const d of ASSET_DIRS) {
