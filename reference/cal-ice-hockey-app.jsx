@@ -2509,8 +2509,13 @@ button.gtrow:hover { background: var(--page); }
 /* Share */
 .artshare { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px;
   margin-top: 40px; border-top: 1px solid var(--border); padding-top: 18px; }
-.artsharelabel { margin: 0; font-family: var(--disp); font-weight: 600; font-size: 11px;
-  letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+/* The small labels around a story: the tag, Share, More headlines.
+   Body face, written case, ordinary spacing - a label beside prose should
+   not be set like a scoreboard. */
+.artlabel { margin: 0; font-family: var(--body); font-weight: 700; font-size: 13px;
+  letter-spacing: 0; text-transform: none; color: var(--muted); }
+/* The tag is the one that names the kind of story, so it keeps the navy. */
+.arttag { color: var(--blue); }
 .artsharebtns { display: flex; flex-wrap: wrap; gap: 8px; }
 .sharebtn { display: inline-flex; align-items: center; gap: 7px; padding: 7px 14px;
   border: 1px solid var(--border); border-radius: 999px; background: #fff; cursor: pointer;
@@ -10275,6 +10280,17 @@ function VolunteersPage({ site, goto }) {
 /* ---------------- News index ---------------- */
 /* Friendlier than the tag itself. Anything not here is title-cased rather
    than left shouting, so a tag invented next week still reads as a word. */
+/* Tags are stored in capitals - the picker uppercases whatever is typed, so
+   they sort and match as one thing. That is right for the data and wrong for
+   a label beside prose, where RECAP reads as a warning. Cased for display
+   only; what is stored is untouched.
+   Not titleCase, which exists already and deliberately leaves a word that has
+   capitals of its own alone so McLean survives - which means it does nothing
+   at all to RECAP. This one has to lower the case before it raises it. */
+function casedTag(t) {
+  return String(t || "").toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase());
+}
+
 const TAG_LABEL = {
   RECAP: "Game Recaps", PREVIEW: "Game Previews", FEATURE: "Features",
   NEWS: "Team News", PRESS: "Press Releases", RELEASE: "Press Releases",
@@ -16098,7 +16114,7 @@ function ShareRow({ site, post }) {
 
   return (
     <div className="artshare">
-      <p className="artsharelabel">Share</p>
+      <p className="artlabel">Share</p>
       <div className="artsharebtns">
         {native && (
           <button className="sharebtn" onClick={() => navigator.share({ title, url }).catch(() => {})}>
@@ -16151,7 +16167,7 @@ function NewsPage({ site, postId, onBack, onPlayerName }) {
       <div className="wrap" style={{ maxWidth: 760 }}>
         <button className="gb-link" onClick={onBack} style={{ marginBottom: 18 }}>← All news</button>
 
-        <p className="eyebrow" style={{ color: "var(--blue)" }}>{post.tag || "NEWS"}</p>
+        <p className="artlabel arttag">{casedTag(post.tag || "News")}</p>
         <h1 className="h1" style={{ color: "var(--blue)", margin: "8px 0 12px", fontSize: "clamp(2rem,4.5vw,3rem)" }}>
           {post.title}
         </h1>
@@ -16174,7 +16190,7 @@ function NewsPage({ site, postId, onBack, onPlayerName }) {
 
         {others.length > 0 && (
           <div style={{ marginTop: 34, borderTop: "1px solid var(--border)", paddingTop: 24 }}>
-            <p className="h6" style={{ color: "var(--muted)", marginBottom: 14 }}>More headlines</p>
+            <p className="artlabel" style={{ marginBottom: 14 }}>More headlines</p>
             <div style={{ display: "grid", gap: 10 }}>
               {others.map((n, i) => (
                 <button key={n.id} className="artmore" onClick={() => onPlayerName(null, n.id)}>
