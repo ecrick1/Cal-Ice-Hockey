@@ -16863,16 +16863,16 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
   /* By date, but a row that has none yet goes last rather than first. */
   const cmpRow = (a, b) => (a.date ? 0 : 1) - (b.date ? 0 : 1) || cmpDate(a, b);
 
-  /* Every tournament named anywhere in the site, offered back when naming
-     the next one. Across seasons, not just this one: the same tournament
-     comes round every year and should keep the same name each time. */
+  /* The tournaments this season has, and only this season's. A tournament
+     is a thing that happened in a year - last year's list is last year's
+     history, not a menu for this one - so a new season starts empty and its
+     first playoff game is where its first section gets named. */
   const poSections = useMemo(() => {
     const seen = new Set();
-    for (const ss of Object.values(site.seasons || {}))
-      for (const g of ss.schedule || [])
-        if (g.playoffSection) seen.add(String(g.playoffSection).trim());
+    for (const g of games || [])
+      if (g.playoffSection) seen.add(String(g.playoffSection).trim());
     return [...seen].sort();
-  }, [site.seasons]);
+  }, [games]);
 
   /* Same idea for the competition: typed once a season and offered back
      every game after it, because it goes on most rows and retyping it is
@@ -17141,20 +17141,12 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
                   <>
                     <div className="field">
                       <label className="h6">Playoff section</label>
-                      <input value={g.playoffSection || ""} list="posections"
-                        placeholder="Pac-8 Championship · ACHA Western Regional · Nationals"
-                        onChange={(e) => setGame(g.id, { playoffSection: e.target.value })} />
-                      {/* Typed once and then offered back, because the games of
-                          one tournament have to agree on its name exactly to
-                          band together - "Pac-8 Championship" and "Pac-8
-                          Championships" would be two tournaments. */}
-                      <datalist id="posections">
-                        {poSections.map((n) => <option key={n} value={n} />)}
-                      </datalist>
+                      <SectionPicker value={g.playoffSection || ""} options={poSections}
+                        onChange={(v) => setGame(g.id, { playoffSection: v })} />
                       <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
-                        The tournament this game was part of. Games sharing one
-                        are banded under it on the schedule. Leave it blank and
-                        the game stands alone.
+                        The tournament this game was part of, from the ones this
+                        season already has. Games sharing one are banded under it
+                        on the schedule. Leave it blank and the game stands alone.
                       </p>
                     </div>
                     <div className="field">
@@ -17196,6 +17188,15 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
                     Shown once the game has a final score.
                   </p>
                 </div>
+                {/* Every field in here saves as it is typed, so this closes the
+                    drawer rather than committing anything - but a panel this
+                    long needs a way out at the end of it, not only the button
+                    that opened it a screen and a half above. */}
+                <div className="auwide" style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <button className="btn bNavy" onClick={() => setOpenMore(null)}>
+                    Done <IcCheck size={16} />
+                  </button>
+                </div>
               </div>
             )}
             {openBox === g.id && (
@@ -17233,9 +17234,46 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
   );
 }
 
+/* Picking a tournament, or starting one.
+ *
+ * A select rather than a text box because the games of one tournament have to
+ * agree on its name exactly to band together on the schedule, and retyping is
+ * where "Pac-8 Championship" quietly becomes "Pac-8 Championships" and one
+ * tournament becomes two. The list is this season's own, so it starts empty
+ * every year and the first playoff game of a season is where its first
+ * section gets named.
+ *
+ * Stays in the text box until Done is pressed. The list is derived from the
+ * games, so the half-typed name would appear in it on the first keystroke and
+ * hand the field straight back to the select. */
+function SectionPicker({ value, options, onChange }) {
+  const [adding, setAdding] = useState(false);
+  const known = options.includes(value);
+  if (adding || (value && !known)) {
+    return (
+      <div style={{ display: "flex", gap: 8 }}>
+        <input autoFocus value={value} placeholder="Pac-8 Championship"
+          onChange={(e) => onChange(e.target.value)} />
+        <button className="btn bGhost" onClick={() => setAdding(false)}>Done</button>
+      </div>
+    );
+  }
+  return (
+    <select value={value} onChange={(e) => {
+      if (e.target.value === "__new__") { setAdding(true); onChange(""); }
+      else onChange(e.target.value);
+    }}>
+      <option value="">— none —</option>
+      {options.map((n) => <option key={n} value={n}>{n}</option>)}
+      <option value="__new__">+ New section…</option>
+    </select>
+  );
+}
+
 /** How many links a game carries of its own, for the row button. */
 function linkCount(g) {
-  return (g.ticketsUrl ? 1 : 0) + (g.streamUrl ? 1 : 0) + (g.replayUrl ? 1 : 0);
+  return (g.ticketsUrl ? 1 : 0) + (g.streamUrl ? 1 : 0) + (g.replayUrl ? 1 : 0)
+    + (g.photosUrl ? 1 : 0) + (g.highlightsUrl ? 1 : 0) + (g.sponsorUrl ? 1 : 0);
 }
 
 /**
