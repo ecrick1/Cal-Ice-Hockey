@@ -1897,24 +1897,30 @@ table.stats.gcpen th:first-child, table.stats.gcpen td:first-child { padding-lef
    is that the top two are bigger than the next four, and auto-fill would
    make them all the width of whatever happened to fit. */
 .newstier { display: grid; gap: 16px; margin-top: 24px; }
+/* A change of rank, not a continuation. At the row gap the three tiers read
+   as one grid that keeps changing its mind about how wide a card is. */
+.newstier + .newstier { margin-top: 52px; }
 .newstier.lead { grid-template-columns: repeat(2, 1fr); }
 .newstier.mid  { grid-template-columns: repeat(4, 1fr); }
 .newstier.rest { grid-template-columns: repeat(6, 1fr); gap: 13px; }
 
-.newscard { display: flex; flex-direction: column; background: #fff;
-  border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
-  cursor: pointer; }
-.newscard:hover { border-color: var(--blue); }
-.newscardart { position: relative; aspect-ratio: 16 / 9; background: var(--ice); }
-.newscardart img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.newscardbody { padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 7px; }
+/* No box. With the tag, the blurb and the byline gone there is nothing left
+   for a border to hold together, and a rule around a picture and two lines
+   is furniture. The picture keeps its corners; the words sit on the page. */
+.newscard { display: flex; flex-direction: column; cursor: pointer; }
+.newscardart { position: relative; aspect-ratio: 16 / 9; background: var(--ice);
+  border-radius: 10px; overflow: hidden; }
+.newscardart img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  transition: transform 0.35s ease; }
+.newscard:hover .newscardart img { transform: scale(1.03); }
+.newscard:hover .newscardtitle { color: var(--blue); }
+.newscardbody { padding: 12px 2px 0; display: flex; flex-direction: column; gap: 5px; }
 .newscardtitle { font-family: var(--body); font-weight: 800; letter-spacing: -0.018em;
   line-height: 1.24; color: var(--ink); margin: 0; font-size: 1.05rem; }
 .newstier.lead .newscardtitle { font-size: 1.5rem; }
 .newstier.mid .newscardtitle { font-size: 1.12rem; }
 .newstier.rest .newscardtitle { font-size: 0.92rem; }
-.newstier.rest .newscardbody { padding: 12px 13px 14px; gap: 5px; }
-.newscardblurb { font-size: 14px; line-height: 1.55; color: var(--muted); margin: 0; }
+.newstier.rest .newscardbody { padding: 10px 2px 0; gap: 4px; }
 .newscardmeta { font-size: 12px; font-weight: 700; color: var(--muted); margin: 0; margin-top: auto; }
 /* A row is as tall as its longest card, so one three-line blurb left the
    three beside it with a hole under the date. Clamped to an even depth, and
@@ -1923,8 +1929,6 @@ table.stats.gcpen th:first-child, table.stats.gcpen td:first-child { padding-lef
 .newstier.lead .newscardtitle { -webkit-line-clamp: 3; }
 .newstier.mid .newscardtitle { -webkit-line-clamp: 3; }
 .newstier.rest .newscardtitle { -webkit-line-clamp: 4; }
-.newscardblurb { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden;
-  -webkit-line-clamp: 3; }
 .newscardbody { flex: 1 1 auto; }
 
 /* Six across is a large-screen shape. Below that the tiers step down rather
@@ -2749,18 +2753,15 @@ table.stats tbody tr:last-child td { border-bottom: 0; }
   border: 1px solid var(--border); }
 .derived { background: var(--ice) !important; color: var(--muted); cursor: not-allowed; }
 
-/* Headlines grid (Sidearm news cards) */
-.newsgrid { display: grid; gap: 20px; grid-template-columns: repeat(4, 1fr); }
-.newscard { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: #fff; display: flex; flex-direction: column; }
-.newscard.feat { grid-column: span 2; grid-row: span 2; }
-.newsart { position: relative; aspect-ratio: 16 / 9; background: var(--mid); overflow: hidden; }
-.newscard.feat .newsart { aspect-ratio: 16 / 10; }
+/* The tag, still worn by the story on the front page. What surrounded it -
+   a .newsgrid of .newscard/.newsart/.newsbody - was the news layout two
+   rewrites ago and had no markup left. It outlived its markup quietly until
+   the new index reused the name .newscard, at which point a dead rule two
+   thousand lines further down put a white box and a border back around
+   cards that had just had them taken off. */
 .newstag { position: absolute; left: 10px; bottom: 10px; background: var(--gold); color: var(--deep);
   font-family: var(--disp); font-weight: 700; font-size: 11.5px; letter-spacing: 0.12em;
   text-transform: uppercase; padding: 3px 10px; border-radius: 999px; }
-.newsbody { padding: 14px 16px 16px; }
-@media (max-width: 980px) { .newsgrid { grid-template-columns: 1fr 1fr; } .newscard.feat { grid-column: span 2; grid-row: auto; } }
-@media (max-width: 620px) { .newsgrid { grid-template-columns: 1fr; } .newscard.feat { grid-column: auto; } }
 
 /* Schedule page (Sidearm sport-schedule layout) */
 .stitle { font-family: var(--body); font-weight: 800; font-size: clamp(1.5rem, 3vw, 2rem);
@@ -10246,19 +10247,16 @@ function NewsIndexPage({ site, openPost }) {
                     role="link" tabIndex={0} onClick={() => openPost(n.id)}
                     onKeyDown={(e) => (e.key === "Enter" || e.key === " ")
                       && (e.preventDefault(), openPost(n.id))}>
+                    {/* The picture and the headline are what decide whether
+                        anybody opens it. A tag, a blurb and a byline are three
+                        more things to read first. */}
                     <div className="newscardart">
                       <img src={n.image || STOCK_IMAGES[i % STOCK_IMAGES.length]} alt="" loading="lazy"
                         onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} />
-                      <span className="newstag">{n.tag}</span>
                     </div>
                     <div className="newscardbody">
                       <h2 className="newscardtitle">{n.title}</h2>
-                      {/* The archive gets a headline and a date. A blurb on a
-                          card this size is three lines of grey. */}
-                      {n.blurb && tier !== "rest" && <p className="newscardblurb">{n.blurb}</p>}
-                      <p className="newscardmeta">
-                        {n.author ? n.author + " · " : ""}{fmtDate(n.date)}
-                      </p>
+                      <p className="newscardmeta">{fmtDate(n.date)}</p>
                     </div>
                   </article>
                 ))}
