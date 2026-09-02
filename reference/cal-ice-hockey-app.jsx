@@ -283,6 +283,24 @@ async function shippedSite() {
   }
 }
 
+/**
+ * The rev of the site this build shipped with, in a file of its own.
+ *
+ * A few bytes rather than four megabytes, because it is read on every load
+ * and the thing it guards is only worth fetching when it has changed.
+ * Missing means a development copy, which has nothing to publish.
+ */
+async function shippedRev() {
+  try {
+    const r = await fetch("./version.json", { cache: "no-store" });
+    if (!r.ok) return null;
+    const j = await r.json();
+    return Number.isFinite(Number(j && j.rev)) ? Number(j.rev) : null;
+  } catch {
+    return null;
+  }
+}
+
 async function loadKey(key, fallback) {
   try {
     const r = await window.storage.get(key);
@@ -4635,9 +4653,25 @@ export default function CalIceHockey() {
     (async () => {
       /* Storage first, so nobody's own work is overwritten by the file the
          build shipped with. Then the shipped file, so a visitor sees the real
-         club. Then the seed, so a copy with no file still runs. */
+         club. Then the seed, so a copy with no file still runs.
+
+         And when a newer build has been published than the copy in storage,
+         that copy is out of date rather than precious: every save stamps a
+         rev, so a shipped rev above the stored one means an update is up. A
+         scorekeeper's own rev runs ahead of whatever was last deployed, so
+         their work still wins; a visitor's does not, so the update reaches
+         them. */
       let s = await loadKey(SITE_KEY, null);
-      if (!s) s = (await shippedSite()) || SEED_SITE;
+      let tookUpdate = false;
+      if (!s) {
+        s = (await shippedSite()) || SEED_SITE;
+      } else {
+        const up = await shippedRev();
+        if (up != null && up > Number(s.rev || 0)) {
+          const fresh = await shippedSite();
+          if (fresh) { s = fresh; tookUpdate = true; }
+        }
+      }
       const r = await loadKey(RECRUITS_KEY, []);
       const al = await loadKey(ALUMNI_KEY, []);
       /* A parked draft whose moment has passed goes live here, on the first
@@ -4652,6 +4686,9 @@ export default function CalIceHockey() {
         await saveKey(PENDING_KEY, null);
       }
       setPendingState(pend);
+      /* Written back, or the next load fetches the same four megabytes to
+         reach the same conclusion. */
+      if (tookUpdate) await saveKey(SITE_KEY, s);
       if (!Array.isArray(s.news)) s.news = SEED_SITE.news;
       // v3: replace pre-EP sample seasons (fictional players/results) with real
       // EliteProspects data. Runs once; admin edits after that are preserved.

@@ -85,6 +85,11 @@ for (const d of ASSET_DIRS) {
   await cp(path.join(here, d), path.join(out, d), { recursive: true });
 }
 
+/* The rev on its own, so a returning visitor can find out whether the four
+   megabytes are worth fetching without fetching them. */
+await writeFile(path.join(out, "version.json"),
+  JSON.stringify({ rev: Number(site.rev || 0), built: new Date().toISOString() }) + "\n");
+
 await writeFile(path.join(out, "_redirects"), redirects);
 await writeFile(path.join(out, "vercel.json"), vercel);
 
@@ -96,5 +101,7 @@ console.log("  app.js     " + mb(await size(path.join(out, "app.js"))));
 console.log("  site.json  " + mb(await size(path.join(out, "site.json")))
   + "  (" + seasons + " seasons, " + games + " games, "
   + (site.news || []).length + " articles)");
+console.log("  version    rev " + Number(site.rev || 0)
+  + "  (a returning visitor updates when this goes up)");
 console.log("  assets     " + ASSET_DIRS.join(", "));
 console.log("\nServe the folder at a domain root — assets are referenced from /.");
