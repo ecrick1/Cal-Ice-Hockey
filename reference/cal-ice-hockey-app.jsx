@@ -3045,6 +3045,22 @@ button.watchbtn { border: 0; cursor: pointer; }
   .reccell:nth-child(2n) { border-right: 0; }
   .reccell:nth-child(n+5) { border-bottom: 1px solid #E7EBEF; }
   .reccell:nth-child(n+7) { border-bottom: 0; } }
+/* On a phone the slab goes back to four across and two down. Two columns of
+   four made it four rows deep, so the season's record ran most of a screen
+   before the first game.
+ *
+ * The separators come from a one-pixel gap over a grey ground rather than
+ * from borders on the cells. Counting cells to decide which edges to draw
+ * only works while there are exactly eight of them - and this same grid
+ * grows a ninth on a season with playoff games, which would have left a
+ * stray line hanging under the last row. */
+@media (max-width: 640px) {
+  .recgrid { grid-template-columns: repeat(4, 1fr); gap: 1px;
+    background: #E7EBEF; overflow: hidden; margin-top: 20px; }
+  .reccell { border: 0; background: #fff; padding: 13px 4px; gap: 3px; }
+  .reclab { font-size: 11px; line-height: 1.2; }
+  .recnum { font-size: 17px; }
+}
 
 /* Roster list/card extras */
 .numbadge { position: absolute; left: -6px; bottom: -4px; width: 26px; height: 26px;
