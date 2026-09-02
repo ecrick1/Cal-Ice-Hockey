@@ -361,6 +361,11 @@ const GAME_TYPE_LABEL = { regular: "Regular season", playoff: "Playoff", exhibit
 const GAME_TYPES = [["regular", "Regular"], ["playoff", "Playoff"], ["exhibition", "Exhibition"]];
 const gameType = (g) => g.gameType || "regular";
 const countsToward = (g) => !!g.result && gameType(g) !== "exhibition";
+/* What a game counts for, in the words the club used if it gave any. Named
+   once because four different views have to say it and a season is read in
+   whichever one the reader happens to open. */
+const roundName = (g) =>
+  g.roundLabel || GAME_TYPE_LABEL[gameType(g)] || gameType(g);
 
 function computeRecord(schedule) {
   let w = 0, l = 0, t = 0, gf = 0, ga = 0;
@@ -3022,6 +3027,15 @@ button.watchbtn { border: 0; cursor: pointer; }
   font-family: var(--body); font-weight: 800; font-size: 11.5px;
   letter-spacing: 0; white-space: nowrap; }
 .spectags { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 5px; }
+/* What a game counts for, which is not the same kind of fact as what it is
+   called. Senior Night is an occasion; a semifinal is the stakes. Navy and
+   outlined so the two read as different sorts of label when a game carries
+   both, and so the gold stays the thing worth spotting from across the
+   page. */
+.roundtag { display: inline-flex; align-items: center; border-radius: 999px;
+  background: transparent; color: var(--blue); border: 1.5px solid var(--blue);
+  padding: 1px 9px; font-family: var(--body); font-weight: 800; font-size: 11.5px;
+  white-space: nowrap; }
 .caltag.spec { background: var(--gold); color: var(--deep); }
 /* On navy the gold would shout over the score, so it outlines instead. */
 .hnext .spectag, .sboard .spectag { background: transparent; color: var(--gold);
@@ -9652,7 +9666,7 @@ function ScheduleCalendar({ games, onGame, seasonName, ticketsUrl }) {
                     {(g.specials || []).length
                       ? <span className="caltag spec">{g.specials[0]}</span>
                       : g.gameType && g.gameType !== "regular" && (
-                        <span className="caltag">{g.roundLabel || gameType(g)}</span>
+                        <span className="caltag">{roundName(g)}</span>
                       )}
 {/* Crest, score and actions are siblings so the cell can space them
                         evenly - the score belongs between the other two, not
@@ -9775,7 +9789,12 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
                     return (
                       <tr key={g.id}>
                         <td>{fmtDateParen(g.date)}</td>
-                        <td style={{ fontWeight: 600 }}>{g.opponent}</td>
+                        <td style={{ fontWeight: 600 }}>
+                          {g.opponent}
+                          {gameType(g) !== "regular" && (
+                            <span className="roundtag" style={{ marginLeft: 8 }}>{roundName(g)}</span>
+                          )}
+                        </td>
                         <td>{SIDE_LABEL[g.homeAway] || "—"}</td>
                         <td>{g.venue}</td>
                         <td>{r ? <strong style={{ color: "var(--blue)" }}><span className={"rtag " + r.tag}>{r.tag}</span>, {g.result.us} - {g.result.them}{decidedIn(g.result)}</strong> : localTime(g.date, g.time)}</td>
@@ -9804,9 +9823,18 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
                         )}
                       </span>
                       <div style={{ minWidth: 0 }}>
-                        {!!(g.specials || []).length && (
+                        {(gameType(g) !== "regular" || !!(g.specials || []).length) && (
                           <div className="spectags">
-                            {g.specials.map((n) => <span className="spectag" key={n}>{n}</span>)}
+                            {/* Stakes first, then any name the game goes by.
+                                This card is where a season is read, and a
+                                playoff was only admitting to being one inside
+                                Quick look - a panel most people never open. */}
+                            {gameType(g) !== "regular" && (
+                              <span className="roundtag">
+                                {roundName(g)}
+                              </span>
+                            )}
+                            {(g.specials || []).map((n) => <span className="spectag" key={n}>{n}</span>)}
                           </div>
                         )}
                         <p style={{ margin: 0, fontWeight: 700, fontSize: 17, color: "var(--ink)" }}>{g.opponent}</p>
@@ -9897,7 +9925,12 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
                   return (
                     <tr key={g.id}>
                       <td>{fmtDateParen(g.date)}</td>
-                      <td style={{ fontWeight: 700 }}>{vsAt(g)} {g.opponent}</td>
+                      <td style={{ fontWeight: 700 }}>
+                        {vsAt(g)} {g.opponent}
+                        {gameType(g) !== "regular" && (
+                          <span style={{ fontWeight: 600, color: "#555" }}> — {roundName(g)}</span>
+                        )}
+                      </td>
                       <td>{g.homeAway}</td>
                       <td>{g.venue}</td>
                       <td>{r ? `${r.tag}, ${g.result.us}-${g.result.them}${g.result.ot ? " (OT)" : ""}` : localTime(g.date, g.time)}</td>
