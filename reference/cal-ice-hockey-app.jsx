@@ -2794,6 +2794,31 @@ button.gtrow:hover { background: var(--page); }
   box-shadow: 0 1px 2px rgba(16,32,47,0.12); }
 .statfilterlab { font-family: var(--body); font-weight: 600; font-size: 12px;
   letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+/* Navy across the head, the way the schedule table has it. Its own class
+   rather than .sortable, which the game-centre box scores also wear - those
+   sit inside a card and want the pale grey they have. */
+table.stats.statstable th { background: var(--deep); color: #fff; }
+.statstable .sortbtn { color: #fff; }
+.statstable .sortbtn:hover { color: #fff; background: rgba(255, 255, 255, 0.14); }
+.statstable .sortbtn.on, .statstable .sortbtn.on .sortcaret { color: var(--gold); }
+.statstable .sortbtn:focus-visible { outline-color: #fff; }
+
+/* The stats controls on a phone. The season and the PDF button share the
+   first line; the category segment takes the width below with its halves
+   equal, and the count drops under it rather than being squeezed against the
+   right edge of a row it has to share with everything else. */
+@media (max-width: 640px) {
+  .statshead { gap: 10px; }
+  .statshead .stitle { flex: 1 1 100%; }
+  .statshead .rsel { flex: 1 1 auto; min-width: 0; padding: 14px 34px 14px 12px;
+    font-size: 15px; background-position: right 12px center; }
+  .statshead .calbtn { flex: 0 0 auto; padding: 13px 18px; }
+  .statfilter { padding: 14px; gap: 8px; }
+  .statfilterlab { flex: 1 1 100%; }
+  .statseg { display: flex; width: 100%; }
+  .statsegbtn { flex: 1 1 0; padding: 10px 8px; font-size: 14px; }
+  .statfilter .bsm { margin-left: 0; flex: 1 1 100%; }
+}
 
 .statsec { font-family: var(--body); font-weight: 750; font-size: 1.15rem; letter-spacing: -0.015em;
   color: var(--blue); margin: 0 0 16px; text-transform: none; }
@@ -10383,7 +10408,7 @@ function RosterPage({ site, onPlayer }) {
             {/* TABLE VIEW */}
             {mode === "table" && (
               <div className="twrap">
-                <table className="stats sortable">
+                <table className="stats sortable statstable">
                   <thead>
                     <tr>
                       {ROSTER_COLS.map(([key, label]) => {
@@ -11207,7 +11232,7 @@ function StatsPage({ site, onPlayer, onGame }) {
   };
 
   const goalieTable = (list) => (
-    <table className="stats sortable">
+    <table className="stats sortable statstable">
       <thead>
         <tr>
           {GOALIE_COLS.map((col) => {
@@ -11256,7 +11281,7 @@ function StatsPage({ site, onPlayer, onGame }) {
   );
 
   const statTable = (list) => (
-    <table className="stats sortable">
+    <table className="stats sortable statstable">
       <thead>
         <tr>
           {STAT_COLS.map((col) => {
@@ -11303,7 +11328,7 @@ function StatsPage({ site, onPlayer, onGame }) {
     <main style={{ background: "var(--page)", minHeight: "60vh" }}>
       <section className="section" style={{ paddingTop: 44 }}>
         <div className="wrap">
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+          <div className="statshead" style={{ display: "flex", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
             <h1 className="stitle" style={{ flex: "1 1 auto" }}>{sel} Statistics</h1>
             <select className="rsel" value={sel} onChange={(e) => setSel(e.target.value)} aria-label="Season">
               {seasonNames.map((n) => <option key={n}>{n}</option>)}
