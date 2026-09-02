@@ -1902,7 +1902,7 @@ table.stats.gcpen th:first-child, table.stats.gcpen td:first-child { padding-lef
 .newstier + .newstier { margin-top: 52px; }
 .newstier.lead { grid-template-columns: repeat(2, 1fr); }
 .newstier.mid  { grid-template-columns: repeat(4, 1fr); }
-.newstier.rest { grid-template-columns: repeat(6, 1fr); gap: 13px; }
+.newstier.rest { grid-template-columns: repeat(5, 1fr); gap: 15px; }
 
 /* No box. With the tag, the blurb and the byline gone there is nothing left
    for a border to hold together, and a rule around a picture and two lines
@@ -1940,6 +1940,11 @@ table.stats.gcpen th:first-child, table.stats.gcpen td:first-child { padding-lef
 @media (max-width: 1100px) {
   .newstier.rest { grid-template-columns: repeat(4, 1fr); }
 }
+/* The kinds of story, in the segmented control the rest of the site uses for
+   the same job. It wraps rather than scrolling: a tag invented later should
+   push the row taller, not off the side of the page. */
+.newskinds { flex-wrap: wrap; margin-bottom: 4px; }
+.newskindn { font-size: 11px; font-weight: 800; opacity: 0.6; }
 @media (max-width: 900px) {
   .newstier.mid { grid-template-columns: repeat(2, 1fr); }
   .newstier.rest { grid-template-columns: repeat(3, 1fr); }
@@ -10221,16 +10226,72 @@ function VolunteersPage({ site, goto }) {
 }
 
 /* ---------------- News index ---------------- */
+/* Friendlier than the tag itself. Anything not here is title-cased rather
+   than left shouting, so a tag invented next week still reads as a word. */
+const TAG_LABEL = {
+  RECAP: "Game Recaps", PREVIEW: "Game Previews", FEATURE: "Features",
+  NEWS: "Team News", PRESS: "Press Releases", RELEASE: "Press Releases",
+  ROSTER: "Roster News", AWARD: "Awards", ALUMNI: "Alumni",
+};
+const tagLabel = (t) => TAG_LABEL[t]
+  || String(t || "").charAt(0) + String(t || "").slice(1).toLowerCase();
+
+/* The order they read in when they exist. Everything else follows, so a tag
+   nobody thought of still gets a place rather than being dropped. */
+const TAG_ORDER = ["NEWS", "PREVIEW", "RECAP", "FEATURE", "PRESS", "RELEASE"];
+
 function NewsIndexPage({ site, openPost }) {
-  const posts = (site.news || [])
+  const live = (site.news || [])
     .filter(isLive)
     .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+
+  /* Built from the stories rather than from a list written here: the console
+     lets staff invent a tag, so a fixed row of tabs would hold an empty
+     section for ever and never show whatever they name next. */
+  const kinds = useMemo(() => {
+    const n = {};
+    for (const p of live) {
+      const t = String(p.tag || "").trim().toUpperCase();
+      if (t) n[t] = (n[t] || 0) + 1;
+    }
+    return Object.keys(n)
+      .sort((a, b) => {
+        const ia = TAG_ORDER.indexOf(a), ib = TAG_ORDER.indexOf(b);
+        if (ia !== ib) return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+        return a.localeCompare(b);
+      })
+      .map((t) => [t, tagLabel(t), n[t]]);
+  }, [live]);
+
+  const [kind, setKind] = useSticky("news.kind", "all");
+  /* A tag can stop existing - the last story carrying it is edited or taken
+     down - and a filter for it would then show an empty page with no way to
+     tell why. */
+  const active = kind !== "all" && kinds.some(([t]) => t === kind) ? kind : "all";
+  const posts = active === "all"
+    ? live
+    : live.filter((p) => String(p.tag || "").trim().toUpperCase() === active);
 
   return (
     <main style={{ background: "var(--page)" }}>
       <section className="section" style={{ paddingTop: 40 }}>
         <div className="wrap">
           <h1 className="stitle">News</h1>
+
+          {kinds.length > 1 && (
+            <div className="gpsides newskinds">
+              <button className={"gpside " + (active === "all" ? "on" : "")}
+                onClick={() => setKind("all")}>
+                Latest <span className="newskindn">{live.length}</span>
+              </button>
+              {kinds.map(([t, label, n]) => (
+                <button key={t} className={"gpside " + (active === t ? "on" : "")}
+                  onClick={() => setKind(t)}>
+                  {label} <span className="newskindn">{n}</span>
+                </button>
+              ))}
+            </div>
+          )}
 
           {!posts.length && (
             <div className="emptybox" style={{ marginTop: 24 }}>
