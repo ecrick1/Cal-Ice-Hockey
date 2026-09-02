@@ -579,11 +579,46 @@ function hydrate(site) {
   return { ...site, seasons };
 }
 
-/** Career totals for a name across every season. */
+/* One person across seasons.
+ *
+ * A personId is the answer somebody gave; a name is the guess made in its
+ * absence. Both are here because the guess is right most of the time and
+ * every roster already entered relies on it - linking adds certainty where
+ * it matters rather than invalidating everything that came before.
+ *
+ * Two rows that both carry ids and disagree are two people, whatever their
+ * names say. That is the whole point: a linked row is a decision, and a name
+ * cannot overrule it. */
+/* personKey, not nameKey: RosterEditor has a local nameKey of its own -
+   lastname|initial, for matching the league roster feed - and a module const
+   of the same name is shadowed by it and unreachable from inside that
+   component. That is a crash, not a wrong answer.  */
+const personKey = (n) => String(n || "")
+  .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+  .toLowerCase().replace(/[^a-z]/g, "");
+
+function samePerson(a, b) {
+  if (!a || !b) return false;
+  if (a.personId && b.personId) return a.personId === b.personId;
+  if (a.personId || b.personId) return false;
+  return personKey(a.name) === personKey(b.name);
+}
+
+/* Every row across every season that is this person. */
+function seasonsOf(site, player) {
+  return Object.entries(site.seasons || {})
+    .map(([sn, se]) => ({ sn, p: (se.roster || []).find((x) => samePerson(x, player)) }))
+    .filter((r) => r.p);
+}
+
+/** Career totals for a player across every season. */
 function careerTotals(site, name) {
   const t = { gp: 0, g: 0, a: 0, pim: 0, seasons: 0 };
+  /* Called with a name from older call sites, and with a row from newer
+     ones. A bare name has no id, which is exactly the fallback case. */
+  const who = typeof name === "string" ? { name } : name;
   for (const season of Object.values(site.seasons || {})) {
-    const p = (season.roster || []).find((x) => x.name === name);
+    const p = (season.roster || []).find((x) => samePerson(x, who));
     if (!p) continue;
     t.seasons++;
     t.gp += Number(p.stats?.gp) || 0;
@@ -1898,8 +1933,11 @@ table.stats.gcpen th:first-child, table.stats.gcpen td:first-child { padding-lef
    make them all the width of whatever happened to fit. */
 .newstier { display: grid; gap: 16px; margin-top: 24px; }
 /* A change of rank, not a continuation. At the row gap the three tiers read
-   as one grid that keeps changing its mind about how wide a card is. */
-.newstier + .newstier { margin-top: 52px; }
+   as one grid that keeps changing its mind about how wide a card is - so a
+   rule between them, with the space split either side of it. */
+.newstier + .newstier { margin-top: 0; border-top: 1px solid var(--border);
+  padding-top: 26px; }
+.newstier:not(:last-child) { padding-bottom: 26px; }
 .newstier.lead { grid-template-columns: repeat(2, 1fr); }
 .newstier.mid  { grid-template-columns: repeat(4, 1fr); }
 .newstier.rest { grid-template-columns: repeat(5, 1fr); gap: 15px; }
@@ -3802,6 +3840,15 @@ a.faffil:hover { filter: grayscale(0); }
 /* Waiting on a penalty: the whistle has gone and the sheet is deliberately
    still empty, so the bar says so rather than leaving a gap. */
 .adminui .aupenwait { border-left: 3px solid var(--au-warn, #F5B544); }
+
+/* Players who may have played here before: a name, the years, and the one
+   button that answers it. */
+.adminui .aulinkcard { margin-bottom: 18px; border-color: var(--au-primary); }
+.adminui .aulinklist { display: grid; gap: 6px; margin-top: 12px; }
+.adminui .aulinkrow { display: flex; align-items: center; gap: 12px; padding: 7px 10px;
+  background: var(--au-raised); border: 1px solid var(--au-line); border-radius: 8px; }
+.adminui .aulinkname { font-size: 13.5px; font-weight: 700; color: var(--au-text); }
+.adminui .aulinkyears { font-size: 12px; color: var(--au-faint); margin-left: auto; }
 
 /* ---- Page builder ---- */
 .adminui .aublockhead { display: flex; align-items: flex-start; justify-content: space-between;
@@ -11223,9 +11270,7 @@ function PlayerPage({ site, playerId, onBack, onPlayer, onGame }) {
                   cards change rather than showing them a row of zero goals. */}
               <div className="ppcards">
                 {(() => {
-                  const across = Object.entries(site.seasons)
-                    .map(([sn, se]) => ({ sn, p: (se.roster || []).find((x) => (x.name || "").trim() === (player.name || "").trim()) }))
-                    .filter((r) => r.p);
+                  const across = seasonsOf(site, player);
 
                   if (isKeeper) {
                     /* Saves and goals against live on the game sheets, not on
@@ -11342,9 +11387,7 @@ function PlayerPage({ site, playerId, onBack, onPlayer, onGame }) {
             )}
 
             {tab === "stats" && (() => {
-              const rows = Object.entries(site.seasons)
-                .map(([sn, se]) => ({ sn, p: (se.roster || []).find((x) => (x.name || "").trim() === (player.name || "").trim()) }))
-                .filter((r) => r.p)
+              const rows = seasonsOf(site, player)
                 /* Oldest at the top, reading down to the present and then to
                    the career line under it. */
                 .sort((a, b) => a.sn.localeCompare(b.sn));
@@ -21920,6 +21963,116 @@ function RosterEditor({ site, updateSeason: updateSeasonProp }) {
    * someone typing into a field that will be overwritten by the next game. */
   const derived = (p) => boxScoreTotals(site, season, p);
 
+  /* ---- Linking a player to the seasons they already played ----
+   *
+   * A career is assembled by matching names, which is right until somebody
+   * changes what they go by or two people share one. A personId settles it,
+   * and this is where one gets attached.
+   *
+   * Only rows with no id yet are offered: once a player is linked the
+   * question has been answered and re-asking it is noise. Matching for the
+   * suggestion ignores case, punctuation and accents, which is right for a
+   * suggestion and would be wrong for a decision - so a person makes the
+   * decision. */
+  const linkable = useMemo(() => {
+    if (lock.locked) return [];
+    const others = Object.entries(site.seasons || {}).filter(([sn]) => sn !== sel);
+    return roster
+      .filter((p) => !p.personId && String(p.name || "").trim())
+      .map((p) => {
+        const hits = others
+          .map(([sn, se]) => ({
+            sn,
+            row: (se.roster || []).find((x) => personKey(x.name) === personKey(p.name)),
+          }))
+          .filter((h) => h.row);
+        return { p, hits };
+      })
+      .filter((c) => c.hits.length)
+      /* The most seasons first: the longest careers are the ones worth
+         getting right, and the ones a reader is most likely to notice. */
+      .sort((a, b) => b.hits.length - a.hits.length
+        || (a.p.name || "").localeCompare(b.p.name || ""));
+  }, [site.seasons, sel, roster, lock.locked]);
+
+  /* One id shared by every row that is this person - adopting an id already
+     on one of them if there is one, so linking twice from different seasons
+     does not produce two people. */
+  const linkOne = (c) => {
+    const id = c.p.personId || (c.hits.find((h) => h.row.personId) || {}).row?.personId || uid();
+    updateSeason(sel, {
+      roster: roster.map((x) => (x.id === c.p.id ? { ...x, personId: id } : x)),
+    });
+    for (const h of c.hits) {
+      const se = site.seasons[h.sn];
+      updateSeasonProp(h.sn, {
+        roster: (se.roster || []).map((x) => (x.id === h.row.id ? { ...x, personId: id } : x)),
+      });
+    }
+  };
+
+  const confirmLink = async (c) => {
+    const years = c.hits.map((h) => h.sn).sort().join(", ");
+    const ok = await ask({
+      title: "Same player?",
+      message: c.p.name + " also appears in " + years + ".",
+      detail: "Linking joins those seasons into one career. Do it only if it is "
+        + "the same person - two players who share a name are two careers.",
+      confirmLabel: "Link",
+    });
+    if (ok) linkOne(c);
+  };
+
+  const confirmLinkAll = async () => {
+    const ok = await ask({
+      title: "Link " + linkable.length + " player"
+        + (linkable.length === 1 ? "" : "s") + "?",
+      message: "Each is joined to the earlier seasons listed beside them.",
+      list: linkable.map((c) => ({
+        label: c.p.name,
+        note: c.hits.map((h) => h.sn).sort().join(", "),
+      })),
+      detail: "Check the list first: two people who share a name would be "
+        + "joined into one career.",
+      confirmLabel: "Link them",
+    });
+    if (ok) linkable.forEach(linkOne);
+  };
+
+  const LinkPanel = () => (linkable.length ? (
+    <section className="card aulinkcard">
+      <div className="boxhead">
+        <p className="h6" style={{ margin: 0 }}>Played here before</p>
+        <span className="bsm" style={{ color: "var(--au-faint)", marginLeft: "auto" }}>
+          {linkable.length} to check
+        </span>
+      </div>
+      <p className="auhint" style={{ marginTop: 8, maxWidth: 640 }}>
+        These names also appear in earlier seasons. Linking joins them into one
+        career on the player's page. Nothing is linked until you say so — two
+        players who happen to share a name are two careers, and only you can
+        tell which this is.
+      </p>
+      <div className="aulinklist">
+        {linkable.map((c) => (
+          <div className="aulinkrow" key={c.p.id}>
+            <span className="aulinkname">
+              {c.p.number ? "#" + c.p.number + " " : ""}{c.p.name}
+            </span>
+            <span className="aulinkyears">
+              {c.hits.map((h) => h.sn).sort().join(", ")}
+            </span>
+            <button className="btn bGhost bSm" onClick={() => confirmLink(c)}>Link</button>
+          </div>
+        ))}
+      </div>
+      {linkable.length > 1 && (
+        <button className="btn bNavy bSm" style={{ marginTop: 12 }}
+          onClick={confirmLinkAll}>Link all {linkable.length}</button>
+      )}
+    </section>
+  ) : null);
+
   const removePlayer = async (p) => {
     const played = derived(p);
     const ok = await ask({
@@ -22143,6 +22296,10 @@ function RosterEditor({ site, updateSeason: updateSeasonProp }) {
       <SeasonPicker site={site} sel={sel} setSel={setSel} />
       <ArchivedSeason sel={sel} lock={lock} />
       <div className={lock.locked ? "aulocked" : undefined} inert={lock.locked || undefined}>
+
+      {/* Above the roster, because it is about who these people are rather
+          than about their numbers, and it goes away once answered. */}
+      <LinkPanel />
 
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 14 }}>
         <div className="tabs">
