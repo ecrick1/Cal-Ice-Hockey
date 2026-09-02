@@ -15360,8 +15360,8 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
                     {sending ? "Sending…" : "Email me a sign-in link"}
                   </button>
                   <p className="bsm" style={{ color: "var(--au-faint)", marginTop: 16, fontSize: 11.5 }}>
-                    Only addresses on the editors list can change the site. Anyone else who
-                    signs in sees the console but cannot save.
+                    Anyone signed in can edit, and every save is recorded against the account
+                    that made it. The last twenty versions are kept, so a change can be undone.
                   </p>
                 </>
               )
