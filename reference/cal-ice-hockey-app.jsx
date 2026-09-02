@@ -823,6 +823,14 @@ a.pbcard:hover { border-color: var(--rule-on); }
 .chh select, .chh input, .chh textarea, .chh button { font-family: var(--body); }
 .chh :focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .wrap { max-width: 1160px; margin: 0 auto; padding: 0 24px; width: 100%; }
+/* Narrower gutters on a phone. Twenty-four a side is a fifth of the width
+   gone before anything is drawn, and every card inside then adds its own
+   padding on top - so a schedule row's text started nearly fifty pixels from
+   the edge of the screen. One rule, because every page is inside this. */
+@media (max-width: 640px) { .wrap { padding: 0 14px; } }
+/* Tighter again only on the genuinely small ones. 375 is the common phone
+   and wants the 14; this is for a 360 or a 320. */
+@media (max-width: 360px) { .wrap { padding: 0 10px; } }
 .section { padding: clamp(48px, 7vw, 88px) 0; }
 .ice { background: var(--ice); }
 .navy { background: var(--blue); color: var(--ondark); }
