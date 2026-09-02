@@ -568,6 +568,11 @@ function hydrate(site) {
       return {
         ...g,
         opponent: o ? o.name : g.opponent || "",
+        /* Which conference this counted in, taken from the season rather
+           than the game. A club changes conference between years and not
+           between weekends, so the name belongs to the season and the game
+           only says whether it counted. */
+        conference: season.conference || "",
         /* The three or four letters a scoreboard uses. Falls back to the name
            so a game against an opponent with no record still says something. */
         opponentShort: (o && o.short) || g.opponent || "",
@@ -9961,7 +9966,8 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
                         fixture, so they sit down here beside the round rather
                         than above the opponent's name. */}
                     <div className="gamefoot">
-                      {g.conference && <span className="gconf">{g.conference}</span>}
+                      {g.conferenceGame && g.conference
+                        && <span className="gconf">{g.conference}</span>}
                       <span className="gnotes">
                         {gameType(g) !== "regular" && (
                           <span className="roundtag">{roundName(g)}</span>
@@ -16872,17 +16878,6 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
     return [...seen].sort();
   }, [games]);
 
-  /* Same idea for the competition: typed once a season and offered back
-     every game after it, because it goes on most rows and retyping it is
-     where "Pac-8" quietly becomes "PAC-8". */
-  const confNames = useMemo(() => {
-    const seen = new Set();
-    for (const ss of Object.values(site.seasons || {}))
-      for (const g of ss.schedule || [])
-        if (g.conference) seen.add(String(g.conference).trim());
-    return [...seen].sort();
-  }, [site.seasons]);
-
   return (
     <>
       <SeasonPicker site={site} sel={sel} setSel={setSel} />
@@ -17073,14 +17068,18 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
                   </p>
                 </div>
                 <div className="field">
-                  <label className="h6">Competition</label>
-                  <PickOrAdd value={g.conference || ""} options={confNames}
-                    placeholder="Pac-8" addLabel="+ New competition…"
-                    onChange={(v) => setGame(g.id, { conference: v })} />
+                  <label className="h6">Conference game</label>
+                  <select value={g.conferenceGame ? "yes" : "no"}
+                    onChange={(e) => setGame(g.id, { conferenceGame: e.target.value === "yes" })}>
+                    <option value="no">No</option>
+                    <option value="yes">Yes</option>
+                  </select>
                   <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
-                    Marks the game as counting in a competition, shown at the
-                    left of the schedule row. Leave it blank for a non-conference
-                    game.
+                    {season.conference
+                      ? <>Shows <strong>{season.conference}</strong> at the left of the
+                          schedule row. The name comes from the season, on the Seasons tab.</>
+                      : <>Set this season's conference on the Seasons tab first —
+                          until then a conference game has no name to show.</>}
                   </p>
                 </div>
                 <div className="field">
@@ -23180,11 +23179,21 @@ function SeasonManager({ site, setSite }) {
 
       <div style={{ display: "grid", gap: 12, maxWidth: 560 }}>
         {names.map((n) => (
-          <div key={n} className="card" style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px" }}>
+          <div key={n} className="card" style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", flexWrap: "wrap" }}>
             <span className="h3" style={{ color: "var(--au-text)" }}>{n}</span>
             {n === site.currentSeason
               ? <span className="pill pNext">Current</span>
               : <button className="btn bGhost bSm" onClick={() => makeCurrent(n)}>Make current…</button>}
+            {/* Held by the season, because a club can change conference between
+                one year and the next. Every game in the season marked as a
+                conference game shows this name. */}
+            <label className="bsm" style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "var(--au-dim)" }}>
+              Conference
+              <input className="ta" style={{ width: 130 }} placeholder="Pac-8"
+                value={site.seasons[n].conference || ""}
+                onChange={(e) => setSite((st) => ({ ...st, seasons: { ...st.seasons,
+                  [n]: { ...st.seasons[n], conference: e.target.value } } }))} />
+            </label>
             <span className="bsm" style={{ color: "var(--au-dim)", marginLeft: "auto" }}>
               {site.seasons[n].schedule.length} games · {site.seasons[n].roster.length} players
             </span>
