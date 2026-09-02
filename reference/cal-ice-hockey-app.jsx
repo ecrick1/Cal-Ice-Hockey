@@ -2765,17 +2765,26 @@ table.stats th { background: #F4F7F9; color: var(--blue); font-family: var(--bod
    which the wrapper is already set up for. */
 table.stats.schedtable { min-width: 1040px; }
 table.stats.schedtable th { background: var(--deep); color: #fff; }
-table.stats.schedtable td { font-size: 13.5px; white-space: nowrap; }
+table.stats.schedtable td { font-size: 13.5px; white-space: nowrap; vertical-align: top;
+  padding-top: 14px; }
 /* The one column with something long in it. */
 table.stats.schedtable td:nth-child(5) { white-space: normal; min-width: 190px; }
 .schedround { display: block; font-size: 11.5px; color: var(--muted); font-weight: 600; }
-.schedlinks { display: inline-flex; align-items: center; gap: 4px; }
-.schedlinks a, .schedlinks button { display: inline-grid; place-items: center; width: 28px;
-  height: 28px; border-radius: 6px; border: 0; background: none; color: var(--blue);
-  cursor: pointer; padding: 0; }
-.schedlinks a:hover, .schedlinks button:hover { background: rgba(4,30,66,0.07); }
-.schedlinks a:focus-visible, .schedlinks button:focus-visible {
-  outline: 2px solid var(--blue); outline-offset: -2px; }
+.linksmenu { min-width: 132px; }
+.linksbtn { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0;
+  padding: 0; cursor: pointer; font: inherit; font-weight: 700; color: var(--blue); }
+.linksbtn svg { transition: transform 0.15s; }
+.linksbtn.on svg { transform: rotate(180deg); }
+.linksbtn:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+/* One row per link, named. Stripes so a long list stays countable, which is
+   the only reason a list of five links needs anything at all. */
+.linksdrop { display: grid; margin-top: 8px; border: 1px solid var(--border);
+  border-radius: 6px; overflow: hidden; background: #fff; }
+.linksdrop a, .linksdrop button { display: block; text-align: left; padding: 9px 12px;
+  border: 0; background: none; font: inherit; font-size: 13px; font-weight: 600;
+  color: var(--ink); text-decoration: none; cursor: pointer; white-space: nowrap; }
+.linksdrop > :nth-child(even) { background: #F6F8FA; }
+.linksdrop a:hover, .linksdrop button:hover { background: var(--blue); color: #fff; }
 
 /* Sortable headers: the whole cell is the target, with a caret that only
    goes solid on the active column. */
@@ -9918,29 +9927,15 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
                           ? <strong style={{ color: "var(--blue)" }}><span className={"rtag " + r.tag}>{r.tag}</span>, {g.result.us} - {g.result.them}{decidedIn(g.result)}</strong>
                           : "—"}</td>
                         <td>
-                          <span className="schedlinks">
-                            {g.photosUrl && (
-                              <a href={g.photosUrl} target="_blank" rel="noreferrer noopener"
-                                title="Photos" aria-label={"Photos, " + g.opponent}><IcPhotos size={16} /></a>
-                            )}
-                            {g.highlightsUrl && (
-                              <a href={g.highlightsUrl} target="_blank" rel="noreferrer noopener"
-                                title="Highlights" aria-label={"Highlights, " + g.opponent}><IcPlayCircle size={16} /></a>
-                            )}
-                            {(g.replayUrl || g.streamUrl) && (
-                              <a href={g.replayUrl || g.streamUrl} target="_blank" rel="noreferrer noopener"
-                                title={g.replayUrl ? "Replay" : "Watch live"}
-                                aria-label={(g.replayUrl ? "Replay, " : "Watch, ") + g.opponent}><IcPlayCircle size={16} /></a>
-                            )}
-                            {!g.result && g.homeAway === "H" && ticketsFor(g, site) && (
-                              <a href={ticketsFor(g, site)} target="_blank" rel="noreferrer noopener"
-                                title="Tickets" aria-label={"Tickets, " + g.opponent}><IcTicket size={16} /></a>
-                            )}
-                            <button onClick={() => onGame && onGame(g.id)}
-                              title="Game center" aria-label={"Game center, " + g.opponent}>
-                              <IcGameCenter size={17} />
-                            </button>
-                          </span>
+                          <LinksMenu items={[
+                            { label: "Game center", go: () => onGame && onGame(g.id) },
+                            g.replayUrl && { label: "Replay", href: g.replayUrl },
+                            g.streamUrl && !g.result && { label: "Watch live", href: g.streamUrl },
+                            g.highlightsUrl && { label: "Highlights", href: g.highlightsUrl },
+                            g.photosUrl && { label: "Photos", href: g.photosUrl },
+                            !g.result && g.homeAway === "H" && ticketsFor(g, site)
+                              && { label: "Tickets", href: ticketsFor(g, site) },
+                          ].filter(Boolean)} />
                         </td>
                       </tr>
                     );
@@ -17331,6 +17326,34 @@ function PickOrAdd({ value, options, onChange, placeholder, addLabel }) {
       {options.map((n) => <option key={n} value={n}>{n}</option>)}
       <option value="__new__">{addLabel}</option>
     </select>
+  );
+}
+
+/* The links a row leads to, named rather than drawn.
+ *
+ * Opens in flow rather than floating over the table. The wrapper scrolls
+ * sideways, and a box that scrolls on one axis clips the other, so a menu
+ * positioned over these rows would be cut off at the edge of the table
+ * instead of overlapping it. The row grows instead, which nothing can clip.
+ */
+function LinksMenu({ items }) {
+  const [open, setOpen] = useState(false);
+  if (!items.length) return <span style={{ color: "var(--muted)" }}>—</span>;
+  return (
+    <div className="linksmenu">
+      <button className={"linksbtn" + (open ? " on" : "")} aria-expanded={open}
+        onClick={() => setOpen(!open)}>
+        Links <IcChevD size={14} />
+      </button>
+      {open && (
+        <div className="linksdrop">
+          {items.map((it) => (it.href
+            ? <a key={it.label} href={it.href} target="_blank" rel="noreferrer noopener">{it.label}</a>
+            : <button key={it.label} onClick={() => { setOpen(false); it.go(); }}>{it.label}</button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
