@@ -1925,10 +1925,14 @@ table.stats.gcpen th:first-child, table.stats.gcpen td:first-child { padding-lef
 /* A row is as tall as its longest card, so one three-line blurb left the
    three beside it with a hole under the date. Clamped to an even depth, and
    the date pushed to the bottom, so a row reads as a row. */
-.newscardtitle { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
-.newstier.lead .newscardtitle { -webkit-line-clamp: 3; }
-.newstier.mid .newscardtitle { -webkit-line-clamp: 3; }
-.newstier.rest .newscardtitle { -webkit-line-clamp: 4; }
+/* Two lines, always: cut with an ellipsis when a headline runs longer, and
+   the second line held open when it does not. Reserving it rather than
+   letting the block shrink is what keeps the dates along the bottom of a row
+   on one line instead of stepping up and down with the headlines above them.
+   In em, so all three tiers get two of their own lines rather than two of
+   the lead tier's. */
+.newscardtitle { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden;
+  -webkit-line-clamp: 2; min-height: 2.48em; }
 .newscardbody { flex: 1 1 auto; }
 
 /* Six across is a large-screen shape. Below that the tiers step down rather
