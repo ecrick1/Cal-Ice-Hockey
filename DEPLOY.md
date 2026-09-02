@@ -14,9 +14,20 @@ done in the wrong place. See [What actually loses data](#what-actually-loses-dat
 
 ## Deploying
 
-**1. Export the browser's copy.** The repo is only as fresh as the last export,
-and the browser is the only place edits exist until you do this. Skip it only
-if you have made no admin edits since the last one.
+**1. Export the browser's copy — only if the browser is ahead.** The repo is
+only as fresh as the last export, and the browser is the only place admin
+edits exist until you do this. But an export is not automatically an
+improvement: a browser that has not reloaded lately is *behind* the repo, and
+writing it to today's folder would sort newest and undo the newer work. The
+build now refuses that rather than shipping it, but the check is easier.
+
+Read the rev in the console at `localhost:3002`:
+
+    JSON.parse(localStorage.getItem('cal-hockey-site')).rev
+
+Against the newest folder in `data/`. Browser higher, export. Equal or lower,
+reload the page and skip to step 2 — there is nothing in the browser that the
+repo does not already have.
 
     node prototype/_recv.mjs data/backup-$(date +%F)/site.json
 
@@ -74,9 +85,12 @@ one in place.
   them wholesale. Do all admin work at `localhost:3002`. The admin screens are
   in the deployed bundle and reachable — they just edit a throwaway copy.
 
-- **Shipping a stale backup.** Step 1 is the guard. `dist.mjs` takes the
-  newest folder by name, so an ISO date that sorts wrong ships an old season
-  silently.
+- **Shipping a stale backup.** `dist.mjs` takes the newest folder by name,
+  because the date is the one thing a person controls when exporting. But the
+  date is a claim and the rev is the fact, so it also compares them: if the
+  newest folder holds a lower rev than another, it says so and stops rather
+  than quietly undoing the difference. Exporting a browser that had not
+  reloaded is the way this happens.
 
 - **Not exporting before the tab closes.** The browser copy is the only one
   until step 1 runs. This has cost work before.

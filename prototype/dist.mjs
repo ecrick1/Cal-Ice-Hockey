@@ -14,7 +14,7 @@
  * served at a domain root rather than in a subdirectory.
  */
 import { cp, mkdir, rm, writeFile, readFile, stat } from "node:fs/promises";
-import { readdirSync, existsSync } from "node:fs";
+import { readdirSync, existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -36,7 +36,28 @@ const SITE_DATA = (() => {
     .filter((d) => existsSync(path.join(BACKUPS, d, "site.json")))
     .sort();
   if (!dirs.length) throw new Error("no data/backup-*/site.json to ship");
-  return path.join(BACKUPS, dirs[dirs.length - 1], "site.json");
+
+  /* Newest by date, but the date is a claim about when the export happened
+     and the rev is what the data actually is. Exporting a browser that is
+     behind the repo writes today's folder with older data in it - which
+     sorts newest and would ship, quietly undoing everything done since that
+     browser last loaded. The two orderings agreeing is the normal case; when
+     they disagree something is wrong that a person has to look at, because
+     either the export was stale or a folder is misdated. */
+  const revOf = (d) => {
+    try { return Number(JSON.parse(readFileSync(path.join(BACKUPS, d, "site.json"), "utf8")).rev || 0); }
+    catch { return 0; }
+  };
+  const pick = dirs[dirs.length - 1];
+  const best = dirs.reduce((a, b) => (revOf(b) > revOf(a) ? b : a));
+  if (revOf(pick) < revOf(best)) {
+    throw new Error(
+      "newest backup " + pick + " is rev " + revOf(pick) + ", but " + best
+      + " is rev " + revOf(best) + ". Publishing the newer folder would undo "
+      + (revOf(best) - revOf(pick)) + " revisions. Either the export was taken "
+      + "from a browser that had not loaded the latest, or a folder is misdated.");
+  }
+  return path.join(BACKUPS, pick, "site.json");
 })();
 
 const TITLE = "Cal Ice Hockey";
