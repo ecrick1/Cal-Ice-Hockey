@@ -260,6 +260,29 @@ const SEED_SITE = {
 };
 
 /* ---------------- Storage helpers ---------------- */
+
+/**
+ * The site a published copy ships with.
+ *
+ * Storage is right on the machine the site is built on and empty everywhere
+ * else, so a hosted copy would fall through to the seed and show a club with
+ * no seasons. A build can carry site.json beside it; this is read only when
+ * storage has nothing, and what it returns is then saved like any other edit.
+ *
+ * Missing or malformed means a development copy rather than a problem, and
+ * the seed is exactly what that case is for.
+ */
+async function shippedSite() {
+  try {
+    const r = await fetch("./site.json", { cache: "no-store" });
+    if (!r.ok) return null;
+    const j = await r.json();
+    return j && j.seasons ? j : null;
+  } catch {
+    return null;
+  }
+}
+
 async function loadKey(key, fallback) {
   try {
     const r = await window.storage.get(key);
@@ -4610,7 +4633,11 @@ export default function CalIceHockey() {
   /* Load persisted data once */
   useEffect(() => {
     (async () => {
-      let s = await loadKey(SITE_KEY, SEED_SITE);
+      /* Storage first, so nobody's own work is overwritten by the file the
+         build shipped with. Then the shipped file, so a visitor sees the real
+         club. Then the seed, so a copy with no file still runs. */
+      let s = await loadKey(SITE_KEY, null);
+      if (!s) s = (await shippedSite()) || SEED_SITE;
       const r = await loadKey(RECRUITS_KEY, []);
       const al = await loadKey(ALUMNI_KEY, []);
       /* A parked draft whose moment has passed goes live here, on the first
