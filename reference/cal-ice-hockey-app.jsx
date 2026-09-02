@@ -16241,10 +16241,14 @@ function Home({ site, goto, openPost, openGame }) {
               </span>
 
               <span className="hnextactions">
+                {/* A play mark rather than a live dot, and one word. The banner
+                    above it already says Live and counts the clock down, so the
+                    button was repeating the state instead of naming the action -
+                    and it was the longer of the two buttons for saying less. */}
                 {featureState === "live" && feature.streamUrl && (
                   <a className="btn bGhostNavy bSm" href={feature.streamUrl}
                     target="_blank" rel="noreferrer">
-                    <span className="livedot" aria-hidden="true" />Watch live
+                    <IcPlayCircle size={15} /> Watch
                   </a>
                 )}
                 {/* Always offered on a home game, the way the nav pill is:
