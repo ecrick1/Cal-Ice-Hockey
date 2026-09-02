@@ -2865,6 +2865,41 @@ table.stats.sortable.statstable td:nth-child(2) { width: auto; }
 .statstable .statname { max-width: 100%; }
 .statstable .statname span { overflow: hidden; text-overflow: ellipsis; }
 
+/* The roster wears the stats table's clothes, and the fit is wrong at one end.
+ *
+ * statstable divides everything after the name into equal columns, which is
+ * right for GP, G, A and PIM - four characters and a number. The roster's
+ * last two hold "Hometown / Prior Team" and "Previous School" over a city and
+ * a school name, and an equal share came to 120px. The headings do not wrap,
+ * so each ran straight across the one beside it and the two collided.
+ *
+ * Position through class are the short ones here, so they are given fixed
+ * widths and the two text columns take everything left over. Below 761 the
+ * table already scrolls and sets its own widths, so this is desktop only. */
+@media (min-width: 761px) {
+  table.stats.statstable.rostertable th:nth-child(3),
+  table.stats.statstable.rostertable td:nth-child(3),
+  table.stats.statstable.rostertable th:nth-child(5),
+  table.stats.statstable.rostertable td:nth-child(5),
+  table.stats.statstable.rostertable th:nth-child(6),
+  table.stats.statstable.rostertable td:nth-child(6) { width: 76px; }
+  table.stats.statstable.rostertable th:nth-child(4),
+  table.stats.statstable.rostertable td:nth-child(4),
+  table.stats.statstable.rostertable th:nth-child(7),
+  table.stats.statstable.rostertable td:nth-child(7) { width: 92px; }
+  /* Whatever is left, split between the two that need the room. */
+  table.stats.statstable.rostertable th:nth-child(8),
+  table.stats.statstable.rostertable td:nth-child(8),
+  table.stats.statstable.rostertable th:nth-child(9),
+  table.stats.statstable.rostertable td:nth-child(9) { width: auto; }
+  /* Narrow enough and a fixed layout will still crush them. Scrolling is the
+     honest answer at that width, and .twrap is already set up for it. */
+  table.stats.statstable.rostertable { min-width: 1000px; }
+}
+/* A heading that no longer fits is better on two lines than across its
+   neighbour. The cells stay nowrap; only the labels give. */
+.rostertable thead .sortbtn { white-space: normal; }
+
 /* The card the tables sit in. Its padding was written inline, which put it
    out of reach of a phone rule - it is a class now so the width can have it
    back where the width is scarce. */
@@ -10547,7 +10582,7 @@ function RosterPage({ site, onPlayer }) {
             {/* TABLE VIEW */}
             {mode === "table" && (
               <div className="twrap">
-                <table className="stats sortable statstable">
+                <table className="stats sortable statstable rostertable">
                   <thead>
                     <tr>
                       {ROSTER_COLS.map(([key, label]) => {
