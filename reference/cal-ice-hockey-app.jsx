@@ -5991,9 +5991,23 @@ function schedStats(schedule, override) {
     else { tt++; if (home) ht++; else if (away) at++; }
   }
   const played = w + l + tt;
-  if (played === 0 && override && (override.w || override.l || override.t)) {
-    const ow = override.w || 0, ol = override.l || 0, ot = override.t || 0;
-    const op = ow + ol + ot;
+  /* The stored record holds while the game log is short of it - not only
+     while the log is empty.
+     It was written for seasons with no games at all, because that was the
+     only way to have an imported record and nothing to compute from. Filling
+     the archive in from posters and old event listings made a third case: a
+     season with some of its games and a handful of scores. Under the old
+     test, one result turned a 24-game season into a one-game season, because
+     a partial log outranked the record for the whole year.
+     Once the log accounts for as many decisions as the record claims it is
+     the better source, and it wins - which is what every completed season
+     does, so none of them move. */
+  const ow0 = (override && override.w) || 0, ol0 = (override && override.l) || 0,
+        ot0 = (override && override.t) || 0;
+  const claimed = ow0 + ol0 + ot0;
+  if (claimed && played < claimed) {
+    const ow = ow0, ol = ol0, ot = ot0;
+    const op = claimed;
     return { w: ow, l: ol, t: ot, gf: override.gf || 0, ga: override.ga || 0,
       pct: op ? (ow + 0.5 * ot) / op : 0, streak: "—", home: "—", away: "—",
       gp: op, fromOverride: true, note: override.note };

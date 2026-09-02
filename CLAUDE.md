@@ -25,7 +25,7 @@ The prototype's admin tabs define the admin app's screens.
 - The database is canonical. Public site reads with the anon key (RLS: public SELECT).
 - All writes go through the admin app with an authenticated session. No service-role key in any client bundle.
 - `recruits`: public may INSERT only (the form); only authenticated users may SELECT/DELETE.
-- Records: a season's W-L-T/GF/GA is **computed from games with results**; `seasons.record_override` (jsonb) is used only when a season has no game log (imported historical records). Prototype has this logic — port it.
+- Records: a season's W-L-T/GF/GA is **computed from games with results**; `seasons.record_override` (jsonb) holds instead while the game log is **incomplete** — that is, while it accounts for fewer decisions than the stored record claims (imported historical records, and part-reconstructed seasons where some games have scores and most do not). Once the log accounts for as many as the record claims, the log wins. Prototype has this logic — port it.
 - Stats live as columns on `players` (gp, g, a, pim). Career view on a player page = sum across seasons matched by `players.name` (prototype behavior).
 
 ## Public site requirements (`apps/web`)
