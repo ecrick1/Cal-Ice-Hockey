@@ -831,6 +831,16 @@ a.pbcard:hover { border-color: var(--rule-on); }
 /* Tighter again only on the genuinely small ones. 375 is the common phone
    and wants the 14; this is for a 360 or a 320. */
 @media (max-width: 360px) { .wrap { padding: 0 10px; } }
+/* Controls on a phone: the selects take the width and stack, one choice a
+   line, rather than sitting half-width beside each other with their labels
+   truncated. The buttons beside them keep their row.
+   Bigger targets too - these are the things a thumb reaches for first, and
+   at nine pixels of padding they were the smallest hit areas on the page. */
+@media (max-width: 640px) {
+  .sctrl { gap: 10px; }
+  .sctrl .rsel { flex: 1 1 100%; width: 100%; padding: 14px 38px 14px 14px;
+    font-size: 15px; background-position: right 14px center; }
+}
 .section { padding: clamp(48px, 7vw, 88px) 0; }
 .ice { background: var(--ice); }
 .navy { background: var(--blue); color: var(--ondark); }
@@ -2016,6 +2026,16 @@ table.stats.gcpen th:first-child, table.stats.gcpen td:first-child { padding-lef
    down the sheet, so a bare .newskinds rule loses the display to it on
    order alone. Named with both so it wins on specificity instead. */
 .gpsides.newskinds { display: flex; flex-wrap: wrap; margin-bottom: 4px; }
+.newskindsel { display: none; }
+/* Sits here rather than with the other phone rules, and names both classes.
+   The tab row is .gpsides.newskinds, so a rule saying .newskinds loses to it
+   on specificity - and a media query does not change that. Below it in the
+   sheet as well, so the two that do tie are settled by order. */
+@media (max-width: 640px) {
+  .gpsides.newskinds { display: none; }
+  .newskindsel { display: block; width: 100%; margin-bottom: 4px;
+    padding: 14px 38px 14px 14px; font-size: 15px; background-position: right 14px center; }
+}
 .newskinds .gpside { flex: 1 0 auto; justify-content: center; }
 .newskindn { font-size: 11px; font-weight: 800; opacity: 0.6; }
 @media (max-width: 900px) {
@@ -10639,18 +10659,32 @@ function NewsIndexPage({ site, openPost }) {
           <h1 className="stitle">News</h1>
 
           {kinds.length > 1 && (
-            <div className="gpsides newskinds">
-              <button className={"gpside " + (active === "all" ? "on" : "")}
-                onClick={() => setKind("all")}>
-                Latest <span className="newskindn">{live.length}</span>
-              </button>
-              {kinds.map(([t, label, n]) => (
-                <button key={t} className={"gpside " + (active === t ? "on" : "")}
-                  onClick={() => setKind(t)}>
-                  {label} <span className="newskindn">{n}</span>
+            <>
+              <div className="gpsides newskinds">
+                <button className={"gpside " + (active === "all" ? "on" : "")}
+                  onClick={() => setKind("all")}>
+                  Latest <span className="newskindn">{live.length}</span>
                 </button>
-              ))}
-            </div>
+                {kinds.map(([t, label, n]) => (
+                  <button key={t} className={"gpside " + (active === t ? "on" : "")}
+                    onClick={() => setKind(t)}>
+                    {label} <span className="newskindn">{n}</span>
+                  </button>
+                ))}
+              </div>
+              {/* The same choice as a select, for a phone. Five tabs stretched
+                  across a page become three stacked rows of them on a phone,
+                  which is a lot of screen spent on a control nobody has
+                  touched yet. Both are in the markup and the width picks one,
+                  so neither has to know the other exists. */}
+              <select className="rsel newskindsel" value={active}
+                onChange={(e) => setKind(e.target.value)} aria-label="Filter stories">
+                <option value="all">Latest ({live.length})</option>
+                {kinds.map(([t, label, n]) => (
+                  <option key={t} value={t}>{label} ({n})</option>
+                ))}
+              </select>
+            </>
           )}
 
           {!posts.length && (
