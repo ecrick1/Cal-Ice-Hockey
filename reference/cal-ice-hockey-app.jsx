@@ -9848,13 +9848,11 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
             <div className="reccell"><p className="reclab">Goals For</p><p className="recnum">{s.gf}</p></div>
             <div className="reccell"><p className="reclab">Goals Against</p><p className="recnum">{s.ga}</p></div>
             <div className="reccell"><p className="reclab">Games</p><p className="recnum">{s.gp}</p></div>
-            {/* Only for a season that played some. Computed even when the rest of
-                the record is the stored one, because a playoff game tends to be
-                the game somebody bothered to write down. */}
-            {s.playoff && (
-              <div className="reccell"><p className="reclab">Playoffs</p>
-                <p className="recnum">{s.playoff.w}-{s.playoff.l}{s.playoff.t ? `-${s.playoff.t}` : ""}</p></div>
-            )}
+            {/* No playoff line here. The games are on the page underneath,
+                banded under the tournament and each carrying its round, so
+                the slab would be counting out loud what the reader can
+                already see. The season page keeps it - nothing is listed
+                there to count. */}
           </div>
           )}
 
