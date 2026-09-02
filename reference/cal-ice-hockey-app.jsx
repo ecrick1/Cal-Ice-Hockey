@@ -4644,12 +4644,15 @@ const AFFILIATES = [
   { src: "/logos/footer-nike.svg", alt: "Nike", href: "https://www.nike.com", short: true },
 ];
 
+/* The delivered marks where there is a file for one. Instagram has none, so
+   it keeps the drawn outline and reads lighter than the rest until there is
+   one. */
 const SOCIALS = [
   ["instagram", "Instagram", IcInstagram],
-  ["x", "X", IcX],
-  ["tiktok", "TikTok", IcTikTok],
-  ["youtube", "YouTube", IcYouTube],
-  ["facebook", "Facebook", IcFacebook],
+  ["x", "X", BrX],
+  ["tiktok", "TikTok", BrTikTok],
+  ["youtube", "YouTube", BrYouTube],
+  ["facebook", "Facebook", BrFacebook],
 ];
 
 const IcLink = (p) => <Ic {...p} d={<><path d="M10 13.5a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.3 1.3" /><path d="M14 10.5a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.3-1.3" /></>} />;
@@ -16103,69 +16106,119 @@ function articleUrl(site, id) {
 }
 
 
-/* ---------------- Share marks ----------------
+
+/* ---------------- Brand marks ----------------
  *
- * The brand files as delivered, in their Negative cut: one filled shape with
- * the letter knocked out of it, so what shows through the hole is whatever
- * is behind. Filled in the current colour, that makes the mark its own
- * button - a disc for Facebook, a rounded square for LinkedIn - and leaves a
- * border or a background nothing to do but draw a shape around a shape.
- *
- * X comes as the bare glyph with no container, so it is given the disc the
- * other two bring with them and the letter is painted white instead of cut
- * out. Same reading, built the other way round, because that is what the
- * file allows.
+ * The delivered artwork, each file in its own box, placed into a common 48
+ * square so marks drawn at different scales sit at the same optical size.
+ * `fit` centres a glyph that starts at the origin; the two that do not get
+ * their own transform.
  */
-const ShareMark = ({ size = 22, children }) => (
+const fit = (w, h, target) => {
+  const k = target / h;
+  return "translate(" + ((48 - w * k) / 2) + " " + ((48 - target) / 2) + ") scale(" + k + ")";
+};
+
+const G_FACEBOOK = { d: "M24.645 40.6953V70H11.1834V40.6953H0V28.8129H11.1834V24.4896C11.1834 8.43935 17.8883 0 32.0747 0C36.4238 0 37.5111 0.698965 39.8927 1.26849V13.0215C37.2263 12.5555 36.4756 12.2966 33.7056 12.2966C30.4179 12.2966 28.6575 13.2286 27.0525 15.0666C25.4475 16.9046 24.645 20.0888 24.645 24.645V28.8388H39.8927L35.8025 40.7212H24.645V40.6953Z", t: fit(39.9, 70, 24) };
+const G_TIKTOK = { d: "M44.5893 2.66285L42.9004 0H32.6802V23.9831L32.6454 47.4092C32.6628 47.5833 32.6802 47.7747 32.6802 47.9488C32.6802 53.814 27.9097 58.6002 22.0248 58.6002C16.1399 58.6002 11.3693 53.8314 11.3693 47.9488C11.3693 42.0835 16.1399 37.2974 22.0248 37.2974C23.2435 37.2974 24.4275 37.5236 25.5244 37.9065V26.2108C24.3927 26.0194 23.2261 25.915 22.0248 25.915C9.88939 25.9324 0 35.818 0 47.9662C0 60.1144 9.88939 70 22.0422 70C34.195 70 44.0844 60.1144 44.0844 47.9662V20.1019C48.4893 24.5052 54.1827 28.8041 60.4854 30.179V18.2223C53.643 15.1939 46.8353 6.24814 44.5893 2.66285Z", t: fit(60.5, 70, 24) };
+/* X sits inset in its own 48 box rather than filling it. */
+const G_X = { d: "M36.6526 3.8078H43.3995L28.6594 20.6548L46 43.5797H32.4225L21.7881 29.6759L9.61989 43.5797H2.86886L18.6349 25.56L2 3.8078H15.9222L25.5348 16.5165L36.6526 3.8078ZM34.2846 39.5414H38.0232L13.8908 7.63406H9.87892L34.2846 39.5414Z", t: "translate(24 24) scale(0.5) translate(-24 -24)" };
+
+const Svg48 = ({ size, children, extra }) => (
   <svg viewBox="0 0 48 48" width={size} height={size} fill="none" aria-hidden="true"
-    focusable="false">{children}</svg>
+    focusable="false" {...extra}>{children}</svg>
 );
 
-const ShX = (p) => (
-  <ShareMark {...p}>
-    <circle cx="24" cy="24" r="24" fill="currentColor" />
-    <g transform="translate(24 24) scale(0.62) translate(-24 -24)">
-      <path d="M36.6526 3.8078H43.3995L28.6594 20.6548L46 43.5797H32.4225L21.7881 29.6759L9.61989 43.5797H2.86886L18.6349 25.56L2 3.8078H15.9222L25.5348 16.5165L36.6526 3.8078ZM34.2846 39.5414H38.0232L13.8908 7.63406H9.87892L34.2846 39.5414Z" fill="#fff" />
-    </g>
-  </ShareMark>
+/* A glyph on its own, in the current colour - what the header wants, where
+   the icons sit on navy and the disc is the hover state. */
+const Glyph = ({ g, size = 18 }) => (
+  <Svg48 size={size}><g transform={g.t}><path d={g.d} fill="currentColor" /></g></Svg48>
 );
 
-const ShFacebook = (p) => (
-  <ShareMark {...p}><path d="M24 0C10.7453 0 0 10.7453 0 24C0 35.255 7.74912 44.6995 18.2026 47.2934V31.3344H13.2538V24H18.2026V20.8397C18.2026 12.671 21.8995 8.8848 29.9194 8.8848C31.44 8.8848 34.0637 9.18336 35.137 9.48096V16.129C34.5706 16.0694 33.5866 16.0397 32.3645 16.0397C28.4294 16.0397 26.9088 17.5306 26.9088 21.4061V24H34.7482L33.4013 31.3344H26.9088V47.8243C38.7926 46.3891 48.001 36.2707 48.001 24C48 10.7453 37.2547 0 24 0Z" fill="currentColor" /></ShareMark>
+/* Function declarations, not consts: SOCIALS is built eleven thousand lines
+   above this and reads these names as it is built, so a const here is still
+   in its dead zone when the array is made and the header renders undefined.
+   The bodies read consts declared above them, which are initialised long
+   before anything calls one. */
+function BrFacebook(p) { return <Glyph {...p} g={G_FACEBOOK} />; }
+function BrTikTok(p) { return <Glyph {...p} g={G_TIKTOK} />; }
+function BrX(p) { return <Glyph {...p} g={G_X} />; }
+
+/* YouTube is a rounded rectangle with the play triangle knocked out of it.
+   Masked rather than painted white, so what shows through the triangle is
+   the navy at rest and the gold on hover. */
+function BrYouTube({ size = 18 }) { return (
+  <Svg48 size={size}>
+    <mask id="ytmask" maskUnits="userSpaceOnUse" x="0" y="0" width="48" height="48">
+      <g transform={fit(89, 60, 28)}>
+        <path d="M74.5024 60H14.4975C6.46861 60 0 52.8994 0 44.1657V15.8343C0 7.06509 6.50112 0 14.4975 0H74.5024C82.5313 0 88.9999 7.10059 88.9999 15.8343V44.1657C89.0324 52.9349 82.5313 60 74.5024 60Z" fill="#fff" />
+        <path d="M60.2426 29.5562L35 15V44.1124L60.2426 29.5562Z" fill="#000" />
+      </g>
+    </mask>
+    <rect width="48" height="48" fill="currentColor" mask="url(#ytmask)" />
+  </Svg48>
+); }
+
+/* The mark in a filled circle, the letter cut out of it - what a story's
+   share row wants, on white. */
+const CircleMark = ({ g, size = 22 }) => (
+  <Svg48 size={size}>
+    <mask id={"cm" + g.id} maskUnits="userSpaceOnUse" x="0" y="0" width="48" height="48">
+      <circle cx="24" cy="24" r="24" fill="#fff" />
+      <g transform={g.t}><path d={g.d} fill="#000" /></g>
+    </mask>
+    <circle cx="24" cy="24" r="24" fill="currentColor" mask={"url(#cm" + g.id + ")"} />
+  </Svg48>
 );
 
-const ShLinkedIn = (p) => (
-  <ShareMark {...p}><path d="M44.4469 0H3.54375C1.58437 0 0 1.54688 0 3.45938V44.5312C0 46.4437 1.58437 48 3.54375 48H44.4469C46.4062 48 48 46.4438 48 44.5406V3.45938C48 1.54688 46.4062 0 44.4469 0ZM14.2406 40.9031H7.11563V17.9906H14.2406V40.9031ZM10.6781 14.8688C8.39062 14.8688 6.54375 13.0219 6.54375 10.7437C6.54375 8.46562 8.39062 6.61875 10.6781 6.61875C12.9563 6.61875 14.8031 8.46562 14.8031 10.7437C14.8031 13.0125 12.9563 14.8688 10.6781 14.8688ZM40.9031 40.9031H33.7875V29.7656C33.7875 27.1125 33.7406 23.6906 30.0844 23.6906C26.3812 23.6906 25.8187 26.5875 25.8187 29.5781V40.9031H18.7125V17.9906H25.5375V21.1219H25.6312C26.5781 19.3219 28.9031 17.4188 32.3625 17.4188C39.5719 17.4188 40.9031 22.1625 40.9031 28.3313V40.9031Z" fill="currentColor" /></ShareMark>
+const ShX = (p) => <CircleMark {...p} g={{ ...G_X, id: "x" }} />;
+const ShFacebook = (p) => <CircleMark {...p} g={{ ...G_FACEBOOK, id: "fb" }} />;
+
+/* LinkedIn is delivered as a rounded square with the logo already knocked
+   out of it, so the logo alone has to be recovered before it can be cut out
+   of a circle: hide the square, show the square back minus its holes, and
+   what is left masked off is the logo. */
+const ShLinkedIn = ({ size = 22 }) => (
+  <Svg48 size={size}>
+    <mask id="limask" maskUnits="userSpaceOnUse" x="0" y="0" width="48" height="48">
+      <circle cx="24" cy="24" r="24" fill="#fff" />
+      <g transform="translate(9 9) scale(0.625)">
+        <rect width="48" height="48" fill="#000" />
+        <path d="M44.4469 0H3.54375C1.58437 0 0 1.54688 0 3.45938V44.5312C0 46.4437 1.58437 48 3.54375 48H44.4469C46.4062 48 48 46.4438 48 44.5406V3.45938C48 1.54688 46.4062 0 44.4469 0ZM14.2406 40.9031H7.11563V17.9906H14.2406V40.9031ZM10.6781 14.8688C8.39062 14.8688 6.54375 13.0219 6.54375 10.7437C6.54375 8.46562 8.39062 6.61875 10.6781 6.61875C12.9563 6.61875 14.8031 8.46562 14.8031 10.7437C14.8031 13.0125 12.9563 14.8688 10.6781 14.8688ZM40.9031 40.9031H33.7875V29.7656C33.7875 27.1125 33.7406 23.6906 30.0844 23.6906C26.3812 23.6906 25.8187 26.5875 25.8187 29.5781V40.9031H18.7125V17.9906H25.5375V21.1219H25.6312C26.5781 19.3219 28.9031 17.4188 32.3625 17.4188C39.5719 17.4188 40.9031 22.1625 40.9031 28.3313V40.9031Z" fill="#fff" />
+      </g>
+    </mask>
+    <circle cx="24" cy="24" r="24" fill="currentColor" mask="url(#limask)" />
+  </Svg48>
 );
 
 /* Not brands, and no supplied mark - the same disc, so the row reads as five
    of one thing rather than three and two. */
 const ShMail = (p) => (
-  <ShareMark {...p}>
+  <Svg48 {...p}>
     <circle cx="24" cy="24" r="24" fill="currentColor" />
     <g stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
       <rect x="13" y="16.5" width="22" height="15" rx="2.5" />
       <path d="M13.8 18.2 24 26l10.2-7.8" />
     </g>
-  </ShareMark>
+  </Svg48>
 );
 
 const ShLink = (p) => (
-  <ShareMark {...p}>
+  <Svg48 {...p}>
     <circle cx="24" cy="24" r="24" fill="currentColor" />
     <g stroke="#fff" strokeWidth="2.8" strokeLinecap="round">
       <path d="M21 27a5 5 0 0 0 7 0l4-4a5 5 0 0 0-7-7l-1.6 1.6" />
       <path d="M27 21a5 5 0 0 0-7 0l-4 4a5 5 0 0 0 7 7l1.6-1.6" />
     </g>
-  </ShareMark>
+  </Svg48>
 );
 
 const ShCheck = (p) => (
-  <ShareMark {...p}>
+  <Svg48 {...p}>
     <circle cx="24" cy="24" r="24" fill="currentColor" />
     <path d="M15 24.5 21.5 31 33 18.5" stroke="#fff" strokeWidth="3.2"
       strokeLinecap="round" strokeLinejoin="round" />
-  </ShareMark>
+  </Svg48>
 );
 
 /* Instagram is deliberately absent: it has no share URL. Every "share to
