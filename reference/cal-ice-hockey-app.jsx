@@ -366,6 +366,13 @@ const countsToward = (g) => !!g.result && gameType(g) !== "exhibition";
    whichever one the reader happens to open. */
 const roundName = (g) =>
   g.roundLabel || GAME_TYPE_LABEL[gameType(g)] || gameType(g);
+/* The tournament a playoff game belongs to - "Pac-8 Championship", "ACHA
+   Western Regional", "Nationals". The round is what the game was inside it;
+   this is which thing it was part of, and it is what the schedule bands
+   games together under. A playoff with no section named still stands as its
+   own game, with its round on it and no band. */
+const sectionOf = (g) =>
+  gameType(g) === "playoff" ? (g.playoffSection || "").trim() : "";
 
 function computeRecord(schedule) {
   let w = 0, l = 0, t = 0, gf = 0, ga = 0;
@@ -2908,7 +2915,8 @@ table.stats tbody tr:last-child td { border-bottom: 0; }
      opponent into three stacked words. */
   .gameresult { flex: 1 0 100%; }
 }
-.gamefoot { border-top: 1px solid #EEF1F4; padding: 10px 22px; display: flex; }
+.gamefoot { border-top: 1px solid #EEF1F4; padding: 10px 22px; display: flex;
+  align-items: center; gap: 12px; }
 /* Replay and Game center, on their own line inside the card rather than
    under the rule. A full-width flex item, so they break to a row of their
    own however the rest of the card has wrapped. */
@@ -3037,15 +3045,23 @@ button.watchbtn { border: 0; cursor: pointer; }
    it - the way a bowl game or a final is billed, with the round as the
    heading and the matchup underneath. A pill beside the opponent's name made
    the stakes look like one more attribute of the fixture. */
-.gameblock { display: grid; gap: 8px; min-width: 0; }
+/* A run of games belonging to one tournament, under its name. The band is
+   the tournament and the games sit beneath it, tighter to each other than
+   two unrelated games would be, so the group reads as one thing. */
+.poblock { display: grid; gap: 18px; min-width: 0; }
+.poblock.banded { gap: 10px; }
 .gameband { margin: 0; background: var(--deep); color: #fff; border-radius: 8px;
   font-family: var(--body); font-weight: 800; font-size: 15.5px; padding: 13px 22px; }
 @media (max-width: 640px) { .gameband { font-size: 14px; padding: 11px 16px; } }
-/* Still a pill in the table, where there is no room to bill anything. */
+/* Which game of the tournament it was, on the footer rule beside Quick look.
+   Quiet on purpose: the tournament is the headline and this is the caption,
+   so it is a grey chip rather than a second navy shout. */
 .roundtag { display: inline-flex; align-items: center; border-radius: 999px;
-  background: transparent; color: var(--blue); border: 1.5px solid var(--blue);
-  padding: 1px 9px; font-family: var(--body); font-weight: 800; font-size: 11.5px;
+  background: #F1F4F8; color: var(--blue); border: 0;
+  padding: 4px 12px; font-family: var(--body); font-weight: 800; font-size: 11.5px;
   white-space: nowrap; }
+/* Pushed to the far end of the footer rule, away from Quick look. */
+.gamefoot .roundtag { margin-left: auto; }
 .caltag.spec { background: var(--gold); color: var(--deep); }
 /* On navy the gold would shout over the score, so it outlines instead. */
 .hnext .spectag, .sboard .spectag { background: transparent; color: var(--gold);
@@ -6026,6 +6042,15 @@ function schedStats(schedule, override) {
      Once the log accounts for as many decisions as the record claims it is
      the better source, and it wins - which is what every completed season
      does, so none of them move. */
+  /* Worked out up here rather than after the override can return. A stored
+     record covers a season nobody logged game by game; the playoff games are
+     exactly the ones somebody did log, so a season resting on the stored
+     record is where this is most likely to be the only thing known. */
+  const po = finals.filter((g) => gameType(g) === "playoff");
+  const pw = po.filter((g) => g.result.us > g.result.them).length;
+  const pl = po.filter((g) => g.result.us < g.result.them).length;
+  const playoff = po.length ? { w: pw, l: pl, t: po.length - pw - pl } : null;
+
   const ow0 = (override && override.w) || 0, ol0 = (override && override.l) || 0,
         ot0 = (override && override.t) || 0;
   const claimed = ow0 + ol0 + ot0;
@@ -6034,7 +6059,7 @@ function schedStats(schedule, override) {
     const op = claimed;
     return { w: ow, l: ol, t: ot, gf: override.gf || 0, ga: override.ga || 0,
       pct: op ? (ow + 0.5 * ot) / op : 0, streak: "—", home: "—", away: "—",
-      gp: op, fromOverride: true, note: override.note };
+      gp: op, fromOverride: true, note: override.note, playoff };
   }
   const pct = played ? (w + 0.5 * tt) / played : 0;
   let streak = "—";
@@ -6045,15 +6070,9 @@ function schedStats(schedule, override) {
     for (let i = finals.length - 1; i >= 0 && tag(finals[i]) === last; i--) n++;
     streak = `${last}${n}`;
   }
-  const po = schedule.filter((g) => countsToward(g) && gameType(g) === "playoff");
-  const pw = po.filter((g) => g.result.us > g.result.them).length;
-  const pl = po.filter((g) => g.result.us < g.result.them).length;
-  const pt = po.length - pw - pl;
-
   // Games played means games that counted — otherwise the tile disagrees with
   // the record beside it whenever an exhibition is on the schedule.
-  return { w, l, t: tt, gf, ga, pct, streak, gp: played,
-    playoff: po.length ? { w: pw, l: pl, t: pt } : null,
+  return { w, l, t: tt, gf, ga, pct, streak, gp: played, playoff,
     /* Every game unsided means there is no home record to show, rather than
        a run of noughts. */
     home: unsided === played ? "—" : `${hw}-${hl}${ht ? `-${ht}` : ""}`,
@@ -9733,10 +9752,27 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
     if (filter === "neutral") r = r.filter((g) => g.homeAway === "N");
     if (filter === "home") r = r.filter((g) => g.homeAway === "H");
     if (filter === "away") r = r.filter((g) => g.homeAway === "A");
+    if (filter === "playoffs") r = r.filter((g) => gameType(g) === "playoff");
     if (filter === "finals") r = r.filter((g) => g.result);
     if (filter === "upcoming") r = r.filter((g) => !g.result);
     return r;
   }, [season.schedule, filter]);
+
+  /* Runs of games sharing a tournament, so the schedule can band them
+     together under its name. Consecutive only, and the list is in date
+     order: a tournament is played over consecutive days, and two separate
+     visits to the same tournament in one season would be two runs rather
+     than one. */
+  const blocks = useMemo(() => {
+    const out = [];
+    for (const g of rows) {
+      const sec = sectionOf(g);
+      const last = out[out.length - 1];
+      if (sec && last && last.section === sec) last.games.push(g);
+      else out.push({ section: sec, games: [g] });
+    }
+    return out;
+  }, [rows]);
 
   return (
     <main style={{ background: "var(--page)" }}>
@@ -9760,6 +9796,7 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
               <option value="away">Away</option>
               {/* Only offered when the season actually has one. */}
               {season.schedule.some((g) => g.homeAway === "N") && <option value="neutral">Neutral site</option>}
+              {season.schedule.some((g) => gameType(g) === "playoff") && <option value="playoffs">Playoffs</option>}
               <option value="finals">Results</option>
               <option value="upcoming">Upcoming</option>
             </select>
@@ -9781,6 +9818,13 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
             <div className="reccell"><p className="reclab">Goals For</p><p className="recnum">{s.gf}</p></div>
             <div className="reccell"><p className="reclab">Goals Against</p><p className="recnum">{s.ga}</p></div>
             <div className="reccell"><p className="reclab">Games</p><p className="recnum">{s.gp}</p></div>
+            {/* Only for a season that played some. Computed even when the rest of
+                the record is the stored one, because a playoff game tends to be
+                the game somebody bothered to write down. */}
+            {s.playoff && (
+              <div className="reccell"><p className="reclab">Playoffs</p>
+                <p className="recnum">{s.playoff.w}-{s.playoff.l}{s.playoff.t ? `-${s.playoff.t}` : ""}</p></div>
+            )}
           </div>
           )}
 
@@ -9817,15 +9861,15 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
           ) : (
             <div style={{ display: "grid", gap: 18, marginTop: 32 }}>
               {rows.length === 0 && <p className="blg" style={{ color: "var(--muted)" }}>No games match this filter.</p>}
-              {rows.map((g) => {
+              {blocks.map((blk, bi) => (
+                <div className={"poblock" + (blk.section ? " banded" : "")}
+                  key={blk.section ? blk.section + bi : blk.games[0].id}>
+                  {blk.section && <p className="gameband">{blk.section}</p>}
+                  {blk.games.map((g) => {
                 const r = resultText(g);
                 const open = openInfo === g.id;
                 return (
-                  <div className="gameblock" key={g.id}>
-                  {gameType(g) !== "regular" && (
-                    <p className="gameband">{roundName(g)}</p>
-                  )}
-                  <article className="gamecard">
+                  <article className="gamecard" key={g.id}>
                     <div className="gamemain">
                       <span style={{ position: "relative", flex: "0 0 auto" }}>
                         <OppBadge name={g.opponent} logo={g.opponentLogo} size={48} />
@@ -9882,6 +9926,12 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
                         onClick={() => setOpenInfo(open ? null : g.id)} aria-expanded={open}>
                         Quick look {open ? <IcMinusC size={19} /> : <IcPlusC size={19} />}
                       </button>
+                      {/* Which game of the tournament this was. It belongs on
+                          the game and the tournament's name belongs above the
+                          run of them, so neither has to repeat the other. */}
+                      {gameType(g) !== "regular" && (
+                        <span className="roundtag">{roundName(g)}</span>
+                      )}
                     </div>
                     {open && (
                       <div className="gameinfo bsm">
@@ -9901,9 +9951,10 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
                         onPlayer={(id) => onPlayer && onPlayer(id)} />
                     )}
                   </article>
-                  </div>
                 );
-              })}
+                  })}
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -16023,6 +16074,13 @@ function Home({ site, goto, openPost, openGame }) {
               <div className="reccell"><p className="reclab">Goals Against</p><p className="recnum">{s.ga}</p></div>
               <div className="reccell"><p className="reclab">Games</p><p className="recnum">{s.gp}</p></div>
               <div className="reccell"><p className="reclab">Streak</p><p className="recnum">{s.streak}</p></div>
+              {/* Only for a season that played some. Computed even when the rest of
+                  the record is the stored one, because a playoff game tends to be
+                  the game somebody bothered to write down. */}
+              {s.playoff && (
+                <div className="reccell"><p className="reclab">Playoffs</p>
+                  <p className="recnum">{s.playoff.w}-{s.playoff.l}{s.playoff.t ? `-${s.playoff.t}` : ""}</p></div>
+              )}
             </div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 24 }}>
               <button className="btn bNavy" onClick={() => goto("schedule")}>Full schedule</button>
@@ -16731,6 +16789,17 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
   /* By date, but a row that has none yet goes last rather than first. */
   const cmpRow = (a, b) => (a.date ? 0 : 1) - (b.date ? 0 : 1) || cmpDate(a, b);
 
+  /* Every tournament named anywhere in the site, offered back when naming
+     the next one. Across seasons, not just this one: the same tournament
+     comes round every year and should keep the same name each time. */
+  const poSections = useMemo(() => {
+    const seen = new Set();
+    for (const ss of Object.values(site.seasons || {}))
+      for (const g of ss.schedule || [])
+        if (g.playoffSection) seen.add(String(g.playoffSection).trim());
+    return [...seen].sort();
+  }, [site.seasons]);
+
   return (
     <>
       <SeasonPicker site={site} sel={sel} setSel={setSel} />
@@ -16934,11 +17003,34 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
                     onChange={(e) => setGame(g.id, { officials: e.target.value })} />
                 </div>
                 {gameType(g) === "playoff" && (
-                  <div className="field">
-                    <label className="h6">Playoff round</label>
-                    <input value={g.roundLabel || ""} placeholder="Quarterfinal · ACHA Regionals"
-                      onChange={(e) => setGame(g.id, { roundLabel: e.target.value })} />
-                  </div>
+                  <>
+                    <div className="field">
+                      <label className="h6">Playoff section</label>
+                      <input value={g.playoffSection || ""} list="posections"
+                        placeholder="Pac-8 Championship · ACHA Western Regional · Nationals"
+                        onChange={(e) => setGame(g.id, { playoffSection: e.target.value })} />
+                      {/* Typed once and then offered back, because the games of
+                          one tournament have to agree on its name exactly to
+                          band together - "Pac-8 Championship" and "Pac-8
+                          Championships" would be two tournaments. */}
+                      <datalist id="posections">
+                        {poSections.map((n) => <option key={n} value={n} />)}
+                      </datalist>
+                      <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
+                        The tournament this game was part of. Games sharing one
+                        are banded under it on the schedule. Leave it blank and
+                        the game stands alone.
+                      </p>
+                    </div>
+                    <div className="field">
+                      <label className="h6">Playoff round</label>
+                      <input value={g.roundLabel || ""} placeholder="Quarterfinal · Semifinal · Final"
+                        onChange={(e) => setGame(g.id, { roundLabel: e.target.value })} />
+                      <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
+                        Which game of it this was. Shown on the game itself.
+                      </p>
+                    </div>
+                  </>
                 )}
                 <div className="field">
                   <label className="h6">Tickets</label>
