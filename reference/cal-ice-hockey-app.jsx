@@ -2496,8 +2496,10 @@ button.gtrow:hover { background: var(--page); }
   border-radius: 2px; background: var(--wash); display: block; }
 .artmorethumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .artmoretext { display: grid; gap: 3px; min-width: 0; }
-.artmoretag { font-family: var(--disp); font-weight: 600; font-size: 11px; letter-spacing: 0.1em;
-  text-transform: uppercase; color: var(--blue); }
+/* The same treatment the story's own labels lost: body face, written case.
+   Missed the first time because it lives in its own rule under another
+   name. */
+.artmoretag { font-weight: 700; font-size: 12px; letter-spacing: 0; color: var(--blue); }
 .artmoretitle { font-weight: 700; font-size: 15px; color: var(--ink); line-height: 1.35; }
 .artmoredate { margin-left: auto; padding-left: 10px; font-size: 13px; font-weight: 600;
   color: var(--muted); white-space: nowrap; }
@@ -2526,7 +2528,17 @@ button.gtrow:hover { background: var(--page); }
 /* The tag is the one that names the kind of story, so it keeps the navy. */
 .arttag { color: var(--blue); }
 .artsharebtns { display: flex; flex-wrap: wrap; gap: 8px; }
-.sharebtn { display: inline-flex; align-items: center; gap: 7px; padding: 7px 14px;
+/* Above the button that was pressed, and only while it has something to
+   say - an empty status node should not reserve a box. */
+.sharepop { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  background: var(--ink); color: #fff; font-size: 11.5px; font-weight: 700;
+  padding: 4px 9px; border-radius: 6px; white-space: nowrap; pointer-events: none; }
+.sharepop:empty { display: none; }
+/* Round, thirty-four across, the shape the reference markup describes. Its
+   own artwork is a sprite reference rather than paths, so these are the
+   site's glyphs in that shape. */
+.sharebtn { position: relative; width: 34px; height: 34px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center; border-radius: 999px;
   border: 1px solid var(--border); border-radius: 999px; background: #fff; cursor: pointer;
   font: inherit; font-size: 13.5px; font-weight: 700; color: var(--deep);
   text-decoration: none; line-height: 1; }
@@ -4349,6 +4361,7 @@ const IcInstagram = (p) => <Ic {...p} d={<><rect x="3.5" y="3.5" width="17" heig
 const IcX = (p) => <Ic {...p} d={<path d="M4 4l16 16M20 4L4 20" />} />;
 const IcYouTube = (p) => <Ic {...p} d={<><rect x="2.5" y="5.5" width="19" height="13" rx="4" /><path d="M10.5 9.5l5 2.5-5 2.5z" /></>} />;
 const IcFacebook = (p) => <Ic {...p} d={<path d="M14.5 8.5h2.5M14.5 21V8.6c0-1.7 1-2.6 2.6-2.6H18M10.5 12.5h6" />} />;
+const IcLinkedIn = (p) => <Ic {...p} d={<><rect x="3.5" y="3.5" width="17" height="17" rx="3" /><path d="M8 10.5V16M8 7.6v.01M12 16v-3.4a2 2 0 0 1 4 0V16" /></>} />;
 /* A quaver with a tail curling back to the note, drawn on the same 24 grid
    and stroked like the rest of the set rather than lifted from the brand. */
 const IcTikTok = (p) => <Ic {...p} d={<><path d="M14 3.5v11.2a4.3 4.3 0 1 1-3.3-4.2" /><path d="M14 3.5c.4 2.6 2.1 4.2 4.7 4.4" /></>} />;
@@ -16092,6 +16105,7 @@ function articleUrl(site, id) {
 const SHARE_TARGETS = [
   ["x", "X", IcX, (u, t) => "https://x.com/intent/post?url=" + encodeURIComponent(u) + "&text=" + encodeURIComponent(t)],
   ["facebook", "Facebook", IcFacebook, (u) => "https://www.facebook.com/sharer/sharer.php?u=" + encodeURIComponent(u)],
+  ["linkedin", "LinkedIn", IcLinkedIn, (u) => "https://www.linkedin.com/sharing/share-offsite/?url=" + encodeURIComponent(u)],
 ];
 
 function ShareRow({ site, post }) {
@@ -16127,26 +16141,31 @@ function ShareRow({ site, post }) {
        of its own rather than sit inside a line. */
     <div className="artshare">
       <div className="artsharebtns">
+        {/* Icon only, so each button says what it is by its mark and to a
+            screen reader by its label. */}
         {native && (
-          <button className="sharebtn" onClick={() => navigator.share({ title, url }).catch(() => {})}>
-            <IcShare size={15} /> Share
+          <button className="sharebtn" title="Share" aria-label="Share this story"
+            onClick={() => navigator.share({ title, url }).catch(() => {})}>
+            <IcShare size={17} />
           </button>
         )}
         {SHARE_TARGETS.map(([key, label, Icon, href]) => (
-          <a key={key} className="sharebtn" href={href(url, title)}
+          <a key={key} className="sharebtn" href={href(url, title)} title={label}
             target="_blank" rel="noreferrer noopener" aria-label={"Share on " + label}>
-            <Icon size={15} /> {label}
+            <Icon size={17} />
           </a>
         ))}
-        <a className="sharebtn"
+        <a className="sharebtn" title="Email"
           href={"mailto:?subject=" + encodeURIComponent(title) + "&body=" + encodeURIComponent(url)}
           aria-label="Share by email">
-          <IcMail size={15} /> Email
+          <IcMail size={17} />
         </a>
         <button className={"sharebtn" + (copied ? " ok" : "")} onClick={copy}
-          aria-label="Copy link to this story">
-          {copied ? <IcCheck size={15} /> : <IcLink size={15} />}
-          {copied ? "Copied" : "Copy link"}
+          title="Copy link" aria-label="Copy link to this story">
+          {copied ? <IcCheck size={17} /> : <IcLink size={17} />}
+          {/* Said rather than guessed at: a button that changes its own icon
+              and nothing else leaves you wondering whether it worked. */}
+          <span className="sharepop" role="status">{copied ? "Link copied" : ""}</span>
         </button>
       </div>
     </div>
@@ -16218,7 +16237,7 @@ function NewsPage({ site, postId, onBack, onPlayerName }) {
                       onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} />
                   </span>
                   <span className="artmoretext">
-                    <span className="artmoretag">{n.tag}</span>
+                    <span className="artmoretag">{casedTag(n.tag)}</span>
                     <span className="artmoretitle">{n.title}</span>
                   </span>
                   <span className="artmoredate">{fmtDate(n.date)}</span>
