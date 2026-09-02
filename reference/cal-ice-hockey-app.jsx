@@ -22675,19 +22675,34 @@ function RosterEditor({ site, updateSeason: updateSeasonProp }) {
 
   /* One id shared by every row that is this person - adopting an id already
      on one of them if there is one, so linking twice from different seasons
-     does not produce two people. */
-  const linkOne = (c) => {
-    const id = c.p.personId || (c.hits.find((h) => h.row.personId) || {}).row?.personId || uid();
-    updateSeason(sel, {
-      roster: roster.map((x) => (x.id === c.p.id ? { ...x, personId: id } : x)),
-    });
-    for (const h of c.hits) {
-      const se = site.seasons[h.sn];
-      updateSeasonProp(h.sn, {
-        roster: (se.roster || []).map((x) => (x.id === h.row.id ? { ...x, personId: id } : x)),
-      });
+     does not produce two people.
+   *
+   * Takes a list rather than one at a time, and writes each season once. It
+   * used to be called in a loop, and every call rebuilt that season's whole
+   * roster from the same unchanged snapshot - so each write threw away the
+   * one before it and only the last player in the list stayed linked. Link
+   * all appeared to do nothing because the panel still listed everybody it
+   * had just dropped on the floor. */
+  const applyLinks = (list) => {
+    const bySeason = new Map();
+    const put = (sn, rowId, id) => {
+      if (!bySeason.has(sn)) bySeason.set(sn, new Map());
+      bySeason.get(sn).set(rowId, id);
+    };
+    for (const c of list) {
+      const id = c.p.personId || (c.hits.find((h) => h.row.personId) || {}).row?.personId || uid();
+      put(sel, c.p.id, id);
+      for (const h of c.hits) put(h.sn, h.row.id, id);
+    }
+    for (const [sn, ids] of bySeason) {
+      const se = site.seasons[sn] || {};
+      const next = (se.roster || []).map((x) =>
+        (ids.has(x.id) ? { ...x, personId: ids.get(x.id) } : x));
+      if (sn === sel) updateSeason(sn, { roster: next });
+      else updateSeasonProp(sn, { roster: next });
     }
   };
+  const linkOne = (c) => applyLinks([c]);
 
   const confirmLink = async (c) => {
     const years = c.hits.map((h) => h.sn).sort().join(", ");
@@ -22714,7 +22729,7 @@ function RosterEditor({ site, updateSeason: updateSeasonProp }) {
         + "joined into one career.",
       confirmLabel: "Link them",
     });
-    if (ok) linkable.forEach(linkOne);
+    if (ok) applyLinks(linkable);
   };
 
   const LinkPanel = () => (linkable.length ? (
@@ -22778,10 +22793,16 @@ function RosterEditor({ site, updateSeason: updateSeasonProp }) {
   }, [site.seasons]);
 
   /* Two players in the same jersey is nearly always a typo. */
+  /* Through String() rather than straight to trim(). A jersey number is held
+     as text - "07" and "7" are different shirts - but seven rows arrived
+     from an import holding it as an actual number, and calling trim() on one
+     of those threw and took the whole roster editor down with it. A value
+     that comes from outside is worth converting rather than assuming. */
+  const jersey = (p) => String(p.number == null ? "" : p.number).trim();
   const dupeNumbers = new Set();
   const seen = new Map();
   for (const p of roster) {
-    const n = (p.number || "").trim();
+    const n = jersey(p);
     if (!n) continue;
     if (seen.has(n)) { dupeNumbers.add(n); } else { seen.set(n, p.id); }
   }
@@ -23036,7 +23057,7 @@ function RosterEditor({ site, updateSeason: updateSeasonProp }) {
       </div>
 
       {shown.map((p) => {
-        const dupe = (p.number || "").trim() && dupeNumbers.has((p.number || "").trim());
+        const dupe = jersey(p) && dupeNumbers.has(jersey(p));
 
         return (
           <div key={p.id}>
