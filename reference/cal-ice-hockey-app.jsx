@@ -2763,9 +2763,12 @@ table.stats th { background: #F4F7F9; color: var(--blue); font-family: var(--bod
    and ten columns need a band strong enough to hold them together.
    Wide enough that it scrolls rather than crushing ten columns into a phone,
    which the wrapper is already set up for. */
-table.stats.schedtable { min-width: 1040px; }
 table.stats.schedtable th { background: var(--deep); color: #fff; }
+table.stats.schedtable { min-width: 920px; }
 table.stats.schedtable td { font-size: 13.5px; white-space: nowrap; }
+/* Last column against the right edge, where the menu drops from. */
+table.stats.schedtable th:last-child, table.stats.schedtable td:last-child {
+  text-align: right; }
 /* One colour across the result. The gold W is the team's yellow and reads on
    navy; on a white table row beside its own score it is the palest thing in
    the line and the letter carrying the meaning is the one that disappears. */
@@ -2773,7 +2776,7 @@ table.stats.schedtable .rtag { color: inherit; }
 /* The one column with something long in it. */
 table.stats.schedtable td:nth-child(5) { white-space: normal; min-width: 190px; }
 .schedround { display: block; font-size: 11.5px; color: var(--muted); font-weight: 600; }
-.linksmenu { min-width: 132px; }
+.linksmenu { display: inline-block; }
 .linksbtn { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0;
   padding: 0; cursor: pointer; font: inherit; font-weight: 700; color: var(--blue); }
 .linksbtn svg { transition: transform 0.15s; }
@@ -9903,7 +9906,7 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
               <table className="stats schedtable">
                 <thead><tr>
                   <th>Date</th><th>Time</th><th>At</th><th>Opponent</th><th>Location</th>
-                  <th>TV</th><th>Tournament</th><th>Result</th><th>Links</th>
+                  <th>Tournament</th><th>Result</th><th>Links</th>
                 </tr></thead>
                 <tbody>
                   {rows.map((g) => {
@@ -9919,7 +9922,6 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
                         <td>{SIDE_LABEL[g.homeAway] || "—"}</td>
                         <td style={{ fontWeight: 600 }}>{g.opponent}</td>
                         <td>{where || "—"}</td>
-                        <td>{g.tv || "—"}</td>
                         <td>
                           {meet || "—"}
                           {g.playoffSection && gameType(g) !== "regular" && g.roundLabel && (
@@ -17165,14 +17167,6 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
                   <UrlField value={g.sponsorUrl || ""} placeholder="https://…"
                     onChange={(v) => setGame(g.id, { sponsorUrl: v })} />
                 </div>
-                {/* Who carried it. Free text rather than a link: what goes in
-                    the schedule's TV column is a broadcaster's name, and a game
-                    is often on something with no URL at all. */}
-                <div className="field">
-                  <label className="h6">TV</label>
-                  <input value={g.tv || ""} placeholder="ESPN+ · YouTube"
-                    onChange={(e) => setGame(g.id, { tv: e.target.value })} />
-                </div>
                 <div className="field">
                   <label className="h6">Photos</label>
                   <UrlField value={g.photosUrl || ""} placeholder="https://…"
@@ -17358,9 +17352,17 @@ function LinksMenu({ items }) {
   const toggle = () => {
     if (at) return setAt(null);
     const r = btn.current.getBoundingClientRect();
-    /* Hung from the button's right edge, and kept on screen if that would
-       put it off the left. */
-    setAt({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
+    /* Hung from the table's right edge rather than the button's, so every
+       row's menu lands in the same place and the column below it stays a
+       column. Falls back to the button where there is no table around it. */
+    const host = btn.current.closest(".twrap") || btn.current;
+    const hr = host.getBoundingClientRect();
+    /* clientWidth, not innerWidth: innerWidth counts the scrollbar and a
+       fixed element's right edge is measured from the page box, which does
+       not - so innerWidth leaves the menu a scrollbar's width short of the
+       edge it is supposed to be against. */
+    const vw = document.documentElement.clientWidth;
+    setAt({ top: r.bottom + 6, right: Math.max(8, vw - hr.right) });
   };
   return (
     <div className="linksmenu">
