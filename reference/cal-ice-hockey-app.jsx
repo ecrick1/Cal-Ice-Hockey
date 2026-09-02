@@ -2798,6 +2798,43 @@ button.gtrow:hover { background: var(--page); }
    rather than .sortable, which the game-centre box scores also wear - those
    sit inside a card and want the pale grey they have. */
 table.stats.statstable th { background: var(--deep); color: #fff; }
+/* Even columns, and the figures next to the name rather than across the room
+   from it.
+ *
+ * The sortable rules give column two width:100%, so the name soaks up every
+ * spare pixel and the stats are pushed against the far edge - and each stat
+ * column is then sized by its own header, so PIM and SHG are wider than G and
+ * A and the grid is ragged.
+ *
+ * Fixed layout instead: the jersey and the name are told what they get, and
+ * every column after them splits what is left in equal parts. That is both
+ * halves of it at once - the figures start where the name ends, and they are
+ * evenly spaced because nothing is sizing them by their contents any more.
+ *
+ * A min-width so the phone still scrolls rather than crushing thirteen
+ * columns into 300px, and an ellipsis on the name because a fixed column
+ * cannot grow for a long one. */
+/* max-content rather than the full row. Stretching the table to the card is
+   what let column two take width:100% and push every figure to the far edge;
+   sized to its own columns, the table stops where the figures stop and they
+   sit against the name.
+ *
+ * Each stat column is told what it gets, so they are even instead of each
+ * being as wide as its own heading - PIM and SHG were wider than G and A and
+ * the grid was ragged. The name is left to its own content: it is the one
+ * column where a fixed width either clips a long name or wastes room on the
+ * short ones. */
+table.stats.statstable { width: max-content; min-width: 0; }
+table.stats.statstable th:nth-child(n+3),
+table.stats.statstable td:nth-child(n+3) { width: 64px; }
+/* The jersey is pinned because the frozen name is offset by exactly this. */
+table.stats.sortable.statstable th:first-child,
+table.stats.sortable.statstable td:first-child { width: 46px; }
+table.stats.sortable.statstable th:nth-child(2),
+table.stats.sortable.statstable td:nth-child(2) { width: auto; }
+.statstable .statname { max-width: 100%; }
+.statstable .statname span { overflow: hidden; text-overflow: ellipsis; }
+
 /* The card the tables sit in. Its padding was written inline, which put it
    out of reach of a phone rule - it is a class now so the width can have it
    back where the width is scarce. */
