@@ -2915,8 +2915,37 @@ table.stats tbody tr:last-child td { border-bottom: 0; }
      opponent into three stacked words. */
   .gameresult { flex: 1 0 100%; }
 }
-.gamefoot { border-top: 1px solid #EEF1F4; padding: 10px 22px; display: flex;
-  align-items: center; gap: 12px; }
+/* Left to right: what it counted for, what was going on around it, the way
+   in. The notes take the slack so the way in stays pinned to the far end,
+   where a reader looking for it can find it in the same place on every row. */
+.gamefoot { border-top: 1px solid #EEF1F4; padding: 8px 22px; display: flex;
+  align-items: center; gap: 12px; flex-wrap: wrap; }
+.gnotes { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-left: auto; }
+.gfmore { font-weight: 700; display: inline-flex; gap: 7px; align-items: center;
+  padding-left: 14px; border-left: 1px solid #E7EBEF; }
+/* The competition it counted in - quiet, because it is true of most of the
+   season and only worth noticing when it is not. */
+.gconf { display: inline-flex; align-items: center; border-radius: 999px;
+  background: #F1F4F8; color: var(--muted); padding: 4px 12px;
+  font-family: var(--body); font-weight: 800; font-size: 11.5px; white-space: nowrap; }
+/* The occasion: who presented it, what it was called. */
+.gnote { display: inline-flex; align-items: center; gap: 7px; border-radius: 999px;
+  background: #F1F4F8; color: var(--blue); padding: 4px 12px;
+  font-family: var(--body); font-weight: 800; font-size: 11.5px; }
+.gnotelead { font-weight: 600; color: var(--muted); }
+/* Wants to be seen: it is the join between two separate facts, and at the
+   border grey it disappeared and read as one run-on phrase. */
+.gnotesep { color: var(--muted); font-weight: 500; opacity: 0.6; }
+.gnotelogo { height: 15px; width: auto; display: block; }
+.gnotelink { display: inline-flex; align-items: center; color: inherit;
+  text-decoration: none; }
+.gnotelink:hover { text-decoration: underline; }
+@media (max-width: 640px) {
+  .gamefoot { padding: 8px 16px; gap: 8px; }
+  .gnotes { margin-left: 0; width: 100%; }
+  .gfmore { padding-left: 0; border-left: 0; margin-left: auto; }
+}
 /* Replay and Game center, on their own line inside the card rather than
    under the rule. A full-width flex item, so they break to a row of their
    own however the rest of the card has wrapped. */
@@ -4744,6 +4773,7 @@ const IcPlayCircle = ({ size = 20 }) => (
 /* Game centre: the rink seen from above. On the same 24 grid as the rest of
    the set and filled rather than stroked, so it holds together at the small
    sizes the calendar uses it at. */
+const IcPhotos = (p) => <Ic {...p} d={<><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="8.5" cy="10" r="1.6" /><path d="m4 17 4.5-4.5 3.5 3.5 3-3L20 17" /></>} />;
 const IcGameCenter = ({ size = 20 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true"
     style={{ display: "block", flex: "0 0 auto" }}>
@@ -9881,13 +9911,6 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
                         )}
                       </span>
                       <div style={{ minWidth: 0 }}>
-                        {/* The round is billed above the card, so only the
-                            name a game goes by belongs in here. */}
-                        {!!(g.specials || []).length && (
-                          <div className="spectags">
-                            {g.specials.map((n) => <span className="spectag" key={n}>{n}</span>)}
-                          </div>
-                        )}
                         <p style={{ margin: 0, fontWeight: 700, fontSize: 17, color: "var(--ink)" }}>{g.opponent}</p>
                         <p className="bsm" style={{ margin: "5px 0 0", color: "var(--muted)" }}>
                           <IcPin size={13} style={{ marginRight: 4 }} />{[g.venue, g.location].filter(Boolean).join(" · ")
@@ -9916,22 +9939,41 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
                                 Tickets <IcTicket size={16} />
                               </button>
                         )}
+                        {g.photosUrl && (
+                          <a className="watchbtn" href={g.photosUrl}
+                            target="_blank" rel="noreferrer noopener">
+                            Photos <IcPhotos size={16} />
+                          </a>
+                        )}
+                        {g.highlightsUrl && (
+                          <a className="watchbtn" href={g.highlightsUrl}
+                            target="_blank" rel="noreferrer noopener">
+                            Highlights <IcPlayCircle size={16} />
+                          </a>
+                        )}
                         <button className="watchbtn" onClick={() => onGame && onGame(g.id)}>
                           Game center <IcGameCenter size={17} />
                         </button>
                       </div>
                     </div>
+                    {/* The footer rule reads left to right as what the game
+                        counted for, then what was going on around it, then the
+                        way in. What a game is called and who presented it are
+                        notes about the occasion rather than facts about the
+                        fixture, so they sit down here beside the round rather
+                        than above the opponent's name. */}
                     <div className="gamefoot">
-                      <button className="gb-link" style={{ fontWeight: 700, display: "inline-flex", gap: 7, alignItems: "center" }}
+                      {g.conference && <span className="gconf">{g.conference}</span>}
+                      <span className="gnotes">
+                        {gameType(g) !== "regular" && (
+                          <span className="roundtag">{roundName(g)}</span>
+                        )}
+                        <GameNote game={g} />
+                      </span>
+                      <button className="gb-link gfmore"
                         onClick={() => setOpenInfo(open ? null : g.id)} aria-expanded={open}>
                         Quick look {open ? <IcMinusC size={19} /> : <IcPlusC size={19} />}
                       </button>
-                      {/* Which game of the tournament this was. It belongs on
-                          the game and the tournament's name belongs above the
-                          run of them, so neither has to repeat the other. */}
-                      {gameType(g) !== "regular" && (
-                        <span className="roundtag">{roundName(g)}</span>
-                      )}
                     </div>
                     {open && (
                       <div className="gameinfo bsm">
@@ -16583,6 +16625,38 @@ function ArchivedSeason({ sel, lock }) {
  * takes the page's font and the row's colour, and swaps out cleanly the day a
  * real mark arrives.
  */
+/* Who presented a game and what it was called, in one note.
+ *
+ * They belong together because they are the same sort of fact and they were
+ * printed together on the night - "Presented by the bank, Teddy Bear Toss".
+ * A sponsor may have a mark or only a name; a logo is shown when there is
+ * one, because that is what a sponsor is paying for, and the name carries
+ * the alt text either way so the note still reads when the image does not
+ * load. */
+function GameNote({ game }) {
+  const names = game.specials || (game.special ? [game.special] : []);
+  const hasSponsor = !!(game.sponsor || game.sponsorLogo);
+  if (!hasSponsor && !names.length) return null;
+  const mark = game.sponsorLogo
+    ? <img className="gnotelogo" src={game.sponsorLogo} alt={game.sponsor || "Sponsor"} />
+    : <span>{game.sponsor}</span>;
+  return (
+    <span className="gnote">
+      {hasSponsor && (
+        <>
+          <span className="gnotelead">Presented by</span>
+          {game.sponsorUrl
+            ? <a className="gnotelink" href={game.sponsorUrl} target="_blank"
+                rel="noreferrer noopener sponsored">{mark}</a>
+            : mark}
+        </>
+      )}
+      {hasSponsor && !!names.length && <span className="gnotesep" aria-hidden="true">|</span>}
+      {names.map((n) => <span key={n}>{n}</span>)}
+    </span>
+  );
+}
+
 function Pac8Mark() {
   /* The delivered crest, a single path - the outlined cut rather than the
      solid one, which is what the conference draws when the mark has to hold
@@ -16800,6 +16874,17 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
     return [...seen].sort();
   }, [site.seasons]);
 
+  /* Same idea for the competition: typed once a season and offered back
+     every game after it, because it goes on most rows and retyping it is
+     where "Pac-8" quietly becomes "PAC-8". */
+  const confNames = useMemo(() => {
+    const seen = new Set();
+    for (const ss of Object.values(site.seasons || {}))
+      for (const g of ss.schedule || [])
+        if (g.conference) seen.add(String(g.conference).trim());
+    return [...seen].sort();
+  }, [site.seasons]);
+
   return (
     <>
       <SeasonPicker site={site} sel={sel} setSel={setSel} />
@@ -16990,11 +17075,61 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
                   </p>
                 </div>
                 <div className="field">
+                  <label className="h6">Competition</label>
+                  <input value={g.conference || ""} list="confnames"
+                    placeholder="Pac-8 · ACHA West"
+                    onChange={(e) => setGame(g.id, { conference: e.target.value })} />
+                  <datalist id="confnames">
+                    {confNames.map((n) => <option key={n} value={n} />)}
+                  </datalist>
+                  <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
+                    Marks the game as counting in a competition, shown at the
+                    left of the schedule row. Leave it blank for a non-conference
+                    game.
+                  </p>
+                </div>
+                <div className="field">
                   <label className="h6">Special game</label>
                   <input value={g.special || ""} placeholder="Senior Night · Alumni Game"
                     onChange={(e) => setGame(g.id, { special: e.target.value })} />
                   <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
-                    Shown as a gold tag on the schedule, the game page and the home page.
+                    What the night was called. Shown on the schedule row beside
+                    the presenting sponsor, and on the game page.
+                  </p>
+                </div>
+                <div className="field">
+                  <label className="h6">Presented by</label>
+                  <input value={g.sponsor || ""} placeholder="Sponsor name"
+                    onChange={(e) => setGame(g.id, { sponsor: e.target.value })} />
+                  <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
+                    A name alone is enough. Add a logo below and the logo is
+                    shown instead, with this name as its alt text.
+                  </p>
+                </div>
+                <div className="field">
+                  <label className="h6">Sponsor logo</label>
+                  <UrlField value={g.sponsorLogo || ""} placeholder="https://… or /logos/…"
+                    onChange={(v) => setGame(g.id, { sponsorLogo: v })} />
+                </div>
+                <div className="field">
+                  <label className="h6">Sponsor link</label>
+                  <UrlField value={g.sponsorUrl || ""} placeholder="https://…"
+                    onChange={(v) => setGame(g.id, { sponsorUrl: v })} />
+                </div>
+                <div className="field">
+                  <label className="h6">Photos</label>
+                  <UrlField value={g.photosUrl || ""} placeholder="https://…"
+                    onChange={(v) => setGame(g.id, { photosUrl: v })} />
+                  <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
+                    A gallery for this game. Adds a Photos button to the row.
+                  </p>
+                </div>
+                <div className="field">
+                  <label className="h6">Highlights</label>
+                  <UrlField value={g.highlightsUrl || ""} placeholder="https://…"
+                    onChange={(v) => setGame(g.id, { highlightsUrl: v })} />
+                  <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
+                    A highlight reel, as opposed to the full replay above.
                   </p>
                 </div>
                 <div className="field">
