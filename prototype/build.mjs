@@ -6,12 +6,15 @@ const dir = path.dirname(fileURLToPath(import.meta.url));
 const watch = process.argv.includes('--watch');
 
 /** The prototype injects its own <style> block, so no CSS entry is needed. */
+/* Anchored to this file rather than to the working directory, so `node
+   prototype/build.mjs` works from the repo root the same as from in here -
+   which is how it gets typed when somebody is packaging a release. */
 const options = {
-  entryPoints: ['entry.jsx'],
+  entryPoints: [path.join(dir, 'entry.jsx')],
   bundle: true,
   format: 'iife',
   jsx: 'automatic',
-  outfile: 'app.js',
+  outfile: path.join(dir, 'app.js'),
   logLevel: 'info',
   define: { 'process.env.NODE_ENV': '"development"' },
   // The reference file lives outside this package, so esbuild would try to
