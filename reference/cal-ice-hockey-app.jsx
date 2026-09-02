@@ -17074,12 +17074,9 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
                 </div>
                 <div className="field">
                   <label className="h6">Competition</label>
-                  <input value={g.conference || ""} list="confnames"
-                    placeholder="Pac-8 · ACHA West"
-                    onChange={(e) => setGame(g.id, { conference: e.target.value })} />
-                  <datalist id="confnames">
-                    {confNames.map((n) => <option key={n} value={n} />)}
-                  </datalist>
+                  <PickOrAdd value={g.conference || ""} options={confNames}
+                    placeholder="Pac-8" addLabel="+ New competition…"
+                    onChange={(v) => setGame(g.id, { conference: v })} />
                   <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
                     Marks the game as counting in a competition, shown at the
                     left of the schedule row. Leave it blank for a non-conference
@@ -17139,7 +17136,8 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
                   <>
                     <div className="field">
                       <label className="h6">Playoff section</label>
-                      <SectionPicker value={g.playoffSection || ""} options={poSections}
+                      <PickOrAdd value={g.playoffSection || ""} options={poSections}
+                        placeholder="Pac-8 Championship" addLabel="+ New section…"
                         onChange={(v) => setGame(g.id, { playoffSection: v })} />
                       <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
                         The tournament this game was part of, from the ones this
@@ -17192,7 +17190,7 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
                     that opened it a screen and a half above. */}
                 <div className="auwide" style={{ display: "flex", justifyContent: "flex-end" }}>
                   <button className="btn bNavy" onClick={() => setOpenMore(null)}>
-                    Done <IcCheck size={16} />
+                    Done
                   </button>
                 </div>
               </div>
@@ -17232,25 +17230,24 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
   );
 }
 
-/* Picking a tournament, or starting one.
+/* Pick a name already in use, or add one.
  *
- * A select rather than a text box because the games of one tournament have to
- * agree on its name exactly to band together on the schedule, and retyping is
- * where "Pac-8 Championship" quietly becomes "Pac-8 Championships" and one
- * tournament becomes two. The list is this season's own, so it starts empty
- * every year and the first playoff game of a season is where its first
- * section gets named.
+ * A select rather than a text box wherever games have to agree on a name
+ * exactly to be treated as the same thing - a tournament to band its games
+ * together, a competition to mean the same competition. Retyping is where
+ * "Pac-8 Championship" quietly becomes "Pac-8 Championships" and one
+ * tournament becomes two.
  *
  * Stays in the text box until Done is pressed. The list is derived from the
  * games, so the half-typed name would appear in it on the first keystroke and
  * hand the field straight back to the select. */
-function SectionPicker({ value, options, onChange }) {
+function PickOrAdd({ value, options, onChange, placeholder, addLabel }) {
   const [adding, setAdding] = useState(false);
   const known = options.includes(value);
   if (adding || (value && !known)) {
     return (
       <div style={{ display: "flex", gap: 8 }}>
-        <input autoFocus value={value} placeholder="Pac-8 Championship"
+        <input autoFocus value={value} placeholder={placeholder}
           onChange={(e) => onChange(e.target.value)} />
         <button className="btn bGhost" onClick={() => setAdding(false)}>Done</button>
       </div>
@@ -17263,7 +17260,7 @@ function SectionPicker({ value, options, onChange }) {
     }}>
       <option value="">— none —</option>
       {options.map((n) => <option key={n} value={n}>{n}</option>)}
-      <option value="__new__">+ New section…</option>
+      <option value="__new__">{addLabel}</option>
     </select>
   );
 }
