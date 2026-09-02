@@ -2765,8 +2765,11 @@ table.stats th { background: #F4F7F9; color: var(--blue); font-family: var(--bod
    which the wrapper is already set up for. */
 table.stats.schedtable { min-width: 1040px; }
 table.stats.schedtable th { background: var(--deep); color: #fff; }
-table.stats.schedtable td { font-size: 13.5px; white-space: nowrap; vertical-align: top;
-  padding-top: 14px; }
+table.stats.schedtable td { font-size: 13.5px; white-space: nowrap; }
+/* One colour across the result. The gold W is the team's yellow and reads on
+   navy; on a white table row beside its own score it is the palest thing in
+   the line and the letter carrying the meaning is the one that disappears. */
+table.stats.schedtable .rtag { color: inherit; }
 /* The one column with something long in it. */
 table.stats.schedtable td:nth-child(5) { white-space: normal; min-width: 190px; }
 .schedround { display: block; font-size: 11.5px; color: var(--muted); font-weight: 600; }
@@ -2778,8 +2781,9 @@ table.stats.schedtable td:nth-child(5) { white-space: normal; min-width: 190px; 
 .linksbtn:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
 /* One row per link, named. Stripes so a long list stays countable, which is
    the only reason a list of five links needs anything at all. */
-.linksdrop { display: grid; margin-top: 8px; border: 1px solid var(--border);
-  border-radius: 6px; overflow: hidden; background: #fff; }
+.linksdrop { position: fixed; z-index: 60; display: grid; min-width: 190px;
+  border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: #fff;
+  box-shadow: 0 10px 28px rgba(4, 30, 66, 0.16); }
 .linksdrop a, .linksdrop button { display: block; text-align: left; padding: 9px 12px;
   border: 0; background: none; font: inherit; font-size: 13px; font-weight: 600;
   color: var(--ink); text-decoration: none; cursor: pointer; white-space: nowrap; }
@@ -9899,7 +9903,7 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
               <table className="stats schedtable">
                 <thead><tr>
                   <th>Date</th><th>Time</th><th>At</th><th>Opponent</th><th>Location</th>
-                  <th>TV</th><th>Radio</th><th>Tournament</th><th>Result</th><th>Links</th>
+                  <th>TV</th><th>Tournament</th><th>Result</th><th>Links</th>
                 </tr></thead>
                 <tbody>
                   {rows.map((g) => {
@@ -9916,7 +9920,6 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
                         <td style={{ fontWeight: 600 }}>{g.opponent}</td>
                         <td>{where || "—"}</td>
                         <td>{g.tv || "—"}</td>
-                        <td>{g.radio || "—"}</td>
                         <td>
                           {meet || "—"}
                           {g.playoffSection && gameType(g) !== "regular" && g.roundLabel && (
@@ -17163,17 +17166,12 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
                     onChange={(v) => setGame(g.id, { sponsorUrl: v })} />
                 </div>
                 {/* Who carried it. Free text rather than a link: what goes in
-                    the schedule's TV and Radio columns is a station's name,
-                    and a game is often on something with no URL at all. */}
+                    the schedule's TV column is a broadcaster's name, and a game
+                    is often on something with no URL at all. */}
                 <div className="field">
                   <label className="h6">TV</label>
                   <input value={g.tv || ""} placeholder="ESPN+ · YouTube"
                     onChange={(e) => setGame(g.id, { tv: e.target.value })} />
-                </div>
-                <div className="field">
-                  <label className="h6">Radio</label>
-                  <input value={g.radio || ""} placeholder="KALX 90.7"
-                    onChange={(e) => setGame(g.id, { radio: e.target.value })} />
                 </div>
                 <div className="field">
                   <label className="h6">Photos</label>
@@ -17331,25 +17329,50 @@ function PickOrAdd({ value, options, onChange, placeholder, addLabel }) {
 
 /* The links a row leads to, named rather than drawn.
  *
- * Opens in flow rather than floating over the table. The wrapper scrolls
- * sideways, and a box that scrolls on one axis clips the other, so a menu
- * positioned over these rows would be cut off at the edge of the table
- * instead of overlapping it. The row grows instead, which nothing can clip.
- */
+ * Floats over the table rather than growing the row, and has to be fixed
+ * rather than absolute to do it: the table's wrapper scrolls sideways, and a
+ * box that scrolls on one axis clips the other, so an absolutely positioned
+ * menu would be cut off at the table's edge instead of overlapping it. Fixed
+ * escapes that, at the cost of having to be told where to go.
+ *
+ * Which is why it closes on any scroll. A fixed menu is positioned against
+ * the viewport once, so the moment anything moves underneath it, it is
+ * pointing at the wrong row. */
 function LinksMenu({ items }) {
-  const [open, setOpen] = useState(false);
+  const [at, setAt] = useState(null);
+  const btn = useRef(null);
+  useEffect(() => {
+    if (!at) return;
+    const shut = () => setAt(null);
+    const away = (e) => { if (!btn.current || !btn.current.contains(e.target)) setAt(null); };
+    window.addEventListener("scroll", shut, true);
+    window.addEventListener("resize", shut);
+    document.addEventListener("mousedown", away);
+    return () => {
+      window.removeEventListener("scroll", shut, true);
+      window.removeEventListener("resize", shut);
+      document.removeEventListener("mousedown", away);
+    };
+  }, [at]);
   if (!items.length) return <span style={{ color: "var(--muted)" }}>—</span>;
+  const toggle = () => {
+    if (at) return setAt(null);
+    const r = btn.current.getBoundingClientRect();
+    /* Hung from the button's right edge, and kept on screen if that would
+       put it off the left. */
+    setAt({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
+  };
   return (
     <div className="linksmenu">
-      <button className={"linksbtn" + (open ? " on" : "")} aria-expanded={open}
-        onClick={() => setOpen(!open)}>
+      <button ref={btn} className={"linksbtn" + (at ? " on" : "")} aria-expanded={!!at}
+        onClick={toggle}>
         Links <IcChevD size={14} />
       </button>
-      {open && (
-        <div className="linksdrop">
+      {at && (
+        <div className="linksdrop" style={{ top: at.top, right: at.right }}>
           {items.map((it) => (it.href
             ? <a key={it.label} href={it.href} target="_blank" rel="noreferrer noopener">{it.label}</a>
-            : <button key={it.label} onClick={() => { setOpen(false); it.go(); }}>{it.label}</button>
+            : <button key={it.label} onClick={() => { setAt(null); it.go(); }}>{it.label}</button>
           ))}
         </div>
       )}
