@@ -2817,7 +2817,6 @@ table.stats.statstable th { background: var(--deep); color: #fff; }
   .statfilterlab { flex: 1 1 100%; }
   .statseg { display: flex; width: 100%; }
   .statsegbtn { flex: 1 1 0; padding: 10px 8px; font-size: 14px; }
-  .statfilter .bsm { margin-left: 0; flex: 1 1 100%; }
 }
 
 .statsec { font-family: var(--body); font-weight: 750; font-size: 1.15rem; letter-spacing: -0.015em;
@@ -11353,11 +11352,6 @@ function StatsPage({ site, onPlayer, onGame }) {
                       onClick={() => setCat(k)}>{label}</button>
                   ))}
                 </div>
-                <span className="bsm" style={{ color: "var(--muted)", marginLeft: "auto" }}>
-                  {(cat === "goalies"
-                    ? skaters.filter((p) => p.position === "G")
-                    : skaters.filter((p) => p.position !== "G")).length} players
-                </span>
               </div>
             )}
           </div>
