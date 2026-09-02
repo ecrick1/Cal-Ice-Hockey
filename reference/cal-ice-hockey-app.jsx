@@ -5580,6 +5580,25 @@ function ticketsFor(game, site) {
   return ((site || {}).settings || {}).ticketsUrl || "";
 }
 
+/**
+ * Whether a seat can still be sold for this game.
+ *
+ * "No result" was standing in for "not yet played", which held while the only
+ * games on the site were this season's. It stopped being true as the archive
+ * filled in: most games back to 2008 were played and won and simply have no
+ * score on file, and every one of them was offering tickets to a night that
+ * is years gone.
+ *
+ * So the date decides, not the score. Home, in the future, and not already
+ * final. daysSince anchors at noon, so a game today reads zero and stays on
+ * sale through the day it is played.
+ */
+function sellable(g) {
+  if (!g || g.result || g.homeAway !== "H") return false;
+  const d = daysSince(g.date);
+  return d !== null && d <= 0;
+}
+
 function watchRows(game) {
   const host = (url) => {
     try { return new URL(url).hostname.replace(/^www\./, ""); }
@@ -9145,7 +9164,7 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
   const usColor = org.primary || "#041E42";
   const themColor = (opponentRec && opponentRec.color) || "#5A6473";
 
-  const isHome = game.homeAway === "H";
+  const onSale = sellable(game);
   const ticketsUrl = ticketsFor(game, site);
   const offer = watchOffer(game, true);
   const note = form.prior ? form.name + " season" : seasonName + " season";
@@ -9319,15 +9338,17 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
 
   return (
     <>
-      {(offer || isHome) && (
+      {(offer || onSale) && (
         <div className="gpbar">
           {offer && (
             <a className="btn bNavy" href={offer.href} target="_blank" rel="noreferrer noopener">
               {offer.label} <WatchMark offer={offer} />
             </a>
           )}
-          {/* Only a home game is ours to sell a seat to. */}
-          {isHome && (
+          {/* Only a home game still to be played is ours to sell a seat to.
+              This asked whether the game was at home and nothing else, so a
+              night in 2008 offered seats as readily as one next week. */}
+          {onSale && (
             ticketsUrl
               ? <a className="btn bNavy" href={ticketsUrl} target="_blank" rel="noreferrer noopener">
                   Get tickets <IcTicket size={16} />
@@ -9877,7 +9898,7 @@ function GameBoxScore({ site, game, roster, schedule, usAbbr, themAbbr, onPlayer
  * jumps as you page between months, and a month holding a playoff game (which
  * carries an extra tag line) comes out taller than one that does not.
  */
-function ScheduleCalendar({ games, onGame, seasonName, ticketsUrl }) {
+function ScheduleCalendar({ games, onGame, seasonName, site }) {
   const dated = (games || []).filter((g) => g.date);
 
   /* The months the season actually spans, so paging cannot wander off into
@@ -10022,8 +10043,8 @@ function ScheduleCalendar({ games, onGame, seasonName, ticketsUrl }) {
                         <IcGameCenter size={24} />
                       </button>
                       {/* Only an upcoming home game is ours to sell a ticket to. */}
-                      {!r && g.homeAway === "H" && (g.ticketsUrl || ticketsUrl) && (
-                        <a className="calact" href={g.ticketsUrl || ticketsUrl}
+                      {sellable(g) && ticketsFor(g, site) && (
+                        <a className="calact" href={ticketsFor(g, site)}
                           target="_blank" rel="noreferrer noopener"
                           title={"Tickets — " + label} aria-label={"Tickets, " + label}>
                           <IcTicket size={20} />
@@ -10136,7 +10157,7 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
             /* The calendar always shows the whole season: filtering it to
                "results only" would leave gaps that read as missing games. */
             <ScheduleCalendar games={season.schedule} onGame={onGame} seasonName={sel}
-              ticketsUrl={(site.settings || {}).ticketsUrl} />
+              site={site} />
           ) : viewType === "table" ? (
             <div className="twrap" style={{ marginTop: 32 }}>
               <table className="stats schedtable">
@@ -10174,7 +10195,7 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
                             g.streamUrl && !g.result && { label: "Watch live", href: g.streamUrl },
                             g.highlightsUrl && { label: "Highlights", href: g.highlightsUrl },
                             g.photosUrl && { label: "Photos", href: g.photosUrl },
-                            !g.result && g.homeAway === "H" && ticketsFor(g, site)
+                            sellable(g) && ticketsFor(g, site)
                               && { label: "Tickets", href: ticketsFor(g, site) },
                           ].filter(Boolean)} />
                         </td>
@@ -10225,7 +10246,7 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
                             seat to. Straight to the seller where one is set,
                             otherwise to the tickets page and its door prices -
                             the same way the banner and the nav pill behave. */}
-                        {!g.result && g.homeAway === "H" && (
+                        {sellable(g) && (
                           ticketsFor(g, site)
                             ? <a className="watchbtn" href={ticketsFor(g, site)}
                                 target="_blank" rel="noreferrer noopener">
