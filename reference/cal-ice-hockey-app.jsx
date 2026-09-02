@@ -5509,7 +5509,11 @@ function Scoreboard({ schedule, goto, onGame }) {
                 </span>
                 <span className="scard-main">
                   {vsAt(g) && <span className={"vsbadge " + sideClass(g)}>{vsAt(g)}</span>}
-                  <OppBadge name={g.opponent} logo={g.opponentLogo} />
+                  {/* The short name, not the full one: with no logo to show,
+                      the badge takes initials off the front of each word, and
+                      the first word of "UC Santa Cruz" is already an
+                      abbreviation - it came out "US". */}
+                  <OppBadge name={g.opponentShort || g.opponent} logo={g.opponentLogo} />
                   <span className="sopp">{g.opponent}</span>
                   <WatchLink game={g} size="sm" />
                   {state === "live" && (
