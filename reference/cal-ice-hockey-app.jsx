@@ -11572,10 +11572,19 @@ function PlayerPage({ site, playerId, onBack, onPlayer, onGame }) {
 
               {/* Season and career side by side, the way a card front reads.
                   A goaltender is judged on entirely different numbers, so the
-                  cards change rather than showing them a row of zero goals. */}
+                  cards change rather than showing them a row of zero goals.
+
+                  Only while the player is on the current roster. For anyone
+                  who is not, the season card names a year that has been over
+                  for a while and puts it level with the career beside it, as
+                  though this were still their season - and for a player who
+                  only ever had the one, it prints the same line twice. What
+                  is worth knowing about someone who has finished is what they
+                  did in total. */}
               <div className="ppcards">
                 {(() => {
                   const across = seasonsOf(site, player);
+                  const current = seasonName === site.currentSeason;
 
                   if (isKeeper) {
                     /* Saves and goals against live on the game sheets, not on
@@ -11620,7 +11629,7 @@ function PlayerPage({ site, playerId, onBack, onPlayer, onGame }) {
                         + " so it is not in the career totals."
                       : "";
                     const cards = [
-                      [seasonName, line(thisSeason)],
+                      ...(current ? [[seasonName, line(thisSeason)]] : []),
                       /* Minutes come along because goals-against average is per
                          sixty of them; without them it would fall back to a
                          per-appearance figure over games it has no goals for. */
@@ -11651,7 +11660,8 @@ function PlayerPage({ site, playerId, onBack, onPlayer, onGame }) {
                     a: acc.a + pstat(p, "a"), pim: acc.pim + pstat(p, "pim"),
                   }), { gp: 0, g: 0, a: 0, pim: 0 });
                   const cards = [
-                    [seasonName, { gp: pstat(player, "gp"), g: pstat(player, "g"), a: pstat(player, "a"), pim: pstat(player, "pim") }],
+                    ...(current ? [[seasonName, { gp: pstat(player, "gp"), g: pstat(player, "g"),
+                      a: pstat(player, "a"), pim: pstat(player, "pim") }]] : []),
                     ["Career", career],
                   ];
                   return cards.map(([label, v]) => (
