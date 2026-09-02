@@ -2391,8 +2391,14 @@ button.gtrow:hover { background: var(--page); }
 .calact:hover { opacity: 1; color: var(--blue); }
 .calact:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; opacity: 1; }
 
-.caltag { font-family: var(--disp); font-weight: 600; font-size: 8.5px; letter-spacing: 0.12em;
-  text-transform: uppercase; color: var(--deep); opacity: 0.7; }
+/* The body face, not the condensed one, and not shouted. This is a proper
+   noun - a tournament has a name - and setting it narrow, spaced out and in
+   capitals made it read as a category heading rather than as the name of the
+   thing. It wraps rather than truncating: a cell is narrow, and half a
+   tournament name tells a reader less than two short lines do. */
+.caltag { font-family: var(--body); font-weight: 700; font-size: 9.5px; letter-spacing: 0;
+  line-height: 1.25; color: var(--deep); opacity: 0.75; text-align: center;
+  max-width: 100%; overflow-wrap: anywhere; }
 .callogo { display: grid; place-items: center; width: 50px; height: 50px; }
 .callogo img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .caltime { font-size: 12.5px; font-weight: 700; color: var(--deep); }
