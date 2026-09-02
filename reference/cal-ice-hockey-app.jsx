@@ -2818,6 +2818,17 @@ table.stats.sortable.statstable td:first-child { padding-left: 10px; }
  * carries its colour on the tr, and a sticky cell that does not repaint it
  * is transparent - the columns underneath show straight through it. */
 @media (max-width: 760px) {
+  /* The portrait goes. It is decoration beside a name that is already a
+     link, and it was taking thirty pixels off the one frozen column on the
+     screen with the least room - so the stats it was crowding out are the
+     reason anybody opened the table. */
+  /* PlayerAvatar carries display:block as an inline style, so a selector
+     alone cannot reach it however specific it is. */
+  .statstable .statname img, .statstable .statname svg { display: none !important; }
+  .statstable .statname { gap: 0; font-size: 13.5px; }
+  /* Square across the top, so the navy head meets the edges of what holds
+     it rather than being clipped by a corner it did not ask for. */
+  .twrap:has(.statstable) { border-radius: 0; }
   .statstable th:first-child, .statstable td:first-child {
     position: sticky; left: 0; z-index: 2;
     width: 40px; min-width: 40px; max-width: 40px; box-sizing: border-box; }
