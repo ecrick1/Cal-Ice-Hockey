@@ -22762,26 +22762,79 @@ function Importer({ site, updateSeason }) {
  * to Ryan Lee, and a name that matches two players cannot be guessed at.
  */
 
-/** Every player across every season, de-duplicated, for the mention picker. */
-/* The current roster, and only that.
- *
- * A mention is a link to a player page, so the question is who should be
- * linkable from a story written today - and that is the team, not everyone
- * who has ever worn the shirt. Every season on file put the picker past a
- * hundred names and had Link players quietly reach back years to link a
- * graduate who happened to share a sentence.
- *
- * Mentions already written are untouched: renderInline links whatever name a
- * body carries, so an archived story about a 2019 team still works. This
- * governs what you can add, not what exists. */
-function allPlayers(site) {
-  const season = (site.seasons || {})[site.currentSeason] || {};
+/** The roster of one season, de-duplicated by name. */
+function rosterOf(site, seasonName) {
+  const season = (site.seasons || {})[seasonName] || {};
   const byName = new Map();
   for (const p of season.roster || []) {
     if (!p.name) continue;
     if (!byName.has(p.name)) byName.set(p.name, p);
   }
   return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * Which season a story belongs to.
+ *
+ * The game it is attached to knows, and says so exactly. Failing that the
+ * date does: a season is the year its schedule covers, so a story filed in
+ * November 2019 belongs to whichever season was being played then. Failing
+ * both, the season being played now.
+ */
+function seasonOfPost(site, post) {
+  const seasons = site.seasons || {};
+  const gid = post && post.gameId;
+  if (gid) {
+    for (const [sn, se] of Object.entries(seasons)) {
+      if ((se.schedule || []).some((g) => g.id === gid)) return sn;
+    }
+  }
+  const d = post && post.date;
+  if (d) {
+    /* An exact answer where there is a schedule to check against. */
+    for (const [sn, se] of Object.entries(seasons)) {
+      const dates = (se.schedule || []).map((g) => g.date).filter(Boolean).sort();
+      if (dates.length && d >= dates[0] && d <= dates[dates.length - 1]) return sn;
+    }
+    /* And otherwise the calendar. Most seasons on file are a roster and no
+       game log - 2018-19 has twenty-four players and not one date - so a
+       schedule range answers for a handful of years and nothing for the
+       rest. A season runs autumn to winter and is named for the year it
+       starts in, which places any date without needing a fixture. */
+    const t = new Date(d + "T12:00:00");
+    if (!isNaN(t)) {
+      const start = t.getMonth() >= 8 ? t.getFullYear() : t.getFullYear() - 1;
+      const name = start + "-" + String((start + 1) % 100).padStart(2, "0");
+      if (seasons[name]) return name;
+    }
+  }
+  return site.currentSeason;
+}
+
+/**
+ * Who this story can mention: its own season first, then everyone else by
+ * season, newest first.
+ *
+ * Scoped rather than capped. The old rule offered the current roster only,
+ * which made the men an older story was about the ones it could not link to.
+ * A flat list of every player on file is past a hundred names, so the
+ * grouping is what makes the whole archive reachable without burying the
+ * dozen names actually likely.
+ */
+function mentionGroups(site, post) {
+  const home = seasonOfPost(site, post);
+  const seen = new Set();
+  const groups = [];
+  const take = (sn) => {
+    const rows = rosterOf(site, sn).filter((p) => !seen.has(personKey(p.name)));
+    rows.forEach((p) => seen.add(personKey(p.name)));
+    if (rows.length) groups.push([sn, rows]);
+  };
+  take(home);
+  Object.keys(site.seasons || {}).sort().reverse()
+    .filter((sn) => sn !== home)
+    .forEach(take);
+  return groups;
 }
 
 /* An alumnus with the same name as somebody on the roster.
@@ -22897,7 +22950,8 @@ function NewsEditor({ site, setSite, alumni, setAlumni }) {
   const [editingId, setEditingId] = useState(null);
   const [displaced, setDisplaced] = useState(null);
   const [sortBy, setSortBy] = useSticky("admin.news.sort", "newest");
-  const players = useMemo(() => allPlayers(site), [site]);
+  /* Computed per story rather than once for the editor: which players a
+     story can mention depends on which season it is about. */
 
   /* Every hook in this component has to run on both branches - the editor
      below returns early, and a hook that sits after that return is only
@@ -23036,7 +23090,7 @@ function NewsEditor({ site, setSite, alumni, setAlumni }) {
                 onChange={(e) => setN(editing.id, { blurb: e.target.value })} />
             </div>
 
-            <ArticleBody post={editing} setN={setN} players={players}
+            <ArticleBody post={editing} setN={setN} site={site}
               alumni={alumni} linkPerson={linkPerson} />
           </div>
 
@@ -23260,7 +23314,13 @@ function MarkButton({ label, glyph, style, onClick }) {
   );
 }
 
-function ArticleBody({ post, setN, players, alumni, linkPerson }) {
+function ArticleBody({ post, setN, site, alumni, linkPerson }) {
+  /* The story's own season first, then every other, newest first. */
+  const groups = useMemo(() => mentionGroups(site, post), [site, post.gameId, post.date]);
+  /* The set the automatic pass may wrap: the story's own season, which is
+     the one it can be confident about. Reaching across every year is how a
+     graduate who shares a sentence with the team gets linked by accident. */
+  const players = groups.length ? groups[0][1] : [];
   const ask = useAsk();
   const bodyRef = useRef(null);
   const [preview, setPreview] = useState(false);
@@ -23271,7 +23331,9 @@ function ArticleBody({ post, setN, players, alumni, linkPerson }) {
      this season's Jack Burbank when the story is about the one who graduated
      in 2014 is a wrong link, made silently, so it is asked about once. */
   const settleName = async (name) => {
-    const clash = alumniClash(name, players, alumni);
+    /* Every season, not just this story's: a mention can now be picked from
+       any of them, and the name it clashes with is the person, not the year. */
+    const clash = alumniClash(name, groups.flatMap(([, rows]) => rows), alumni);
     if (!clash) return true;
     const { player, alum } = clash;
     const played = [alum.years, alum.gradYear && "class of " + alum.gradYear]
@@ -23393,7 +23455,11 @@ function ArticleBody({ post, setN, players, alumni, linkPerson }) {
             <select value="" style={{ width: "auto", fontSize: 12.5 }}
               onChange={(e) => { if (e.target.value) insertMention(e.target.value); }}>
               <option value="">Mention a player…</option>
-              {players.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}
+              {groups.map(([sn, rows]) => (
+                <optgroup key={sn} label={sn}>
+                  {rows.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}
+                </optgroup>
+              ))}
             </select>
             <button className="btn bGhost bSm" onClick={autoLink}>Link players</button>
             <button className={"btn bSm " + (preview ? "bNavy" : "bGhost")}
@@ -23421,7 +23487,9 @@ function ArticleBody({ post, setN, players, alumni, linkPerson }) {
             : "No players linked yet."}
         </p>
         <p className="bsm" style={{ color: "var(--au-faint)", marginTop: 2 }}>
-          Only this season's roster can be mentioned. Names in older stories keep working.
+          Any player from any season can be mentioned — {(groups[0] || [""])[0]} is offered
+          first because that is the season this story is about. Link players wraps names
+          from that season only.
         </p>
       </div>
     </div>
