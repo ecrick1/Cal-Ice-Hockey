@@ -2535,7 +2535,11 @@ button.gtrow:hover { background: var(--page); }
   padding: 4px 9px; border-radius: 6px; white-space: nowrap; pointer-events: none; }
 .sharepop:empty { display: none; }
 /* The mark is the button. Each is a filled shape with its letter knocked
-   out, so a border or a background would only draw a shape around a shape. */
+   out, so a border or a background would only draw a shape around a shape.
+   The box stays thirty-four so there is something to hit on a phone; the
+   mark inside is twenty-two, because a solid disc carries far more weight
+   than the outlined glyph it replaced and at the full size it shouted over
+   the date beside it. */
 .sharebtn { position: relative; width: 34px; height: 34px; padding: 0;
   display: inline-flex; align-items: center; justify-content: center;
   border: 0; background: none; cursor: pointer; color: var(--deep);
@@ -16112,7 +16116,7 @@ function articleUrl(site, id) {
  * out. Same reading, built the other way round, because that is what the
  * file allows.
  */
-const ShareMark = ({ size = 34, children }) => (
+const ShareMark = ({ size = 22, children }) => (
   <svg viewBox="0 0 48 48" width={size} height={size} fill="none" aria-hidden="true"
     focusable="false">{children}</svg>
 );
@@ -16217,17 +16221,17 @@ function ShareRow({ site, post }) {
         {SHARE_TARGETS.map(([key, label, Icon, href]) => (
           <a key={key} className="sharebtn" href={href(url, title)} title={label}
             target="_blank" rel="noreferrer noopener" aria-label={"Share on " + label}>
-            <Icon size={34} />
+            <Icon size={22} />
           </a>
         ))}
         <a className="sharebtn" title="Email"
           href={"mailto:?subject=" + encodeURIComponent(title) + "&body=" + encodeURIComponent(url)}
           aria-label="Share by email">
-          <ShMail size={34} />
+          <ShMail size={22} />
         </a>
         <button className={"sharebtn" + (copied ? " ok" : "")} onClick={copy}
           title="Copy link" aria-label="Copy link to this story">
-          {copied ? <ShCheck size={34} /> : <ShLink size={34} />}
+          {copied ? <ShCheck size={22} /> : <ShLink size={22} />}
           {/* Said rather than guessed at: a button that changes its own icon
               and nothing else leaves you wondering whether it worked. */}
           <span className="sharepop" role="status">{copied ? "Link copied" : ""}</span>
