@@ -4248,15 +4248,6 @@ a.faffil:hover .faffilmark { opacity: 0.82; }
    still empty, so the bar says so rather than leaving a gap. */
 .adminui .aupenwait { border-left: 3px solid var(--au-warn, #F5B544); }
 
-/* Players who may have played here before: a name, the years, and the one
-   button that answers it. */
-.adminui .aulinkcard { margin-bottom: 18px; border-color: var(--au-primary); }
-.adminui .aulinklist { display: grid; gap: 6px; margin-top: 12px; }
-.adminui .aulinkrow { display: flex; align-items: center; gap: 12px; padding: 7px 10px;
-  background: var(--au-raised); border: 1px solid var(--au-line); border-radius: 8px; }
-.adminui .aulinkname { font-size: 13.5px; font-weight: 700; color: var(--au-text); }
-.adminui .aulinkyears { font-size: 12px; color: var(--au-faint); margin-left: auto; }
-
 /* ---- Page builder ---- */
 .adminui .aublockhead { display: flex; align-items: flex-start; justify-content: space-between;
   gap: 12px; }
@@ -22957,31 +22948,15 @@ function RosterEditor({ site, updateSeason: updateSeasonProp }) {
    * changes what they go by or two people share one. A personId settles it,
    * and this is where one gets attached.
    *
-   * Only rows with no id yet are offered: once a player is linked the
-   * question has been answered and re-asking it is noise. Matching for the
-   * suggestion ignores case, punctuation and accents, which is right for a
-   * suggestion and would be wrong for a decision - so a person makes the
-   * decision. */
-  const linkable = useMemo(() => {
-    if (lock.locked) return [];
-    const others = Object.entries(site.seasons || {}).filter(([sn]) => sn !== sel);
-    return roster
-      .filter((p) => !p.personId && String(p.name || "").trim())
-      .map((p) => {
-        const hits = others
-          .map(([sn, se]) => ({
-            sn,
-            row: (se.roster || []).find((x) => personKey(x.name) === personKey(p.name)),
-          }))
-          .filter((h) => h.row);
-        return { p, hits };
-      })
-      .filter((c) => c.hits.length)
-      /* The most seasons first: the longest careers are the ones worth
-         getting right, and the ones a reader is most likely to notice. */
-      .sort((a, b) => b.hits.length - a.hits.length
-        || (a.p.name || "").localeCompare(b.p.name || ""));
-  }, [site.seasons, sel, roster, lock.locked]);
+   * Asked at the name field rather than from a standing list of every row it
+   * could apply to. Most of a roster played here last year, so that list was
+   * long and permanent and put the same question to two dozen rows nobody
+   * had a doubt about. The doubt arrives once: a name is typed onto a row and
+   * somebody who used to play here had it too.
+   *
+   * Matching ignores case, punctuation and accents, which is right for
+   * raising the question and would be wrong for settling it - so a person
+   * settles it. */
 
   /* One id shared by every row that is this person - adopting an id already
      on one of them if there is one, so linking twice from different seasons
@@ -23014,6 +22989,20 @@ function RosterEditor({ site, updateSeason: updateSeasonProp }) {
   };
   const linkOne = (c) => applyLinks([c]);
 
+  /* Only for a row with no id yet, and only for a name that matches
+     somewhere else. Both halves matter: a linked row has already answered
+     this, and re-asking on every visit to the field is how a prompt becomes
+     something to click past. */
+  const askIfSame = async (row) => {
+    if (lock.locked || row.personId || !String(row.name || "").trim()) return;
+    const hits = Object.entries(site.seasons || {})
+      .filter(([sn]) => sn !== sel)
+      .map(([sn, se]) => ({ sn, row: (se.roster || []).find((x) => personKey(x.name) === personKey(row.name)) }))
+      .filter((h) => h.row);
+    if (!hits.length) return;
+    await confirmLink({ p: row, hits });
+  };
+
   const confirmLink = async (c) => {
     const years = c.hits.map((h) => h.sn).sort().join(", ");
     const ok = await ask({
@@ -23026,55 +23015,7 @@ function RosterEditor({ site, updateSeason: updateSeasonProp }) {
     if (ok) linkOne(c);
   };
 
-  const confirmLinkAll = async () => {
-    const ok = await ask({
-      title: "Link " + linkable.length + " player"
-        + (linkable.length === 1 ? "" : "s") + "?",
-      message: "Each is joined to the earlier seasons listed beside them.",
-      list: linkable.map((c) => ({
-        label: c.p.name,
-        note: c.hits.map((h) => h.sn).sort().join(", "),
-      })),
-      detail: "Check the list first: two people who share a name would be "
-        + "joined into one career.",
-      confirmLabel: "Link them",
-    });
-    if (ok) applyLinks(linkable);
-  };
 
-  const LinkPanel = () => (linkable.length ? (
-    <section className="card aulinkcard">
-      <div className="boxhead">
-        <p className="h6" style={{ margin: 0 }}>Played here before</p>
-        <span className="bsm" style={{ color: "var(--au-faint)", marginLeft: "auto" }}>
-          {linkable.length} to check
-        </span>
-      </div>
-      <p className="auhint" style={{ marginTop: 8, maxWidth: 640 }}>
-        These names also appear in earlier seasons. Linking joins them into one
-        career on the player's page. Nothing is linked until you say so — two
-        players who happen to share a name are two careers, and only you can
-        tell which this is.
-      </p>
-      <div className="aulinklist">
-        {linkable.map((c) => (
-          <div className="aulinkrow" key={c.p.id}>
-            <span className="aulinkname">
-              {c.p.number ? "#" + c.p.number + " " : ""}{c.p.name}
-            </span>
-            <span className="aulinkyears">
-              {c.hits.map((h) => h.sn).sort().join(", ")}
-            </span>
-            <button className="btn bGhost bSm" onClick={() => confirmLink(c)}>Link</button>
-          </div>
-        ))}
-      </div>
-      {linkable.length > 1 && (
-        <button className="btn bNavy bSm" style={{ marginTop: 12 }}
-          onClick={confirmLinkAll}>Link all {linkable.length}</button>
-      )}
-    </section>
-  ) : null);
 
   const removePlayer = async (p) => {
     const played = derived(p);
@@ -23308,7 +23249,6 @@ function RosterEditor({ site, updateSeason: updateSeasonProp }) {
 
       {/* Above the roster, because it is about who these people are rather
           than about their numbers, and it goes away once answered. */}
-      <LinkPanel />
 
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 14 }}>
         <div className="tabs">
@@ -23374,7 +23314,16 @@ function RosterEditor({ site, updateSeason: updateSeasonProp }) {
             <div className="arow" style={{ gridTemplateColumns: cols }}>
               <input value={p.number} style={dupe ? { borderColor: "var(--au-danger)" } : undefined}
                 onChange={(e) => setP(p.id, { number: e.target.value })} />
-              <input value={p.name} onChange={(e) => setP(p.id, { name: e.target.value })} />
+              {/* Asked when the name is finished rather than from a standing
+                  list of everyone it could apply to. A roster is mostly
+                  players who were here last year, so that list was long,
+                  permanent, and asking the same question of two dozen rows
+                  nobody had a doubt about. The question only really arises
+                  once - when a name is first put on a row and somebody who
+                  used to play here had it too. */}
+              <input value={p.name}
+                onChange={(e) => setP(p.id, { name: e.target.value })}
+                onBlur={() => askIfSame(p)} />
               <select value={p.position} onChange={(e) => setP(p.id, { position: e.target.value })}>
                 <option value="F">F</option><option value="D">D</option><option value="G">G</option>
               </select>
