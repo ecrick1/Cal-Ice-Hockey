@@ -3079,14 +3079,28 @@ a.fsponsor:hover { opacity: 0.75; }
 .fband-gray { background: #fff; display: flex; justify-content: center; flex-wrap: wrap;
   border-bottom: 1px solid var(--border); }
 .faffil { color: #8A94A0; font-family: var(--body); font-weight: 700; font-size: 15px;
-  padding: 34px 30px; border-left: 1px solid var(--border); filter: grayscale(1);
+  padding: 34px 30px; border-left: 1px solid var(--border);
   display: inline-flex; align-items: center; text-decoration: none; }
-a.faffil:hover { filter: grayscale(0); }
 .faffil:first-child { border-left: 0; }
 /* One height for every mark, so the row reads as a line rather than a set of
    separate logos. The ACHA wordmark carries a band of fine print under it and
    needs the extra height to stay legible at the same optical weight. */
-.faffilmark { display: block; height: 26px; width: auto; opacity: 0.5; }
+/* One colour for the row, arrived at rather than assumed. Draining the
+   colour out of each mark is not the same as giving them all the same one:
+   greyscale keeps a mark's own lightness, so navy Berkeley, black ACHA and
+   the black swoosh each came out a different grey. Every one of these files
+   is a single colour over transparency, with the counters cut rather than
+   painted white, so flattening them to black loses no detail and gives the
+   row one tone that the opacity then sets the depth of.
+   The crest is a path taking currentColor and is flattened with them, so it
+   sits at that same tone rather than near it. */
+.faffilmark { display: block; height: 26px; width: auto; filter: brightness(0);
+  opacity: 0.42; transition: opacity 0.18s; }
+/* Hover deepens the one tone rather than restoring each mark's own colour.
+   Three brand colours revealed at once is the thing this row is built to
+   avoid, and the crest ships flat with no colour to restore - it would have
+   been the one mark that did not answer the pointer. */
+a.faffil:hover .faffilmark { opacity: 0.82; }
 .faffilmark.tall { height: 34px; }
 /* The swoosh is a single wide glyph with no descender text under it, so it
    matches the others on weight rather than on box height. */
