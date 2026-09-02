@@ -2853,7 +2853,12 @@ table.stats.sortable.statstable td:first-child { padding-left: 10px; }
 }
 .statstable .sortbtn { color: #fff; }
 .statstable .sortbtn:hover { color: #fff; background: rgba(255, 255, 255, 0.14); }
-.statstable .sortbtn.on, .statstable .sortbtn.on .sortcaret { color: var(--gold); }
+/* The sorted column reads white like the rest; its caret goes solid where
+   the others are faint, which is the whole of the signal it needs. Still
+   said explicitly, because the base rule turns an active header navy - and
+   navy on this navy is a column heading that disappears when you sort by
+   it. */
+.statstable .sortbtn.on, .statstable .sortbtn.on .sortcaret { color: #fff; }
 .statstable .sortbtn:focus-visible { outline-color: #fff; }
 
 /* The stats controls on a phone. The season and the PDF button share the
