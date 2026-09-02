@@ -2836,6 +2836,32 @@ table.stats.sortable.statstable th:first-child,
 table.stats.sortable.statstable td:first-child { width: 46px; }
 table.stats.sortable.statstable th:nth-child(2),
 table.stats.sortable.statstable td:nth-child(2) { width: auto; }
+
+/* Once the table fits, it takes the whole card - and the spare width has to
+   go to the figures rather than to the name. Left to the automatic layout it
+   goes to the name: the stat columns have a width and are held to it, so a
+   nine-column goaltender table came out with a 558px name and its figures
+   pushed back against the far edge, which is the fault this all started
+   with.
+ *
+ * Fixed layout hands what is left to the columns that were given no width,
+ * in equal parts. The jersey and the name are told what they get and every
+ * figure column splits the rest: 68 apiece across twelve skater columns, 117
+ * across seven goaltender ones. Even either way, and full width either way.
+ *
+ * Only above 760. Below it the table is wider than the screen, and a fixed
+ * layout that has been shrunk rescales every column - which is how twelve
+ * columns told to be 64 came back as 35, 45 and 55. */
+@media (min-width: 761px) {
+  table.stats.statstable { table-layout: fixed; width: 100%; }
+  table.stats.statstable th:nth-child(n+3),
+  table.stats.statstable td:nth-child(n+3) { width: auto; }
+  /* Wide enough for the longest name the roster has, with its portrait and
+     the gap beside it. At 200 the ellipsis was doing real work rather than
+     standing by for an outlier. */
+  table.stats.sortable.statstable th:nth-child(2),
+  table.stats.sortable.statstable td:nth-child(2) { width: 226px; }
+}
 .statstable .statname { max-width: 100%; }
 .statstable .statname span { overflow: hidden; text-overflow: ellipsis; }
 
