@@ -14407,7 +14407,12 @@ function AskDialog({ state, onResolve }) {
             <button className="btn bNavy bSm" autoFocus onClick={() => onResolve(false)}>Close</button>
           ) : (
             <>
-              <button className="btn bGhost bSm" onClick={() => onResolve(false)}>Cancel</button>
+              {/* A question with two real answers needs the second one named.
+                  Escape and the backdrop resolve this same value, so a caller
+                  must not treat it as a deliberate "no". */}
+              <button className="btn bGhost bSm" onClick={() => onResolve(false)}>
+                {state.cancelLabel || "Cancel"}
+              </button>
               <button
                 className={"btn bSm " + (state.danger ? "bDestruct" : "bNavy")}
                 autoFocus={!needsText}
@@ -14861,7 +14866,10 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
             {tab === "coaches" && <CoachesEditor site={draft} setDraft={setDraft} />}
             {tab === "prospects" && <RecruitingEditor site={draft} setDraft={setDraft} />}
             {tab === "volunteers" && <VolunteerRolesEditor site={draft} setDraft={setDraft} />}
-            {tab === "news" && <NewsEditor site={draft} setSite={setDraft} />}
+            {tab === "news" && (
+              <NewsEditor site={draft} setSite={setDraft}
+                alumni={alumni} setAlumni={setAlumni} />
+            )}
             {tab === "seasons" && <SeasonManager site={draft} setSite={setDraft} />}
             {/* Settings and the three pages lifted out of it are one editor.
                 The tab picks the section: Settings keeps its own sub-nav, and
@@ -22776,6 +22784,22 @@ function allPlayers(site) {
   return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/* An alumnus with the same name as somebody on the roster.
+ *
+ * Only returns one where the question is still open. If both records carry a
+ * personId the answer is already recorded - the same id means one person,
+ * different ids mean two - and asking again would be nagging rather than
+ * checking. */
+function alumniClash(name, players, alumni) {
+  const key = personKey(name);
+  if (!key) return null;
+  const player = (players || []).find((p) => personKey(p.name) === key);
+  const alum = (alumni || []).find((a) => personKey(a.name) === key);
+  if (!player || !alum) return null;
+  if (player.personId && alum.personId) return null;
+  return { player, alum };
+}
+
 const MENTION_RE = /\[\[([^\]]+)\]\]/g;
 
 /** Names already wrapped as mentions in a body. */
@@ -22847,7 +22871,27 @@ function TagPicker({ value, tags, onChange }) {
   );
 }
 
-function NewsEditor({ site, setSite }) {
+function NewsEditor({ site, setSite, alumni, setAlumni }) {
+  /* One id across both records, adopting whichever already has one so that
+     linking from two different stories does not mint two people. The roster
+     row is written in every season it appears in, because a career is the
+     seasons and not this one. */
+  const linkPerson = (player, alum) => {
+    const id = player.personId || alum.personId || uid();
+    setSite((st) => ({
+      ...st,
+      seasons: Object.fromEntries(Object.entries(st.seasons || {}).map(([sn, se]) => [
+        sn,
+        {
+          ...se,
+          roster: (se.roster || []).map((x) => (personKey(x.name) === personKey(player.name)
+            && !x.personId ? { ...x, personId: id } : x)),
+        },
+      ])),
+    }));
+    setAlumni((list) => (list || []).map((a) => (a.id === alum.id ? { ...a, personId: id } : a)));
+  };
+
   const ask = useAsk();
   const news = site.news || [];
   const [editingId, setEditingId] = useState(null);
@@ -22992,7 +23036,8 @@ function NewsEditor({ site, setSite }) {
                 onChange={(e) => setN(editing.id, { blurb: e.target.value })} />
             </div>
 
-            <ArticleBody post={editing} setN={setN} players={players} />
+            <ArticleBody post={editing} setN={setN} players={players}
+              alumni={alumni} linkPerson={linkPerson} />
           </div>
 
           <aside className="auwriteside">
@@ -23215,14 +23260,41 @@ function MarkButton({ label, glyph, style, onClick }) {
   );
 }
 
-function ArticleBody({ post, setN, players }) {
+function ArticleBody({ post, setN, players, alumni, linkPerson }) {
   const ask = useAsk();
   const bodyRef = useRef(null);
   const [preview, setPreview] = useState(false);
 
   const linked = mentionedNames(post.body || "");
 
-  const insertMention = (name) => {
+  /* A club has forty years of people and the names come round. Linking to
+     this season's Jack Burbank when the story is about the one who graduated
+     in 2014 is a wrong link, made silently, so it is asked about once. */
+  const settleName = async (name) => {
+    const clash = alumniClash(name, players, alumni);
+    if (!clash) return true;
+    const { player, alum } = clash;
+    const played = [alum.years, alum.gradYear && "class of " + alum.gradYear]
+      .filter(Boolean).join(", ");
+    const same = await ask({
+      title: "Same person?",
+      message: name + " is on this season's roster and also on the alumni list"
+        + (played ? " (" + played + ")" : "") + ".",
+      detail: "Same person joins the two records, and the mention links to their "
+        + "page. Two people leaves both alone - the mention still links to the "
+        + "player on this season's roster.",
+      confirmLabel: "Same person",
+      cancelLabel: "Two people",
+    });
+    /* Only the yes is recorded. Escape and the backdrop resolve the same
+       value as the no, so treating a no as a decision would write one
+       nobody made - and the cost of not recording it is being asked again. */
+    if (same) linkPerson(player, alum);
+    return true;
+  };
+
+  const insertMention = async (name) => {
+    await settleName(name);
     const el = bodyRef.current;
     const text = post.body || "";
     const token = "[[" + name + "]]";
@@ -23293,6 +23365,13 @@ function ArticleBody({ post, setN, players }) {
         blocked: true,
       });
       return;
+    }
+    /* Ask about every name this pass would wrap that is also on the alumni
+       list, before wrapping any of them. A batch is where a wrong link is
+       least likely to be noticed, so it is the last place to skip the
+       question. */
+    for (const name of mentionedNames(text)) {
+      if (!linked.has(name)) await settleName(name);
     }
     setN(post.id, { body: text });
   };
