@@ -60,27 +60,48 @@ window.storage = {
      database, not an authority over one. */
   remote: !!sb,
 
+  /**
+   * Ask what the revision is before asking for four megabytes.
+   *
+   * The document is large and mostly unchanged between visits, so fetching it
+   * every load put the whole site behind a spinner for no reason. The rev sits
+   * in a column of its own precisely so this question is cheap: a few bytes
+   * decide whether the rest is worth asking for.
+   */
   async get(key) {
     if (!sb || !SHARED.has(key)) return local.get(key);
+    const here = local.get(key);
+    let hereRev = -1;
+    try { hereRev = Number(JSON.parse(here.value).rev || 0); } catch { /* none or unreadable */ }
     try {
-      const { data, error } = await sb.from(TABLE).select('value').eq('key', key).maybeSingle();
+      const { data, error } = await sb.from(TABLE).select('rev').eq('key', key).maybeSingle();
       if (error) throw error;
-      if (data && data.value) {
-        local.set(key, data.value);          // so a later offline load still works
-        return { value: data.value };
+      if (!data) return here;                    // nothing shared yet; this copy is the best one
+      if (Number(data.rev || 0) <= hereRev) return here;   // already current
+
+      const full = await sb.from(TABLE).select('value').eq('key', key).maybeSingle();
+      if (full.error) throw full.error;
+      if (full.data && full.data.value) {
+        local.set(key, full.data.value);         // so a later load, or an offline one, is instant
+        return { value: full.data.value };
       }
-      /* Nothing shared yet. Whatever this browser has is the best answer, and
-         the first save will put it where everyone can see it. */
-      return local.get(key);
+      return here;
     } catch (e) {
       console.warn('reading ' + key + ' from the database failed; using this browser\'s copy', e);
-      return local.get(key);
+      return here;
     }
   },
 
   async set(key, value) {
     local.set(key, value);                   // always, so nothing is lost to a failed write
     if (!sb || !SHARED.has(key)) return;
+
+    /* A visitor is not publishing. The app saves its own housekeeping back on
+       every load - a document it has just normalised, an update it has just
+       taken - and those writes are not edits anybody made. Sending them was
+       a request certain to be refused, on every page view, for everyone who
+       was only reading. The local mirror is the whole destination here. */
+    if (!signedIn) return;
 
     let rev = 0;
     try { rev = Number(JSON.parse(value).rev || 0); } catch { /* not a document with a rev */ }
@@ -89,13 +110,11 @@ window.storage = {
     const { error } = await sb.from(TABLE)
       .upsert({ key, value, rev, updated_at: new Date().toISOString() }, { onConflict: 'key' });
     if (error) {
-      /* Saved here but not there. Said plainly rather than swallowed: the
-         difference between "saved" and "everyone can see it" is the whole
-         reason for this. */
-      const why = signedIn
-        ? 'your account is not on the editors list'
-        : 'you are not signed in';
-      throw new Error('Saved on this device only — ' + why + '. (' + error.message + ')');
+      /* Saved here but not there, and only reachable by someone who really was
+         editing. Said plainly rather than swallowed: the difference between
+         "saved" and "everyone can see it" is the whole reason for this. */
+      throw new Error('Saved on this device only — the database refused the write. ('
+        + error.message + ')');
     }
   },
 };
