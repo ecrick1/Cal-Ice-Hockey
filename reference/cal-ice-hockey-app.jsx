@@ -838,8 +838,24 @@ a.pbcard:hover { border-color: var(--rule-on); }
    at nine pixels of padding they were the smallest hit areas on the page. */
 @media (max-width: 640px) {
   .sctrl { gap: 10px; }
-  .sctrl .rsel { flex: 1 1 100%; width: 100%; padding: 14px 38px 14px 14px;
-    font-size: 15px; background-position: right 14px center; }
+  /* Two to a line rather than one each. They are short choices - a season and
+     a filter - and a full-width box for either is more room than the words
+     inside it ever need. */
+  /* Eight rather than five off the half. Two boxes at half the row minus
+     the gap between them comes to exactly the row, and exactly is where
+     sub-pixel rounding sends the second one to a line of its own. */
+  .sctrl .rsel { flex: 1 1 calc(50% - 8px); width: auto; min-width: 0;
+    padding: 14px 32px 14px 12px; font-size: 15px; background-position: right 10px center; }
+  /* The same square as the view toggles beside it, holding just the plus.
+     Its words are the longest thing in the row and it sits next to three
+     buttons that manage on an icon each. The label stays for a screen
+     reader. */
+  /* Named through .sctrl. These phone rules sit above most of the component
+     styles, so a plain .calbtn here ties with the one further down the sheet
+     and loses on order - which is exactly what happened first time. */
+  .sctrl .calbtn { width: 44px; height: 44px; padding: 0; border-radius: 10px;
+    justify-content: center; gap: 0; flex: 0 0 auto; }
+  .sctrl .calbtn .btntext { display: none; }
   /* The buttons and the view toggles share the first line, and the selects
      come under them. In the markup the selects sit between the two, which is
      right on a wide screen where the whole thing is one row - here they are
@@ -9915,8 +9931,9 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
           <h1 className="stitle">{sel} Schedule</h1>
 
           <div className="sctrl">
-            <button className="calbtn" onClick={() => downloadICS(rows, sel, officialName(site))}>
-              <IcPlusC size={17} /> Add To Calendar
+            <button className="calbtn" onClick={() => downloadICS(rows, sel, officialName(site))}
+              aria-label="Add to calendar" title="Add to calendar">
+              <IcPlusC size={17} /> <span className="btntext">Add To Calendar</span>
             </button>
             <button className="ghostbtn" onClick={() => setPdfOpen(true)}>
               <IcDoc size={17} /> PDF
