@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -214,11 +214,51 @@ async function saveFile(req, res) {
   res.end(JSON.stringify({ ok: true, path: path.relative(root, full), bytes: body.length }));
 }
 
+/**
+ * The site data, and the rev that guards it.
+ *
+ * The page asks for ./site.json and ./version.json on every load, and takes
+ * an update when the shipped rev is above the one in storage. This directory
+ * has neither file - they are written into dist/ at build time - so on the
+ * dev server both requests 404, the rev comes back null, and no edit made in
+ * the repo ever reaches the browser. Storage simply wins forever, which looks
+ * exactly like the data not having been saved.
+ *
+ * Served straight out of the newest data/backup-*, the same file dist ships,
+ * so there is one copy of the data and the dev server is never behind it.
+ */
+const BACKUPS = path.resolve(dir, '..', 'data');
+
+async function newestBackup() {
+  const dirs = (await readdir(BACKUPS, { withFileTypes: true }))
+    .filter((d) => d.isDirectory() && d.name.startsWith('backup-'))
+    .map((d) => d.name)
+    .sort();
+  for (let i = dirs.length - 1; i >= 0; i--) {
+    const f = path.join(BACKUPS, dirs[i], 'site.json');
+    try { await readFile(f); return f; } catch { /* keep looking */ }
+  }
+  return null;
+}
+
+async function siteData(res, revOnly) {
+  const f = await newestBackup();
+  if (!f) { res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('no backup'); return; }
+  const body = await readFile(f);
+  const out = revOnly
+    ? Buffer.from(JSON.stringify({ rev: Number(JSON.parse(body).rev || 0) }))
+    : body;
+  res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+  res.end(out);
+}
+
 createServer(async (req, res) => {
   const url = (req.url ?? '/').split('?')[0];
   if (url === '/acha') return achaProxy(req, res);
   if (url === '/acha/team-season') return teamSeason(req, res);
   if (url === '/save') return saveFile(req, res);
+  if (url === '/site.json') return siteData(res, false);
+  if (url === '/version.json') return siteData(res, true);
   const file = url === '/' ? 'index.html' : decodeURIComponent(url);
   const full = path.resolve(dir, '.' + path.posix.normalize('/' + file));
 
