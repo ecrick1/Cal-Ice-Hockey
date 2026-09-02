@@ -2798,6 +2798,38 @@ button.gtrow:hover { background: var(--page); }
    rather than .sortable, which the game-centre box scores also wear - those
    sit inside a card and want the pale grey they have. */
 table.stats.statstable th { background: var(--deep); color: #fff; }
+/* Taller, and starting nearer the edge than the 16px the sortable tables use
+   for their first column. */
+.statstable .sortbtn { padding-top: 17px; padding-bottom: 17px; }
+/* Named with both classes. The sortable rules set this column's 16px and sit
+   below these in the sheet, so matching their specificity loses on order. */
+table.stats.sortable.statstable th:first-child .sortbtn { padding-left: 10px; }
+table.stats.sortable.statstable td:first-child { padding-left: 10px; }
+/* The jersey and the name hold still while the figures slide under them.
+   Thirteen columns cannot fit a phone and never will, so the choice is
+   between scrolling and knowing whose row you are reading - this keeps both.
+ *
+ * The pair is frozen rather than the name alone: freezing the second column
+ * and letting the first slide beneath it looks like a fault. Which means the
+ * first column needs a width the second can be offset by, so it is pinned to
+ * one rather than sized by its contents.
+ *
+ * Backgrounds are set per row rather than left to inherit. A striped row
+ * carries its colour on the tr, and a sticky cell that does not repaint it
+ * is transparent - the columns underneath show straight through it. */
+@media (max-width: 760px) {
+  .statstable th:first-child, .statstable td:first-child {
+    position: sticky; left: 0; z-index: 2;
+    width: 40px; min-width: 40px; max-width: 40px; box-sizing: border-box; }
+  .statstable th:nth-child(2), .statstable td:nth-child(2) {
+    position: sticky; left: 40px; z-index: 2; box-shadow: 1px 0 0 #E7EBEF; }
+  .statstable thead th:first-child, .statstable thead th:nth-child(2) { z-index: 3; }
+  .statstable tbody td:first-child, .statstable tbody td:nth-child(2) { background: #fff; }
+  .statstable tbody tr:nth-child(even) td:first-child,
+  .statstable tbody tr:nth-child(even) td:nth-child(2) { background: #FAFBFC; }
+  .statstable tbody tr:hover td:first-child,
+  .statstable tbody tr:hover td:nth-child(2) { background: #F1F5F8; }
+}
 .statstable .sortbtn { color: #fff; }
 .statstable .sortbtn:hover { color: #fff; background: rgba(255, 255, 255, 0.14); }
 .statstable .sortbtn.on, .statstable .sortbtn.on .sortcaret { color: var(--gold); }
