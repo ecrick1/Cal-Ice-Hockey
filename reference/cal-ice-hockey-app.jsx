@@ -2792,11 +2792,11 @@ table.stats.schedtable td:nth-child(5) { white-space: normal; min-width: 190px; 
 .linksbtn:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
 /* One row per link, named. Stripes so a long list stays countable, which is
    the only reason a list of five links needs anything at all. */
-.linksdrop { position: fixed; z-index: 60; display: grid; min-width: 190px;
+.linksdrop { position: fixed; z-index: 60; display: grid; min-width: 226px;
   border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: #fff;
   box-shadow: 0 10px 28px rgba(4, 30, 66, 0.16); }
-.linksdrop a, .linksdrop button { display: block; text-align: left; padding: 9px 12px;
-  border: 0; background: none; font: inherit; font-size: 13px; font-weight: 600;
+.linksdrop a, .linksdrop button { display: block; text-align: left; padding: 12px 18px;
+  border: 0; background: none; font: inherit; font-size: 14.5px; font-weight: 600;
   color: var(--ink); text-decoration: none; cursor: pointer; white-space: nowrap; }
 .linksdrop > :nth-child(even) { background: #F6F8FA; }
 .linksdrop a:hover, .linksdrop button:hover { background: var(--blue); color: #fff; }
