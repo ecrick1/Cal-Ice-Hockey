@@ -3370,17 +3370,37 @@ table.stats tbody tr:last-child td { border-bottom: 0; }
    leaving the crest stranded on its own. Shrinking from zero keeps the crest
    and the opponent together whatever the venue happens to say. The roster rows
    set their own flex inline and are unaffected. */
+/* On a phone a game is a card rather than a row.
+ *
+ * The row arrangement is a desktop idea: crest, then opponent, then a date
+ * pushed to the far right, then buttons along the bottom. Narrowed to a
+ * phone it keeps the alignments of a row it no longer is - four blocks each
+ * hugging a different edge - and the eye has to travel to read one game.
+ *
+ * Stacked and centred down the middle instead: the crest, who it is against,
+ * where, the result, when, and the ways in. One column, one axis. */
 @media (max-width: 560px) {
-  .gamemain { gap: 10px 12px; padding: 16px; }
-  /* Crest and opponent share the first line. Basis zero, not auto: with auto
-     the block is as wide as its longest line - a wordy venue was enough to
-     bump the whole thing below the crest on some cards and not others, so no
-     two rows in the list lined up. */
-  .gamemain > span + div { flex: 1 1 0; min-width: 0; }
-  /* The score and date take a line of their own rather than competing for
-     the first one - squeezed into the same row they turned a three-word
-     opponent into three stacked words. */
-  .gameresult { flex: 1 0 100%; }
+  .gamemain { flex-direction: column; align-items: center; text-align: center;
+    gap: 10px; padding: 20px 16px 18px; }
+  .gamemain > * { flex: 0 0 auto; max-width: 100%; }
+  /* The crest sits above rather than beside, so it can be the size a card
+     leads with instead of the size a row allows. */
+  .gamemain > span:first-child { transform: scale(1.18); margin-bottom: 8px; }
+  .gamemain > span + div { min-width: 0; }
+  /* The date stops being pushed to the right - there is no right any more. */
+  .gameresult { margin-left: 0; text-align: center; }
+  /* The venue line centres with its pin rather than starting at a left edge. */
+  .gamemain .bsm { justify-content: center; }
+  /* Two to a row, matched widths, so the ways in read as a set rather than
+     as whatever fitted. A lone button takes the full width rather than half
+     of it and a gap.
+     Named through the card: the plain .gameacts rule is written further down
+     the sheet, and a media query adds no weight of its own - so at equal
+     specificity the later rule wins and this one did nothing. */
+  .gamecard .gameacts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    width: 100%; margin-top: 4px; }
+  .gamecard .gameacts > * { width: 100%; justify-content: center; }
+  .gamecard .gameacts > *:only-child { grid-column: 1 / -1; }
 }
 /* Left to right: what it counted for, what was going on around it, the way
    in. The notes take the slack so the way in stays pinned to the far end,
