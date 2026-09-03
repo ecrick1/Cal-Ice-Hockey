@@ -374,8 +374,17 @@ const countsToward = (g) => !!g.result && gameType(g) !== "exhibition";
 /* What a game counts for, in the words the club used if it gave any. Named
    once because four different views have to say it and a season is read in
    whichever one the reader happens to open. */
-const roundName = (g) =>
-  g.roundLabel || GAME_TYPE_LABEL[gameType(g)] || gameType(g);
+/* The tournament first, then the round in it. "Semifinal" on its own says
+   what stage a game was without saying what of - and a club plays semi-finals
+   in more than one thing. Where the schedule already bands the games under
+   their tournament the band says it once; everywhere else the game has to
+   carry it, which is most places a game is mentioned. */
+const roundName = (g) => {
+  const round = g.roundLabel;
+  const section = sectionOf(g);
+  if (round && section) return section + " " + round;
+  return round || section || GAME_TYPE_LABEL[gameType(g)] || gameType(g);
+};
 /* The tournament a playoff game belongs to - "Pac-8 Championship", "ACHA
    Western Regional", "Nationals". The round is what the game was inside it;
    this is which thing it was part of, and it is what the schedule bands
@@ -7721,7 +7730,10 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
                     <><dt>{themShort} scratches</dt><dd>{oppScratches.join(", ")}</dd></>
                   )}
                   <dt>Type</dt>
-                  <dd>{game.roundLabel || GAME_TYPE_LABEL[gameType(game)] || gameType(game)}</dd>
+                  {/* Was the bare round, which named a stage without naming
+                      what of. roundName says both, and says the plain type
+                      for a game that is not a playoff. */}
+                  <dd>{roundName(game)}</dd>
                 </dl>
                 {/* The rest of this card is the game's paperwork, so the
                     printable version of it belongs here rather than beside
@@ -8417,9 +8429,7 @@ function Scoresheet({ site, season, game, onClose }) {
               <p>{[game.venue, game.location].filter(Boolean).join(" \u00b7 ")}</p>
             )}
             <p className="sshfinal">{res.ot ? "Final / OT" : "Final"}</p>
-            <p className="sshtag">
-              {game.roundLabel || GAME_TYPE_LABEL[gameType(game)] || gameType(game)}
-            </p>
+            <p className="sshtag">{roundName(game)}</p>
           </div>
           <Side side={home} label="HOME" />
         </div>
@@ -10028,7 +10038,7 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
             <dd>{localDate(game.date, game.time)}{game.time ? " · " + localTime(game.date, game.time) : ""}</dd>
             {watchRows(game)}
             <dt>Type</dt>
-            <dd>{game.roundLabel || GAME_TYPE_LABEL[gameType(game)] || gameType(game)}</dd>
+            <dd>{roundName(game)}</dd>
           </dl>
         </section>
       </div>
@@ -10668,7 +10678,12 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
                         && <span className="gconf">{g.conference}</span>}
                       <span className="gnotes">
                         {gameType(g) !== "regular" && (
-                          <span className="roundtag">{roundName(g)}</span>
+                          /* The band above already names the tournament, so
+                             inside one the game says only which round it was.
+                             Outside a band it carries the whole name. */
+                          <span className="roundtag">
+                            {blk.section ? (g.roundLabel || roundName(g)) : roundName(g)}
+                          </span>
                         )}
                         <GameNote game={g} />
                       </span>
