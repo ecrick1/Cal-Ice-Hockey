@@ -716,6 +716,23 @@ function localTime(iso, time) {
   }).replace(/\bAM\b/, "am").replace(/\bPM\b/, "pm");
 }
 
+/**
+ * The same start, without the parts a calendar does not need.
+ *
+ * A cell on a phone is about forty-eight pixels wide and "8:00 pm PDT" is not
+ * a thing that fits in forty-eight pixels - it was clipped at both ends, so
+ * what showed was "00 pm PD". The zone goes because every cell in the grid is
+ * in the same one, the reader's; and ":00" goes because eight o'clock is
+ * eight. "8 pm", "7:30 pm".
+ */
+function shortTime(iso, time) {
+  const at = gameInstant(iso, time);
+  if (!at) return (time || "").replace(/:00\b/, "");
+  return at.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+    .replace(/:00\b/, "")
+    .replace(/\bAM\b/, "am").replace(/\bPM\b/, "pm");
+}
+
 /** The date a game falls on for the reader, which a late game can shift. */
 function localDate(iso, time) {
   const at = gameInstant(iso, time);
@@ -10398,7 +10415,7 @@ function ScheduleCalendar({ games, onGame, seasonName, site }) {
                       ? <span className="calresult">
                           <span className={"rtag " + r.tag}>{r.tag}</span> {g.result.us}-{g.result.them}
                         </span>
-                      : <span className="caltime">{localTime(g.date, g.time) || "TBD"}</span>}
+                      : <span className="caltime">{shortTime(g.date, g.time) || "TBD"}</span>}
                     <span className="calacts">
                       <button className="calact" title={"Game center — " + label}
                         aria-label={"Game center, " + label}
