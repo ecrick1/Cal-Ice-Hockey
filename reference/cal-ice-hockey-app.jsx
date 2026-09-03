@@ -1046,13 +1046,6 @@ a.socialbtn:hover { color: var(--deep); background: var(--gold); }
    and zeroes the cell itself - and that rule outranked this one, so the
    block headings had none at all. Matched at the same weight, and the left
    edge lines up with the first column of figures below it. */
-/* The group name is a heading for the section under it, so it reads on the
-   left where a heading starts - not centred over eight columns it does not
-   describe. It sits above the column labels for the same reason. */
-table.stats.sortable .gcbtgroup th { padding: 14px 16px 7px; font-size: 11.5px;
-  background: #fff; border-top: 1px solid var(--border); text-align: left;
-  color: var(--ink); }
-table.stats.sortable tbody:first-of-type .gcbtgroup th { padding-top: 4px; }
 /* Repeated under each group now, so it needs the top rule the thead used to
    supply and none of the rounding a table head would have. */
 table.stats.sortable .gcbthead th { background: #F4F7F9;
@@ -1084,7 +1077,6 @@ table.stats.sortable.gcbt td:last-child { padding-right: 8px; }
   font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
   color: var(--muted); }
 .gcbt tbody .gcbtsub { background: none; }
-.gcbt tbody:first-of-type .gcbtgroup th { border-top: 0; }
 
 .gcgrid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 20px;
   align-items: start; margin-top: 20px; }
@@ -9544,7 +9536,11 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
      own labels above it than with one set thirty rows away, and it puts the
      group name where a heading belongs - above what it names. Every copy
      drives the same sort, because there is one sort. */
-  const rosterHeader = () => (
+  /* The section's name is the name column's heading. A band above the labels
+     said "Forwards" and then the labels said "Player", which is two rows to
+     carry one fact - and the second of them was a word nobody needed, since
+     what is in that column is obvious. The group goes where the label was. */
+  const rosterHeader = (groupLabel) => (
     <tr className="gcbthead">
       {ROSTER_COLS.map((col) => {
         const on = rSortKey === col.key;
@@ -9556,7 +9552,7 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
                 if (on) setRSortDir((d) => (d === "desc" ? "asc" : "desc"));
                 else { setRSortKey(col.key); setRSortDir(col.first); }
               }}>
-              {col.label}
+              {col.key === "name" && groupLabel ? groupLabel : col.label}
               <span className="sortcaret" aria-hidden="true">
                 {on ? (rSortDir === "asc" ? "▲" : "▼") : "▾"}
               </span>
@@ -9776,10 +9772,7 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
               if (!rows.length) return null;
               return (
                 <tbody key={g}>
-                  <tr className="gcbtgroup">
-                    <th colSpan={ROSTER_COLS.length} scope="colgroup">{title}</th>
-                  </tr>
-                  {rosterHeader()}
+                  {rosterHeader(title)}
                   {rows.map((row) => {
                     const { p, t, mine } = row;
                     const dash = "\u2014";
@@ -9822,14 +9815,11 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
           <div className="twrap bare gcgktable">
             <table className="stats sortable gcbt">
               <tbody>
-                {/* Named and headed exactly as the two sections above, so all
-                    three read the same way down the sheet. */}
-                <tr className="gcbtgroup">
-                  <th colSpan={2 + GOALIE_COLS.length} scope="colgroup">Goaltenders</th>
-                </tr>
+                {/* Headed the same way as the two sections above: the group's
+                    name over the names. */}
                 <tr className="gcbthead">
                   <th>#</th>
-                  <th>Player</th>
+                  <th>Goaltenders</th>
                   {GOALIE_COLS.map((c) => <th key={c.key} title={c.title}>{c.label}</th>)}
                 </tr>
                 {rows.map((row) => {
