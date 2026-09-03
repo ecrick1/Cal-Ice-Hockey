@@ -2835,6 +2835,25 @@ button.gtrow:hover { background: var(--page); }
 .sscore { margin-left: auto; font-family: var(--body); font-weight: 800; font-size: 14.5px;
   color: var(--blue); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
+/* The wait, before there is a site to show.
+ *
+ * A ring turning around the script Cal. The ring is a circle with three
+ * quarters of its border left transparent, so what turns is a gap - one
+ * element, no frames, and it reads at any size. Gold on navy is the club's
+ * own pair, so a loading state still looks like the site it is loading. */
+.loadmark { position: relative; display: grid; place-items: center;
+  width: 96px; height: 96px; }
+.loadring { position: absolute; inset: 0; border-radius: 50%;
+  border: 3px solid rgba(4, 30, 66, 0.12); border-top-color: var(--gold);
+  animation: loadspin 0.9s linear infinite; }
+.loadcal { width: 52px; height: auto; display: block; }
+@keyframes loadspin { to { transform: rotate(360deg); } }
+/* Somebody who has asked not to be shown movement gets a ring that is simply
+   there, rather than one that turns. */
+@media (prefers-reduced-motion: reduce) {
+  .loadring { animation: none; border-top-color: rgba(4, 30, 66, 0.35); }
+}
+
 /* Buttons */
 /* Matched to .calbtn, which is what a button on this site already looked like:
    Inter at seven hundred, fourteen and a half, fully rounded, and a laid-out
@@ -5549,7 +5568,14 @@ export default function CalIceHockey() {
     return (
       <div className="chh" style={{ alignItems: "center", justifyContent: "center" }}>
         <style>{CSS}</style>
-        <p className="eyebrow" style={{ color: "#041E42", padding: 60 }}>Loading the barn…</p>
+        {/* A ring turning around the script Cal. No words: this is up for the
+            second or two a four-megabyte site takes to arrive, and a sentence
+            in that time is something to read rather than something to wait
+            through. */}
+        <div className="loadmark" role="status" aria-label="Loading">
+          <span className="loadring" aria-hidden="true" />
+          <img className="loadcal" src="/logos/cal.svg" alt="" />
+        </div>
       </div>
     );
   }
