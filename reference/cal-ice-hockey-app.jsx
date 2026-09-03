@@ -12791,10 +12791,17 @@ function PlayerPage({ site, playerId, onBack, backTo, onPlayer, onGame }) {
                       sn, t: boxScoreTotals(site, site.seasons[sn], p) || {},
                     }));
                     const sum = (k) => per.reduce((n, x) => n + (Number(x.t[k]) || 0), 0);
-                    const line = (t) => {
+                    /* Wins are passed in rather than read off `t`, because
+                       the card and the table disagree about what "no record"
+                       means unless one place decides it. A season imported as
+                       bare totals often has no won-lost record behind it at
+                       all, and a keeper who has none should read "—" rather
+                       than a zero that looks like a season of losses. */
+                    const line = (t, wins) => {
                       const k = keeperLine(t);
                       return [
                         ["GP", k.gp],
+                        ["W", wins == null ? "—" : wins],
                         ["SV", k.svText],
                         ["GA", k.gaText],
                         ["GAA", k.gaa === null ? "—" : k.gaa.toFixed(2)],
@@ -12827,7 +12834,8 @@ function PlayerPage({ site, playerId, onBack, backTo, onPlayer, onGame }) {
                         + " so it is not in the career totals."
                       : "";
                     const cards = [
-                      ...(current ? [[seasonName, line(thisSeason)]] : []),
+                      ...(current ? [[seasonName, line(thisSeason,
+                        thisSeason.noRecord ? null : Number(thisSeason.w) || 0)]] : []),
                       /* Minutes come along because goals-against average is per
                          sixty of them; without them it would fall back to a
                          per-appearance figure over games it has no goals for. */
@@ -12835,7 +12843,7 @@ function PlayerPage({ site, playerId, onBack, backTo, onPlayer, onGame }) {
                         gp: sum("gp"), saves: sum("saves"), ga: sum("ga"), so: sum("so"),
                         minutes: sum("minutes"),
                         ...soleRate,
-                      })],
+                      }, per.every((x) => x.t.noRecord) ? null : sum("w"))],
                     ];
                     return (<>
                       {cards.map(([label, cells]) => (
