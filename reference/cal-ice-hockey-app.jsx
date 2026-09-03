@@ -15392,8 +15392,9 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
                     {sending ? "Sending…" : "Email me a sign-in link"}
                   </button>
                   <p className="bsm" style={{ color: "var(--au-faint)", marginTop: 16, fontSize: 11.5 }}>
-                    Anyone signed in can edit, and every save is recorded against the account
-                    that made it. The last twenty versions are kept, so a change can be undone.
+                    Editing is by invitation — an address that has not been given access will
+                    not be sent anything. Every save is recorded against the account that made
+                    it, and the last twenty versions are kept.
                   </p>
                 </>
               )

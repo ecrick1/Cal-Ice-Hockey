@@ -132,9 +132,26 @@ window.auth = {
   async signIn(email) {
     if (!sb) throw new Error('No database configured.');
     const { error } = await sb.auth.signInWithOtp({
-      email, options: { emailRedirectTo: window.location.origin },
+      email,
+      options: {
+        emailRedirectTo: window.location.origin,
+        /* No account, no email. Without this, typing any address at all makes
+           the site create an account and send to it - so anybody could have
+           the club's site email a stranger, and the only thing standing
+           between them and editing was a second check further in. Access
+           starts with an invitation now, and an invitation is an account. */
+        shouldCreateUser: false,
+      },
     });
-    if (error) throw new Error(error.message);
+    if (error) {
+      /* Supabase says "signups not allowed", which is true and reads like a
+         fault in the site rather than the intended answer. */
+      if (/signups? not allowed|not allowed for otp/i.test(error.message)) {
+        throw new Error('That address has not been given access. Ask someone who edits '
+          + 'the site to add it.');
+      }
+      throw new Error(error.message);
+    }
   },
 
   /**
