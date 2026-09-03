@@ -892,6 +892,24 @@ function fmtDate(iso) {
   return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
 
+/**
+ * A story's date, with the year on it.
+ *
+ * The schedule is read a season at a time, so a bare "Sat, Feb 7" says enough
+ * there. The news index is not read that way: it runs back several seasons
+ * now, and a recap of a game from 2021 looked exactly like one from last
+ * week - same weekday, same month, nothing to tell them apart. The year is
+ * the only thing that separates them, and it belongs wherever a story is
+ * dated rather than only where somebody thought to look for it.
+ */
+function newsDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso + "T12:00:00");
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString("en-US",
+    { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+}
+
 function resultText(g) {
   if (!g.result) return null;
   const { us, them, ot } = g.result;
@@ -9024,7 +9042,7 @@ function GameStory({ story, label, openPost, lead }) {
           onError={(e) => { e.currentTarget.style.display = "none"; }} />
       )}
       <p className="gcrecapby">
-        {story.author ? story.author + " · " : ""}{fmtDate(story.date)}
+        {story.author ? story.author + " · " : ""}{newsDate(story.date)}
       </p>
       {story.body && (
         <p className="gcrecaplede">
@@ -11812,7 +11830,7 @@ function NewsIndexPage({ site, openPost }) {
                     </div>
                     <div className="newscardbody">
                       <h2 className="newscardtitle">{n.title}</h2>
-                      <p className="newscardmeta">{fmtDate(n.date)}</p>
+                      <p className="newscardmeta">{newsDate(n.date)}</p>
                     </div>
                   </article>
                 ))}
@@ -17832,7 +17850,7 @@ function Home({ site, goto, openPost, openGame }) {
                     onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} />
                 </span>
                 <span className="hcardtitle">{n.title}</span>
-                <span className="hcardmeta">{n.tag} · {fmtDate(n.date)}</span>
+                <span className="hcardmeta">{n.tag} · {newsDate(n.date)}</span>
               </button>
             ))}
           </div>
@@ -18207,7 +18225,7 @@ function NewsPage({ site, postId, onBack, backTo, onPlayerName }) {
             is deciding whether to go on. */}
         <div className="artbyline">
           <p className="artbylinewho">
-            {post.author ? post.author + " · " : ""}{fmtDate(post.date)}
+            {post.author ? post.author + " · " : ""}{newsDate(post.date)}
           </p>
           <ShareRow site={site} post={post} />
         </div>
@@ -18235,7 +18253,7 @@ function NewsPage({ site, postId, onBack, backTo, onPlayerName }) {
                     <span className="artmoretag">{casedTag(n.tag)}</span>
                     <span className="artmoretitle">{n.title}</span>
                   </span>
-                  <span className="artmoredate">{fmtDate(n.date)}</span>
+                  <span className="artmoredate">{newsDate(n.date)}</span>
                 </button>
               ))}
             </div>
@@ -18691,7 +18709,7 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
                         .sort((a, b) => (b.date || "").localeCompare(a.date || ""))
                         .map((n) => (
                           <option key={n.id} value={n.id}>
-                            {fmtDate(n.date)} · {n.title || "Untitled"}
+                            {newsDate(n.date)} · {n.title || "Untitled"}
                           </option>
                         ))}
                     </select>
@@ -25689,7 +25707,7 @@ function VisibilityPicker({ post, setN }) {
                     ? "Scheduled · " + fmtDateTime(n.publishAt)
                     : newsState(n) === "draft" ? "Draft" : "Published"}
                 </span>
-                {n.tag} · {fmtDate(n.date) || "No date"}
+                {n.tag} · {newsDate(n.date) || "No date"}
                 {n.author ? " · " + n.author : ""}
                 {(n.body || "").trim() ? "" : " · no content"}
               </span>
