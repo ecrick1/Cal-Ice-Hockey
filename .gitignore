@@ -16,3 +16,6 @@ Thumbs.db
 supabase/.branches/
 supabase/.temp/
 prototype/app.js
+
+# A one-use sign-in token; never committed.
+signin-link.html
