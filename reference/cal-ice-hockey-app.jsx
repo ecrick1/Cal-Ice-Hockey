@@ -514,7 +514,7 @@ function boxScoreTotals(site, season, player) {
      `noRecord` marks the case where it genuinely is not. */
   const st = player.stats || {};
   const keys = ["gp", "g", "a", "pim", "ppg", "shg", "gwg", "saves", "ga", "minutes", "so",
-    "w", "l", "tie", "shots",
+    "w", "l", "tie", "otl", "shots",
     /* Rates, not counts. Some sources publish a goaltender's GAA and save
        percentage without the saves and ice time behind them; carried through
        so the season can show what is known instead of a row of zeroes. */
@@ -1515,13 +1515,25 @@ table.stats.sortable.gcbt { min-width: 0; table-layout: auto; }
 table.stats.sortable.gcbt th:nth-child(2),
 table.stats.sortable.gcbt td:nth-child(2) { width: 100%; }
 /* Automatic sizing gives a figure column exactly the width of its widest
-   figure, so six of them ended up shouldered together against the right edge
-   while the names had three hundred pixels. A floor each, so they are spaced
-   like columns rather than stacked like a right margin. */
+   figure, so they ended up shouldered together against the right edge while
+   the names had three hundred pixels. A floor each, so they space out evenly
+   across the table rather than stacking into a right margin. */
 table.stats.sortable.gcbt th:nth-child(n+3),
-table.stats.sortable.gcbt td:nth-child(n+3) { min-width: 54px; }
+table.stats.sortable.gcbt td:nth-child(n+3) { min-width: 58px; }
 /* The goaltenders' own table, under the skaters'. */
-.gcgktable { margin-top: 18px; }
+.gcgktable { margin-top: 20px; }
+/* No box around a table that is already inside a panel - the border drew a
+   second edge a few pixels inside the first. */
+.twrap.bare { border: 0; border-radius: 0; }
+/* Headed the same in both tables, so the sheet reads as one thing. The
+   goaltenders' labels are plain text where the skaters' are sort buttons, and
+   without this they sat at a different size and a different height. */
+table.stats.sortable.gcbt .gcbthead th { font-size: 11.5px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--muted); font-weight: 700; padding: 0; }
+table.stats.sortable.gcbt .gcbthead th:not(:has(.sortbtn)) { padding: 12px 6px; }
+table.stats.sortable.gcbt .gcbthead th:first-child:not(:has(.sortbtn)),
+table.stats.sortable.gcbt .gcbthead th:nth-child(2):not(:has(.sortbtn)) { padding-left: 8px; }
+table.stats.sortable.gcbt .gcbthead th:nth-child(2) { text-align: left; }
 /* And centred, because a single digit left-aligned in a hundred-pixel column
    sits against one edge with the rest of the column empty after it: the
    figures pooled at the left instead of marching across the row. */
@@ -9449,8 +9461,13 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
   const keeperFor = (row) => {
     if (row.mine) {
       const k = keeperLine(row.t || {});
+      const st = row.t || {};
+      /* A dash where nothing is recorded, not a nought: a season that never
+         tracked overtime losses did not have none of them. */
+      const rec = (v) => (v == null || v === "" ? null : Number(v) || 0);
       return { gp: k.gp, gaa: k.gaa == null ? null : k.gaa.toFixed(2),
-        svpct: pctText(k.svpct), so: k.so };
+        svpct: pctText(k.svpct), so: k.so,
+        w: rec(st.w), l: rec(st.l), otl: rec(st.otl) };
     }
     const norm = (x) => String(x || "").toLowerCase().replace(/[^a-z ]/g, "").trim();
     const g = ((theirStats && theirStats.goalies) || [])
@@ -9462,6 +9479,11 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
       gaa: g.gaa != null ? g.gaa : (g.gp ? ((g.ga || 0) / g.gp).toFixed(2) : null),
       svpct: g.svpct != null ? String(g.svpct).replace(/^0/, "") : (faced ? pct3(g.saves, faced) : null),
       so: g.so == null ? null : g.so,
+      /* The league feed totals a season from game summaries and those carry no
+         decision, so an opponent's keeper has appearances and rates but no
+         record. Said with a dash rather than guessed at. */
+      w: g.w == null ? null : g.w, l: g.l == null ? null : g.l,
+      otl: g.otl == null ? null : g.otl,
     };
   };
 
@@ -9492,6 +9514,12 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
   const ROSTER_GROUPS = [["F", "Forwards"], ["D", "Defense"]];
   const GOALIE_COLS = [
     { key: "gp", label: "GP", title: "Games played" },
+    { key: "w", label: "W", title: "Wins" },
+    { key: "l", label: "L", title: "Losses" },
+    /* Overtime losses are recorded separately where a season has them. Older
+       seasons folded them into L, which is why this reads as a dash rather
+       than a nought for those years - nought would claim there were none. */
+    { key: "otl", label: "OTL", title: "Overtime losses" },
     { key: "gaa", label: "GAA", title: "Goals against average" },
     { key: "svpct", label: "SV%", title: "Save percentage" },
     { key: "so", label: "SO", title: "Shutouts" },
@@ -9737,16 +9765,17 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
           onClick={() => setRosterSide("them")}>{themName}</button>
       </div>
       {rosterRows.length ? (
-        <div className="twrap">
+        <div className="twrap bare">
           <table className="stats sortable gcbt">
-            {ROSTER_GROUPS.map(([g, title]) => {
-              const rows = sortRoster(rosterRows.filter((r) => groupOf(r.p) === g));
+            {/* One heading, not one per group. The band said "Forwards" over
+                columns that already carry a position, so it repeated what POS
+                says on every row and pushed the real heading down. Skaters read
+                as one list; goaltenders have a table of their own below. */}
+            {[null].map(() => {
+              const rows = sortRoster(rosterRows.filter((r) => groupOf(r.p) !== "G"));
               if (!rows.length) return null;
               return (
-                <tbody key={g}>
-                  <tr className="gcbtgroup">
-                    <th colSpan={ROSTER_COLS.length} scope="colgroup">{title}</th>
-                  </tr>
+                <tbody key="skaters">
                   {rosterHeader()}
                   {rows.map((row) => {
                     const { p, t, mine } = row;
@@ -9787,20 +9816,20 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
           || (Number(a.p.number) || 0) - (Number(b.p.number) || 0));
         const dash = "—";
         return (
-          <div className="twrap gcgktable">
+          <div className="twrap bare gcgktable">
             <table className="stats sortable gcbt">
               <tbody>
-                <tr className="gcbtgroup">
-                  <th colSpan={2 + GOALIE_COLS.length} scope="colgroup">Goaltenders</th>
-                </tr>
+                {/* Same header treatment as the skaters above, so the two
+                    tables read as one sheet rather than two. */}
                 <tr className="gcbthead">
                   <th>#</th>
-                  <th>Player</th>
+                  <th>Goaltender</th>
                   {GOALIE_COLS.map((c) => <th key={c.key} title={c.title}>{c.label}</th>)}
                 </tr>
                 {rows.map((row) => {
                   const { p, mine } = row;
                   const k = keeperFor(row);
+                  const n = (v) => (v == null ? dash : v);
                   return (
                     <tr key={p.id}>
                       <td>{p.number}</td>
@@ -9809,7 +9838,10 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
                           ? <button className="pboxname" onClick={() => onPlayer(p.id)}>{p.name}</button>
                           : p.name}
                       </td>
-                      <td>{k && k.gp != null ? k.gp : dash}</td>
+                      <td>{k ? n(k.gp) : dash}</td>
+                      <td>{k ? n(k.w) : dash}</td>
+                      <td>{k ? n(k.l) : dash}</td>
+                      <td>{k ? n(k.otl) : dash}</td>
                       <td>{k && k.gaa != null ? k.gaa : dash}</td>
                       <td>{k && k.svpct ? k.svpct : dash}</td>
                       <td>{k && k.so != null ? k.so : dash}</td>
