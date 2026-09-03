@@ -2899,12 +2899,10 @@ button.gtrow:hover { background: var(--page); }
    padding is written for the second of those - eighty-eight pixels above a
    back link put the headline below the fold on a laptop. */
 .artpage { padding-top: 0; }
-/* The one place a way back sits, on every page that has one: the site's own
-   left gutter, twenty-two pixels down. It was landing in three different
-   places - two hundred pixels apart across the article and the game centre,
-   because a story's column is narrower and the link was inside it. It sits in
-   a full-width row of its own now, so the page underneath can be as narrow as
-   it likes. */
+/* A row of its own above the page, twenty-two pixels down, carrying the same
+   width as the content beneath it - so the link starts where the page starts,
+   whether that is the site's gutter or the narrower column a story is set in.
+   Same height on every page, same edge as whatever it sits above. */
 .backbar { padding-top: 22px; }
 
 /* Buttons */
@@ -12343,7 +12341,11 @@ function PlayerPage({ site, playerId, onBack, backTo, onPlayer, onGame }) {
   return (
     <main style={{ background: "var(--page)" }}>
       <section className="section" style={{ paddingTop: 0 }}>
-        <div className="wrap backbar"><BackLink to={backTo} onClick={onBack} /></div>
+        {/* The same 980 the page below it uses, so the link starts where the
+            player's card starts rather than ninety pixels to its left. */}
+        <div className="wrap backbar" style={{ maxWidth: 980 }}>
+          <BackLink to={backTo} onClick={onBack} />
+        </div>
         <div className="wrap" style={{ maxWidth: 980 }}>
           <div style={{ display: "flex", gap: 14, alignItems: "center", margin: "0 0 16px", flexWrap: "wrap" }}>
             {/* The way back is the link above the heading, the same one every
@@ -17581,7 +17583,12 @@ function NewsPage({ site, postId, onBack, backTo, onPlayerName }) {
 
   return (
     <main className="section artpage" style={{ flex: 1 }}>
-      <div className="wrap backbar"><BackLink to={backTo} onClick={onBack} /></div>
+      {/* Inside the story's own column, not the site's full-width gutter: a
+          back link belongs at the left edge of the thing it is above, and an
+          article's column is narrower than the page. */}
+      <div className="wrap backbar" style={{ maxWidth: 760 }}>
+        <BackLink to={backTo} onClick={onBack} />
+      </div>
       <div className="wrap" style={{ maxWidth: 760 }}>
 
         <p className="artlabel arttag">{casedTag(post.tag || "News")}</p>
