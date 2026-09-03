@@ -3598,6 +3598,13 @@ table.stats tbody tr:last-child td { border-bottom: 0; }
   .gamemain > span + div { min-width: 0; }
   /* The date stops being pushed to the right - there is no right any more. */
   .gameresult { margin-left: 0; text-align: center; }
+  /* Nor does Full Bio, for the same reason: it was sitting against the right
+     edge under a name and a hometown that had both come to the middle.
+     Named through the card rather than on its own, because the .fullbio rule
+     is written further down the sheet and a media query adds no weight - at
+     equal specificity the later rule would win and this one would do
+     nothing. */
+  .gamemain > .fullbio { margin-left: 0; }
   /* The venue line centres with its pin rather than starting at a left edge. */
   .gamemain .bsm { justify-content: center; }
   /* Two to a row, matched widths, so the ways in read as a set rather than
@@ -4597,6 +4604,9 @@ a.faffil:hover .faffilmark { opacity: 0.82; }
 .adminui .autoggle { display: flex; gap: 6px; flex-wrap: wrap; }
 
 /* Play by play */
+.adminui .auplayhead { display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin-bottom: 12px; }
+.adminui .auplayhead .h6 { margin: 0; }
 .adminui .auplays { display: grid; gap: 6px; max-height: 480px; overflow-y: auto;
   scrollbar-width: thin; }
 .adminui .auplay { display: flex; align-items: center; gap: 10px; padding: 8px 10px;
@@ -20773,6 +20783,107 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
     push({ plays: without });
   };
 
+  /* ---- Clearing the whole log ----
+   *
+   * Taking plays out one at a time is right for a mistake and wrong for a
+   * board scored against the wrong game, or a run-through left on it before
+   * the puck dropped. This does exactly what removing every play by hand
+   * would do, in a single write: the same reversals, applied together, so the
+   * score, the shot counts, the penalties on the clock and both halves of the
+   * box score land where they would have.
+   *
+   * It subtracts what the plays put on rather than zeroing the lines. A game
+   * opened for scoring after the fact can already carry an imported box
+   * score, and clearing a log that never wrote those figures must not take
+   * them off: a player with two goals on the sheet and one in the log is left
+   * with one, not with none.
+   *
+   * The lineup stays. Who dressed and who is in net are facts about the game
+   * rather than entries in the log, and starting a period again should not
+   * mean picking the team a second time.
+   */
+  const clearAllPlays = async () => {
+    if (!plays.length) return;
+    const some = (k) => plays.filter((x) => x.kind === k).length;
+    const parts = [[some("goal"), "goal", "goals"],
+                   [some("penalty"), "penalty", "penalties"],
+                   [some("shot"), "shot on goal", "shots on goal"]]
+      .filter(([n]) => n)
+      .map(([n, one, many]) => n + " " + (n === 1 ? one : many));
+
+    const ok = await ask({
+      title: "Clear the play-by-play?",
+      message: plays.length + (plays.length === 1 ? " entry" : " entries")
+        + (parts.length ? " — " + parts.join(", ") : "") + ".",
+      detail: "The score goes back to 0-0, shots go to nought, anything being served "
+        + "comes off the clock, and every figure these plays wrote onto the box score "
+        + "comes off with them - ours and " + (oppName || "theirs") + ". The lineup and "
+        + "the goaltenders are left as they are"
+        + (game.result ? ", and so is the final score already recorded for this game" : "")
+        + ". There is no undo for this on the console.",
+      confirmLabel: "Clear " + plays.length + (plays.length === 1 ? " entry" : " entries"),
+      danger: true,
+    });
+    if (!ok) return;
+
+    /* What the plays are owed back, gathered before anything is written so it
+       is one pass over the log and one write, rather than a write per play. */
+    const owed = new Map();
+    const owe = (id, key, n) => {
+      if (!id || !n) return;
+      const cur = owed.get(id) || {};
+      cur[key] = (cur[key] || 0) + n;
+      owed.set(id, cur);
+    };
+    for (const x of plays) {
+      if (x.team !== "us") continue;
+      if (x.kind === "goal" && x.scorerId) {
+        owe(x.scorerId, "g", -1);
+        if (x.strength === "PP") owe(x.scorerId, "ppg", -1);
+        if (x.strength === "SH") owe(x.scorerId, "shg", -1);
+        (x.assistIds || []).forEach((id) => owe(id, "a", -1));
+      } else if (x.kind === "penalty") {
+        const pl = x.playerId
+          ? roster.find((r) => r.id === x.playerId)
+          : roster.find((r) => r.name === x.player);
+        if (pl && Number(x.minutes)) owe(pl.id, "pim", -Number(x.minutes));
+      }
+      /* Shots are not owed anything: they are rebuilt from the log on every
+         write, so an empty log is already an answer of nought. */
+    }
+
+    if (owed.size) {
+      setDraft((st) => {
+        const all = st.gameStats || {};
+        const forGame = all[game.id];
+        if (!forGame) return st;
+        const next = { ...forGame };
+        for (const [id, d] of owed) {
+          if (!next[id]) continue;
+          const line = { ...next[id] };
+          for (const [k, n] of Object.entries(d)) {
+            line[k] = Math.max(0, (Number(line[k]) || 0) + n);
+          }
+          next[id] = line;
+        }
+        return { ...st, gameStats: { ...all, [game.id]: next } };
+      });
+    }
+
+    push({
+      plays: [],
+      live: {
+        ...live,
+        us: 0, them: 0,
+        penalties: [],
+        shotsUs: 0, shotsThem: 0, periodShots: {},
+        /* The keeper stays in net, so what they have faced starts again from
+           where the game now is - which is nothing. */
+        netBase: { shots: 0, goals: 0 },
+      },
+    });
+  };
+
   /* ---- Correcting a play ----
    *
    * A correction is the old play undone and a new one put in its place. Doing
@@ -22058,9 +22169,16 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
         {/* ---- Play by play ---- */}
         <div className="aulivecol">
           <section className="card">
-            <p className="h6" style={{ marginBottom: 12 }}>
-              Play by play {plays.length ? "· " + plays.length : ""}
-            </p>
+            <div className="auplayhead">
+              <p className="h6">
+                Play by play {plays.length ? "· " + plays.length : ""}
+              </p>
+              {plays.length > 0 && (
+                <button className="btn bGhost bSm" onClick={clearAllPlays}>
+                  Clear all
+                </button>
+              )}
+            </div>
             {!plays.length && (
               <p className="bsm" style={{ color: "var(--au-faint)" }}>
                 Nothing recorded yet. Goals and penalties entered here go straight onto
