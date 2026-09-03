@@ -3582,6 +3582,12 @@ table.stats tbody tr:last-child td { border-bottom: 0; }
 .gamecard { background: #fff; border: 1px solid #E7EBEF; border-left: 5px solid var(--deep);
   border-radius: 8px; box-shadow: 0 1px 3px rgba(4, 30, 66, 0.06); min-width: 0; }
 .gamemain { display: flex; align-items: center; gap: 18px; padding: 20px 22px; flex-wrap: wrap; }
+/* A roster row wears this card's clothes but not its colours: the stripe says
+   "a game", and eighteen players are not eighteen games. Said in a class
+   rather than inline, so the rules that move the stripe on a phone can tell
+   the two apart - written inline it was invisible to them, and every player
+   would have grown a navy cap. */
+.gamecard.plaincard { border-left: 1px solid #E7EBEF; }
 .gameresult { margin-left: auto; text-align: right; flex: 0 0 auto; }
 /* The block beside the crest sizes itself from its content, so one long venue
    string made the row too wide and dropped the whole block to a second line -
@@ -3603,6 +3609,34 @@ table.stats tbody tr:last-child td { border-bottom: 0; }
   .gamemain > .rosthome { flex: 1 1 220px; }
 }
 .gamemain > .rostname, .gamemain > .rosthome { min-width: 0; }
+
+/* The stripe moves to the top edge on a phone.
+ *
+ * It runs down the left because a card in a list is read left to right and
+ * the colour is the first thing met. Once the card centres itself, a bar
+ * down one side is the only thing left pulling to an edge - and it pulls
+ * against everything above it. Across the top it still leads, and it leads
+ * into a card that reads down the middle.
+ *
+ * Each variant names its own colour rather than the width being flipped in
+ * one rule, because the colour lives on the left border and moving it means
+ * writing it somewhere: gold for a game to come, red for one being played,
+ * navy on the schedule. The side that is left behind goes back to the hairline
+ * every other edge of these cards already uses.
+ *
+ * Cards that never had a stripe are left alone - a roster row says so with
+ * .plaincard, and giving it a navy cap it never asked for is the one thing
+ * this must not do. */
+@media (max-width: 640px) {
+  .hnext { border-left: 1px solid var(--border); border-top: 4px solid var(--gold); }
+  /* Both halves of the move, and the left one is not optional: the base sheet
+     colours a live card's left border through .hnext.live, which outranks the
+     rule above and left a red hairline down the side of a card whose stripe
+     had already gone to the top. Measured, not assumed. */
+  .hnext.live { border-top-color: #E4002B; border-left-color: var(--border); }
+  .gamecard:not(.plaincard) { border-left: 1px solid #E7EBEF;
+    border-top: 5px solid var(--deep); }
+}
 
 /* On a phone a game is a card rather than a row.
  *
@@ -11322,7 +11356,7 @@ function RosterPage({ site, onPlayer }) {
                 {group.players.map((p) => {
                   const { home, prev } = splitHome(p.hometown);
                   return (
-                    <article className="gamecard" key={p.id} style={{ borderLeft: "1px solid #E7EBEF" }}>
+                    <article className="gamecard plaincard" key={p.id}>
                       <div className="gamemain">
                         <span style={{ position: "relative", flex: "0 0 auto" }}>
                           <PlayerAvatar size={78} photo={p.photo} />
