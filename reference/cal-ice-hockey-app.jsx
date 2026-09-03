@@ -2895,6 +2895,10 @@ button.gtrow:hover { background: var(--page); }
 .backlink:hover { color: var(--blue); }
 .backlink:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .backlink svg { flex: 0 0 auto; }
+/* A story starts with its way back, not with its heading, and a section's
+   padding is written for the second of those - eighty-eight pixels above a
+   back link put the headline below the fold on a laptop. */
+.artpage { padding-top: 26px; }
 
 /* Buttons */
 /* Matched to .calbtn, which is what a button on this site already looked like:
@@ -8585,7 +8589,9 @@ function Scoresheet({ site, season, game, onClose }) {
    link says it is going to. */
 const VIEW_LABEL = {
   home: "Home", schedule: "Schedule", roster: "Roster", stats: "Stats",
-  news: "News", tickets: "Tickets", recruit: "Interest form", team: "Team",
+  newsindex: "News", tickets: "Tickets", recruit: "Interest form",
+  prospects: "Recruits", staff: "Staff", volunteers: "Volunteers",
+  alumni: "Alumni", venue: "Venue", season: "Season", career: "Career",
 };
 
 /** The way out of a sub-page, saying where it goes. */
@@ -17521,7 +17527,7 @@ function NewsPage({ site, postId, onBack, backTo, onPlayerName }) {
     .slice(0, 3);
 
   return (
-    <main className="section" style={{ flex: 1 }}>
+    <main className="section artpage" style={{ flex: 1 }}>
       <div className="wrap" style={{ maxWidth: 760 }}>
         <BackLink to={backTo} onClick={onBack} />
 
