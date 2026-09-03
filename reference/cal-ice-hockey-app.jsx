@@ -980,8 +980,16 @@ a.socialbtn:hover { color: var(--deep); background: var(--gold); }
  * game. The rule is drawn inset so nothing shifts by a pixel on hover, and the
  * hover is a wash of the same navy at a tenth - enough to answer the pointer,
  * not enough to announce itself. */
-.gcacts { margin-left: auto; display: inline-flex; gap: 8px; flex-wrap: wrap; }
-.gcacts .btn { min-width: 0; background: transparent; color: var(--blue);
+.gcacts { margin-left: auto; display: inline-flex; gap: 8px; flex-wrap: wrap;
+  flex: 0 0 auto; }
+/* Laid out as a row, and one that will not be squeezed. As a block with inline
+   contents the label and the icon were two things flowing in a line, so the
+   moment the button was shrunk the icon wrapped underneath and the button
+   became two lines tall. A flex row with nowrap keeps them beside each other,
+   and refusing to shrink keeps the button the width of what is in it. */
+.gcacts .btn { min-width: 0; flex: 0 0 auto; display: inline-flex;
+  align-items: center; gap: 7px; white-space: nowrap;
+  background: transparent; color: var(--blue);
   box-shadow: inset 0 0 0 1.5px var(--border); padding: 7px 14px; font-size: 12.5px;
   letter-spacing: 0.06em; transition: background 0.15s, box-shadow 0.15s; }
 .gcacts .btn:hover { background: rgba(4, 30, 66, 0.06);
