@@ -990,10 +990,20 @@ a.socialbtn:hover { color: var(--deep); background: var(--gold); }
 .gcacts .btn { min-width: 0; flex: 0 0 auto; display: inline-flex;
   align-items: center; gap: 7px; white-space: nowrap;
   background: transparent; color: var(--blue);
-  box-shadow: inset 0 0 0 1.5px var(--border); padding: 7px 14px; font-size: 12.5px;
-  letter-spacing: 0.06em; transition: background 0.15s, box-shadow 0.15s; }
+  /* A hairline. At one and a half it read as a border being made a point of. */
+  box-shadow: inset 0 0 0 1px var(--border);
+  /* Room around the words. A pill this size with fourteen pixels either side
+     had the text against the ends of it. */
+  padding: 8px 20px; font-size: 13px;
+  /* Inter, sentence case. .btn is one of a set the display face and uppercase
+     were applied to together - right for a heading and for a gold call to
+     action, wrong for a small outlined link that reads as a word rather than
+     a sign. */
+  font-family: var(--body); text-transform: none; font-weight: 600;
+  letter-spacing: 0.005em;
+  transition: background 0.15s, box-shadow 0.15s; }
 .gcacts .btn:hover { background: rgba(4, 30, 66, 0.06);
-  box-shadow: inset 0 0 0 1.5px var(--blue); }
+  box-shadow: inset 0 0 0 1px var(--blue); }
 .gcacts .btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 /* The icon sat at the size a filled button wants; smaller, with the text. */
 .gcacts .btn svg { width: 14px; height: 14px; }
@@ -1035,7 +1045,6 @@ a.socialbtn:hover { color: var(--deep); background: var(--gold); }
 }
 .gcshort { display: none; }
 .gcsog { font-size: 11.5px; font-weight: 650; color: var(--muted); margin-top: 2px; }
-.gcwatchbar { display: flex; justify-content: center; margin-top: 14px; }
 .gcscore { font-family: var(--disp); font-weight: 700; font-size: 46px; line-height: 1;
   color: var(--ink); font-variant-numeric: tabular-nums; flex: 0 0 auto;
   /* Equal auto margins: whatever room is left over is split in half, so the
@@ -7204,14 +7213,9 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
           </div>
         </div>
 
-        {/* ---- Where to watch ----
-            The stream while it is on, the replay once it is over. WatchLink
-            decides which; this only gives it a place to sit. */}
-        {(live || final) && (final ? (game.replayUrl || game.streamUrl) : game.streamUrl) && (
-          <div className="gcwatchbar">
-            <WatchLink game={game} />
-          </div>
-        )}
+        {/* Where to watch used to sit here, under the scorebug. It is in the
+            heading now, alongside tickets, and having it in both places put
+            two Replay buttons on the same page. */}
 
         {/* ---- Tabs ---- */}
         {scored && (
