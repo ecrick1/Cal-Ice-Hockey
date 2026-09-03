@@ -4933,7 +4933,7 @@ a.faffil:hover .faffilmark { opacity: 0.82; }
 .adminui .aufav.dark .aufavnone { color: #9aa0a6; }
 .adminui .aufavctl { display: grid; gap: 7px; padding: 11px 12px 12px;
   background: var(--au-surface); border-top: 1px solid var(--au-line); }
-.adminui .aufavhead { font-size: 12.5px; font-weight: 600; color: var(--au-ink); }
+.adminui .aufavhead { font-size: 12.5px; font-weight: 400; color: var(--au-ink); }
 .adminui .aufavctl input[type="file"] { font-size: 11.5px; max-width: 100%; }
 .adminui .aufavmeta { display: flex; gap: 9px; align-items: center; flex-wrap: wrap;
   min-height: 22px; }
