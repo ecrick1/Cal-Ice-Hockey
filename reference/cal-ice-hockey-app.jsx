@@ -2594,6 +2594,7 @@ button.gtrow:hover { background: var(--page); }
    and the rink read plainly. */
 .calcell.has.home .caldate { color: rgba(255,255,255,0.6); }
 .calcell.has.home .calresult,
+.calcell.has.home .caltag,
 .calcell.has.home .caltime { color: #fff; }
 .calcell.has.home .calact { color: #fff; }
 .calcell.has.home .calact:hover { color: var(--gold); }
@@ -3611,7 +3612,10 @@ button.watchbtn { border: 0; cursor: pointer; }
   white-space: nowrap; }
 /* Pushed to the far end of the footer rule, away from Quick look. */
 .gamefoot .roundtag { margin-left: auto; }
-.caltag.spec { background: var(--gold); color: var(--deep); }
+/* Plain text, no badge. A gold block in a cell the size of a postage stamp
+   was louder than the score beside it, and the name of the game is a note
+   about it rather than the point of it. It takes the same colour as
+   everything else in the cell: navy on a white one, white on a navy one. */
 /* On navy the gold would shout over the score, so it outlines instead. */
 .hnext .spectag, .sboard .spectag { background: transparent; color: var(--gold);
   box-shadow: inset 0 0 0 1.5px var(--gold); }
