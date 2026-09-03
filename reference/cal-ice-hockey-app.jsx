@@ -1483,8 +1483,9 @@ table.stats.gcpen th:first-child, table.stats.gcpen td:first-child { padding-lef
   .pphead .ppdiv { min-height: 16px; }
   /* No rule before the crest - it opens the line. */
   .pphead .ppdiv:first-of-type { display: none; }
-  /* Both ways of stepping to another player go on a phone: Back to Roster is
-     the way back, and a list of thirty names in a select is not navigation. */
+  /* Both ways of stepping to another player go on a phone: the link above the
+     heading is the way back, and a list of thirty names in a select is not
+     navigation. */
   .ppjump, .ppsiblings { display: none; }
 
   .ppvitals { padding-top: 6px; }
@@ -6925,7 +6926,7 @@ function GamePage({ site, gameId, onBack, backTo, onPlayer, openPost, onTickets 
       <main className="section" style={{ flex: 1 }}>
         <div className="wrap">
           <h1 className="h2" style={{ color: "var(--blue)" }}>Game not found</h1>
-          <button className="btn bNavy bSm" style={{ marginTop: 16 }} onClick={onBack}>Back to schedule</button>
+          <BackLink to={backTo} onClick={onBack} />
         </div>
       </main>
     );
@@ -12267,7 +12268,7 @@ function PlayerPage({ site, playerId, onBack, backTo, onPlayer, onGame }) {
     return (
       <main className="section"><div className="wrap">
         <p className="blg" style={{ color: "var(--muted)" }}>Player not found.</p>
-        <button className="fullbio" onClick={onBack}>Back to Roster <IcArrowR size={16} /></button>
+        <BackLink to={backTo} onClick={onBack} />
       </div></main>
     );
   }
@@ -12286,9 +12287,8 @@ function PlayerPage({ site, playerId, onBack, backTo, onPlayer, onGame }) {
         <div className="wrap"><BackLink to={backTo} onClick={onBack} /></div>
         <div className="wrap" style={{ maxWidth: 980 }}>
           <div style={{ display: "flex", gap: 14, alignItems: "center", margin: "0 0 16px", flexWrap: "wrap" }}>
-            <button className="fullbio" style={{ margin: 0, marginLeft: 0 }} onClick={onBack}>
-              <IcChevL size={16} /> Back to Roster
-            </button>
+            {/* The way back is the link above the heading, the same one every
+                other page has. This row is for stepping sideways. */}
             <div className="ppsiblings">
               {prevP && (
                 <button className="fullbio" style={{ margin: 0 }} onClick={() => { setTab("bio"); onPlayer(prevP.id); }}>
@@ -16022,20 +16022,18 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
                 {(draft.account && draft.account.name) || "Set up your account"}
               </span>
             </button>
-            <button className="aulink" onClick={leave}>
-              <span className="audot" />
-              Back to site
-            </button>
           </div>
         </aside>
 
         <div className="aumain">
           <header className="autop">
-            {/* The way out was a link at the foot of the sidebar, which is
-                collapsed on a phone and below the fold on a laptop - so the
-                console had no visible exit from the screen you were on. It
+            {/* The one way out. It was at the foot of the sidebar, which is
+                collapsed on a phone and below the fold on a laptop, so the
+                console had no visible exit from the screen you were on; it
                 sits above the title now, where every other page on the site
-                puts one, and it still asks before leaving unsaved work. */}
+                puts one. Only here - two of them in one screen is the thing
+                being fixed, not the fix. Still asks before leaving unsaved
+                work. */}
             <button className="backlink aubacklink" onClick={leave}>
               <IcChevL size={15} /> Back to site
             </button>
@@ -17511,7 +17509,7 @@ function NewsPage({ site, postId, onBack, backTo, onPlayerName }) {
       <main className="section" style={{ flex: 1 }}>
         <div className="wrap">
           <h1 className="h2" style={{ color: "var(--blue)" }}>Story not found</h1>
-          <button className="btn bNavy bSm" style={{ marginTop: 16 }} onClick={onBack}>Back</button>
+          <BackLink to={backTo} onClick={onBack} />
         </div>
       </main>
     );
