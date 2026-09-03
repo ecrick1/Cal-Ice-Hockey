@@ -16040,9 +16040,17 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
     if (stored && theirs !== mine) {
       const ok = await ask({
         title: "Saved somewhere else since you opened this",
-        message: "The site has been written to by another tab or an import while this screen was open.",
-        detail: "Saving now replaces those changes with what is on this screen. Reload the page instead to pick them up first.",
-        confirmLabel: "Overwrite anyway",
+        message: "The site is at revision " + theirs + " and this screen was loaded at "
+          + mine + ". Somebody else has saved " + (theirs - mine)
+          + (theirs - mine === 1 ? " time" : " times") + " since.",
+        /* It used to say only that saving "replaces those changes", which reads
+           like a formality. It is not: what goes up is this whole screen as it
+           was when it was opened, so every one of those saves is undone at
+           once - including ones nobody in this tab has seen. */
+        detail: "Saving puts up this screen exactly as it was loaded, which undoes all of them. "
+          + "Reloading first keeps them and loses nothing but what you have typed here.",
+        confirmLabel: "Overwrite " + (theirs - mine) + " newer "
+          + (theirs - mine === 1 ? "save" : "saves"),
         danger: true,
       });
       if (!ok) return false;
