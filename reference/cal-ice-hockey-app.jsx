@@ -2716,7 +2716,7 @@ button.gtrow:hover { background: var(--page); }
 /* Larger and lighter than the body, dark enough to be read rather than
    skipped. It carries the sentence the headline had no room for. */
 .artdeck { font-size: 20px; line-height: 1.45; font-weight: 500; color: var(--ink);
-  margin: 0 0 14px; max-width: 62ch; }
+  margin: 0 0 12px; max-width: 62ch; }
 @media (max-width: 560px) { .artdeck { font-size: 17.5px; } }
 
 .article { margin-top: 26px; }
@@ -2778,6 +2778,9 @@ button.gtrow:hover { background: var(--page); }
    not be set like a scoreboard. */
 .artlabel { margin: 0; font-family: var(--body); font-weight: 700; font-size: 13px;
   letter-spacing: 0; text-transform: none; color: var(--muted); }
+/* It sits under the standfirst now, so it needs air beneath it before the
+   picture rather than none at all. */
+.arttag { margin-bottom: 16px; }
 /* The tag is the one that names the kind of story, so it keeps the navy. */
 .arttag { color: var(--blue); }
 .artsharebtns { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -17634,11 +17637,14 @@ function NewsPage({ site, postId, onBack, backTo, onPlayerName }) {
       </div>
       <div className="wrap" style={{ maxWidth: 760 }}>
 
-        <p className="artlabel arttag">{casedTag(post.tag || "News")}</p>
-        <h1 className="h1" style={{ color: "var(--blue)", margin: "8px 0 12px", fontSize: "clamp(2rem,4.5vw,3rem)" }}>
+        <h1 className="h1" style={{ color: "var(--blue)", margin: "0 0 12px", fontSize: "clamp(2rem,4.5vw,3rem)" }}>
           {post.title}
         </h1>
         {post.blurb && <p className="artdeck">{post.blurb}</p>}
+        {/* Under the standfirst rather than over the headline. It says what
+            kind of story this is, which is worth knowing after the story has
+            introduced itself and not before. */}
+        <p className="artlabel arttag">{casedTag(post.tag || "News")}</p>
 
         {post.image && (
           <img className="artcover" src={post.image} alt="" />
