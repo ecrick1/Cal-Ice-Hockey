@@ -45,6 +45,23 @@ const local = {
   },
 };
 
+/* Set when a write reached this browser and not the database, cleared when one
+   gets through. It is the only honest reason for a local copy to be newer than
+   the shared one, and reading it is how a load tells "work waiting here" apart
+   from "this browser has drifted ahead and should be corrected". Without it,
+   the two look identical and the safe-looking choice - keep what is local -
+   pins the browser to a copy nobody else can see. */
+const UNSENT = 'cal-hockey-unsent';
+const unsent = () => {
+  try { return localStorage.getItem(UNSENT) === '1'; } catch { return false; }
+};
+const markUnsent = (yes) => {
+  try {
+    if (yes) localStorage.setItem(UNSENT, '1');
+    else localStorage.removeItem(UNSENT);
+  } catch { /* private mode; the flag is an optimisation, not a guarantee */ }
+};
+
 const sb = URL_ && KEY_
   ? createClient(URL_, KEY_, { auth: { persistSession: true, autoRefreshToken: true } })
   : null;
@@ -77,7 +94,24 @@ window.storage = {
       const { data, error } = await sb.from(TABLE).select('rev').eq('key', key).maybeSingle();
       if (error) throw error;
       if (!data) return here;                    // nothing shared yet; this copy is the best one
-      if (Number(data.rev || 0) <= hereRev) return here;   // already current
+
+      /* Equal revisions mean equal documents, so there is nothing to fetch.
+         Anything else and the database wins - including a local copy that
+         claims to be NEWER, which for somebody who is not signed in should be
+         impossible and is the one case that used to be treated as current.
+         A write from a visitor stops at the local mirror by design, and the
+         app stamps a rev when it publishes a parked draft on load, so a
+         browser could end up one ahead of a database it had never written to.
+         From then on it answered every check with "already current" and never
+         fetched again: pinned, silently and permanently, to a copy nobody else
+         could see.
+
+         An editor is the exception. Their local copy outranking the database
+         means a write was refused and is waiting on this device - the "saved
+         here only" case - and fetching over it would throw the work away. */
+      const theirs = Number(data.rev || 0);
+      if (theirs === hereRev) return here;
+      if (theirs < hereRev && unsent()) return here;
 
       const full = await sb.from(TABLE).select('value').eq('key', key).maybeSingle();
       if (full.error) throw full.error;
@@ -130,7 +164,9 @@ window.storage = {
 
     const { error } = await sb.from(TABLE)
       .upsert({ key, value, rev, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+    if (!error) markUnsent(false);
     if (error) {
+      markUnsent(true);
       /* Saved here but not there, and only reachable by someone who really was
          editing. Said plainly rather than swallowed: the difference between
          "saved" and "everyone can see it" is the whole reason for this. */
