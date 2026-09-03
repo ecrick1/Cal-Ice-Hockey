@@ -2082,6 +2082,12 @@ table.stats.sortable.gcbt .gcbthead th:nth-child(2) { text-align: left; }
    is they both fit, and the pair reads as the two ways into one game rather
    than as a list. */
 @media (max-width: 640px) {
+  /* The same on the home slab, which is the same game in a bigger frame: the
+     crest and score, who and when, and the ways in, all down the middle once
+     they have stopped being a row. */
+  .hnext { justify-content: center; text-align: center; }
+  .hnextinfo { justify-items: center; }
+  .hnextactions { justify-content: center; }
   .hnextactions .btn { flex: 1 1 0; min-width: 0; justify-content: center;
     padding-left: 10px; padding-right: 10px; white-space: nowrap; }
   /* 211 wide on a 375 screen is over half of it, for a mark sitting alone in
@@ -3001,6 +3007,25 @@ button.gtrow:hover { background: var(--page); }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sscore { margin-left: auto; font-family: var(--body); font-weight: 800; font-size: 14.5px;
   color: var(--blue); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* On a phone the strip is one card at a time rather than a row of them.
+ *
+ * A card built for a row hangs its parts off both edges - the date at the
+ * left, the overflow dots at the right, the opponent at the left, the score
+ * at the right - and reading one means crossing it twice. Held to the middle
+ * instead, the way the schedule cards and the roster cards already are on a
+ * phone: the same card, read down a single axis.
+ *
+ * Written after the rules it overrides rather than beside them. A media query
+ * carries no weight of its own, so at equal specificity the later rule is the
+ * one that stands - which is why the .scard min-width written above the base
+ * rule has never applied. */
+@media (max-width: 640px) {
+  .scard { text-align: center; }
+  .scard-top, .scard-main { justify-content: center; }
+  /* The two that were pushed to the far edge. There is no far edge now. */
+  .sdots, .sscore { margin-left: 0; }
+}
 
 /* The wait, before there is a site to show.
  *
