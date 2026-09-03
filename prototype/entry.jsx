@@ -193,16 +193,31 @@ window.auth = {
  * worse of the two. They get told instead.
  */
 if (sb) {
+  let fetching = false;
   sb.channel('site_state')
     .on('postgres_changes',
       { event: '*', schema: 'public', table: TABLE, filter: 'key=eq.cal-hockey-site' },
-      (payload) => {
+      async (payload) => {
         const rev = Number((payload.new || {}).rev || 0);
         if (mine.has(rev)) return;                       // our own write, echoed back
         const here = Number(JSON.parse(localStorage.getItem('cal-hockey-site') || '{}').rev || 0);
         if (rev <= here) return;
-        window.dispatchEvent(new CustomEvent('cal-site-updated', { detail: { rev } }));
-        if (!signedIn) window.location.reload();
+        /* Goals arrive in bursts and each one is a row change. One fetch at a
+           time, and the last rev wins - a second request racing the first
+           would only be a slower way to the same answer. */
+        if (fetching) return;
+        fetching = true;
+        try {
+          const { data, error } = await sb.from(TABLE).select('value')
+            .eq('key', 'cal-hockey-site').maybeSingle();
+          if (error || !data || !data.value) return;
+          local.set('cal-hockey-site', data.value);
+          window.dispatchEvent(new CustomEvent('cal-site-updated', {
+            detail: { rev, value: data.value },
+          }));
+        } finally {
+          fetching = false;
+        }
       })
     .subscribe();
 }

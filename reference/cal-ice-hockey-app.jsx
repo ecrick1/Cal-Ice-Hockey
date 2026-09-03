@@ -5343,8 +5343,42 @@ export default function CalIceHockey() {
     })();
   }, []);
 
-  /* Persist on change (after initial load) */
-  useEffect(() => { if (loaded.current && site) saveKey(SITE_KEY, site); }, [site]);
+  /* Persist on change (after initial load) - unless the change came FROM the
+     store, in which case writing it back is an echo, and one that would set a
+     rev the next tab treats as news. */
+  const fromRemote = useRef(false);
+  /* The current site, readable from a listener that was registered once and
+     would otherwise close over whatever `site` was at the time. */
+  const siteRef = useRef(null);
+  useEffect(() => {
+    siteRef.current = site;
+    if (!loaded.current || !site) return;
+    if (fromRemote.current) { fromRemote.current = false; return; }
+    saveKey(SITE_KEY, site);
+  }, [site]);
+
+  /**
+   * Somebody else published, so show it - without throwing the page away.
+   *
+   * This used to reload. That is the bluntest way to be current and the worst
+   * one to watch: the page goes white, scroll position is lost, an open menu
+   * shuts, and during a game it happens on every goal. React already knows how
+   * to show new data - it only ever needed handing the new data.
+   */
+  useEffect(() => {
+    const apply = (e) => {
+      const raw = e.detail && e.detail.value;
+      if (!raw) return;
+      let next;
+      try { next = JSON.parse(raw); } catch { return; }
+      if (!next || !next.seasons) return;
+      if (Number(next.rev || 0) <= Number((siteRef.current || {}).rev || 0)) return;
+      fromRemote.current = true;
+      setSite(next);
+    };
+    window.addEventListener("cal-site-updated", apply);
+    return () => window.removeEventListener("cal-site-updated", apply);
+  }, []);
   useEffect(() => { if (loaded.current) saveKey(RECRUITS_KEY, recruits); }, [recruits]);
   useEffect(() => { if (loaded.current) saveKey(ALUMNI_KEY, alumni); }, [alumni]);
   const setPending = useCallback((next) => {
