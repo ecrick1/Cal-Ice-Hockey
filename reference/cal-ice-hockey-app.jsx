@@ -1448,7 +1448,11 @@ table.stats.gcpen th:first-child, table.stats.gcpen td:first-child { padding-lef
    The side padding comes down with it: a dozen columns each have to fit a
    heading inside their share, and the default sixteen a side left a
    fifty-pixel column fourteen pixels to print SHG in. */
-.gcbt { width: 100%; table-layout: fixed; min-width: 720px; }
+/* table.stats sets a 620 floor and carries more weight than a lone class, so
+   this asked for 720 and was given 620 - a hundred pixels the columns then had
+   to find from somewhere. Named the same way, so the more particular table
+   wins. */
+table.stats.gcbt { width: 100%; table-layout: fixed; min-width: 720px; }
 .gcbt th, .gcbt td { padding-left: 8px; padding-right: 8px; }
 /* The jersey number and the name are the only two columns that are not a
    figure, so they are the only two given a width of their own. Everything
@@ -1457,6 +1461,14 @@ table.stats.gcpen th:first-child, table.stats.gcpen td:first-child { padding-lef
    columns and the same two pinned. */
 .gcbt th:nth-child(1), .gcbt td:nth-child(1) { width: 52px; }
 .gcbt th:nth-child(2), .gcbt td:nth-child(2) { width: 200px; }
+/* The preview's roster is the one that sits in the narrow panel beside the
+   game info, and it has eight columns rather than the box score's ten. A 720
+   floor there buys a sideways scroll to reach one column of penalty minutes.
+   It gets the panel instead, and the six figure columns divide what the name
+   leaves. */
+table.stats.sortable.gcbt { min-width: 0; }
+table.stats.sortable.gcbt th:nth-child(2),
+table.stats.sortable.gcbt td:nth-child(2) { width: 178px; }
 /* And centred, because a single digit left-aligned in a hundred-pixel column
    sits against one edge with the rest of the column empty after it: the
    figures pooled at the left instead of marching across the row. */
@@ -3087,7 +3099,14 @@ table.stats.sortable td { padding-left: 6px; padding-right: 6px; }
 table.stats.sortable .sortbtn { padding-left: 6px; padding-right: 6px; gap: 4px; }
 /* The caret is an affordance, not a glyph anyone reads - it can be small. */
 table.stats.sortable .sortcaret { font-size: 8px; }
-table.stats.sortable th:nth-child(2), table.stats.sortable td:nth-child(2) { width: 100%; }
+/* Except where the table has already planned its columns. Under the automatic
+   layout this rule was written for, 100% on the name column means "whatever is
+   left". Under a fixed layout it means all of it - so the game centre's roster,
+   which is fixed and assigns a width per column, handed the whole table to the
+   name and rendered Pos, GP, G, A, P and PIM at nought pixels wide. The figures
+   were there in the markup the entire time, in columns of no width. */
+table.stats.sortable:not(.gcbt) th:nth-child(2),
+table.stats.sortable:not(.gcbt) td:nth-child(2) { width: 100%; }
 table.stats.sortable td:first-child { padding-left: 16px; }
 table.stats.sortable td:last-child { padding-right: 16px; }
 table.stats.sortable th:first-child .sortbtn { padding-left: 16px; }
