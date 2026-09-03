@@ -1512,8 +1512,15 @@ table.stats.sortable.gcbt td:nth-child(2) { width: 100%; }
    across the table rather than stacking into a right margin. */
 table.stats.sortable.gcbt th:nth-child(n+3),
 table.stats.sortable.gcbt td:nth-child(n+3) { min-width: 58px; }
-/* The goaltenders' own table, under the skaters'. */
-.gcgktable { margin-top: 20px; }
+/* Air between the groups, so DEFENSE reads as the start of something rather
+   than another row of the list above it. A row of its own rather than a
+   border or padding: the table collapses its borders, which shares a border
+   between the two cells that meet at it and gave back half the gap asked for,
+   and padding would only have made the heading taller. */
+.gcbtgap td { height: 26px; padding: 0; border: 0; background: transparent; }
+/* The goaltenders are a table of their own, so theirs is a margin - the same
+   26, so all the gaps are one gap. */
+.gcgktable { margin-top: 26px; }
 /* No box around a table that is already inside a panel - the border drew a
    second edge a few pixels inside the first. */
 .twrap.bare { border: 0; border-radius: 0; }
@@ -9767,11 +9774,16 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
                 above its own column labels - the name says which group, the
                 labels say which figure, and neither has to do the other's
                 job. */}
-            {ROSTER_GROUPS.map(([g, title]) => {
+            {ROSTER_GROUPS.map(([g, title], gi) => {
               const rows = sortRoster(rosterRows.filter((r) => groupOf(r.p) === g));
               if (!rows.length) return null;
               return (
                 <tbody key={g}>
+                  {gi > 0 && (
+                    <tr className="gcbtgap" aria-hidden="true">
+                      <td colSpan={ROSTER_COLS.length} />
+                    </tr>
+                  )}
                   {rosterHeader(title)}
                   {rows.map((row) => {
                     const { p, t, mine } = row;
