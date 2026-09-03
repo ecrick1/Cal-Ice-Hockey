@@ -92,6 +92,27 @@ window.storage = {
     }
   },
 
+  /**
+   * The revision, without the document.
+   *
+   * A save checks whether anybody else has written since this screen was
+   * loaded, and it was answering that by fetching the whole site - a megabyte
+   * and a half, on every goal and every clock stop. The rev is a column of its
+   * own precisely so the question can be asked for a few bytes.
+   */
+  async rev(key) {
+    if (sb && SHARED.has(key)) {
+      try {
+        const { data, error } = await sb.from(TABLE).select('rev').eq('key', key).maybeSingle();
+        if (error) throw error;
+        return data ? Number(data.rev || 0) : null;
+      } catch { return null; }   // unreachable database; the caller treats it as "unknown"
+    }
+    const here = local.get(key);
+    if (!here) return null;
+    try { return Number(JSON.parse(here.value).rev || 0); } catch { return null; }
+  },
+
   async set(key, value) {
     local.set(key, value);                   // always, so nothing is lost to a failed write
     if (!sb || !SHARED.has(key)) return;

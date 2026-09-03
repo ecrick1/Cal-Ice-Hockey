@@ -309,11 +309,75 @@ async function loadKey(key, fallback) {
     return fallback; // key doesn't exist yet
   }
 }
+/* One write at a time per key, and only the newest one.
+ *
+ * Every change to the site writes the whole document - a megabyte and a half -
+ * and during a game the changes come in bursts: a goal, the clock stopping, a
+ * penalty, all inside a couple of seconds. Fired as they arrived, those became
+ * overlapping writes to the same row, each of which also copies the previous
+ * version into the history table. The database was being asked to move six
+ * megabytes to record one goal, and past a point it stopped agreeing: the
+ * refusals a scorekeeper was seeing were the queue, not the data.
+ *
+ * So a write in flight is left to finish, and anything that arrives meanwhile
+ * waits as a single pending value rather than a queue of them. The middle
+ * states of a burst are not worth sending - only where it ended up is - and
+ * skipping them is what keeps the last one fast.
+ */
+const writing = new Map();   // key -> the write now in flight
+const queued = new Map();    // key -> the newest value waiting for it
+
+async function putKey(key, val) {
+  await window.storage.set(key, JSON.stringify(val));
+}
+
+async function drain(key) {
+  /* The slot is cleared in a `finally`, which runs before this function's
+     promise settles. Clearing it afterwards instead leaves a gap in which a
+     save could join a write that has already finished - and be dropped,
+     silently, which is the one failure this whole arrangement exists to
+     prevent. */
+  try {
+    let last = { ok: true };
+    while (queued.has(key)) {
+      const val = queued.get(key);
+      queued.delete(key);
+      try {
+        await putKey(key, val);
+        last = { ok: true };
+      } catch (e) {
+        /* One retry, because the common failure here is transient - a write
+           that overlapped another, or a connection dropped between periods -
+           and the alternative is telling a scorekeeper their goal did not save
+           when asking again would have stored it. */
+        if (queued.has(key)) continue;   // superseded; the newer value is the one that matters
+        await new Promise((r) => setTimeout(r, 400));
+        try {
+          await putKey(key, val);
+          last = { ok: true };
+        } catch (e2) {
+          console.error("storage save failed", e2);
+          window.dispatchEvent(new CustomEvent("cal-save-failed", {
+            detail: { key, message: String((e2 && e2.message) || e2) },
+          }));
+          last = { ok: false, error: e2 };
+        }
+      }
+    }
+    if (last.ok) window.dispatchEvent(new CustomEvent("cal-save-ok", { detail: { key } }));
+    return last;
+  } finally {
+    writing.delete(key);
+  }
+}
+
 async function saveKey(key, val) {
   try {
-    await window.storage.set(key, JSON.stringify(val));
-    window.dispatchEvent(new CustomEvent("cal-save-ok", { detail: { key } }));
-    return { ok: true };
+    queued.set(key, val);
+    if (writing.has(key)) return await writing.get(key);
+    const run = drain(key);
+    writing.set(key, run);
+    return await run;
   } catch (e) {
     // Almost always the quota, and almost always images. Silently swallowing
     // this is how someone loses a full roster while the bar reads "saved".
@@ -6563,7 +6627,7 @@ function intermissionLeft(live, now) {
  * The console does not lag: the person operating it has to see the clock they
  * are operating.
  */
-const LIVE_LAG_MS = 6000;
+const LIVE_LAG_MS = 10000;
 
 function clockLeft(live, now, lagMs = 0) {
   if (!live) return 0;
@@ -16058,12 +16122,32 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
     setPending({ site: draftRef.current, savedAt: new Date().toISOString(), publishAt: at || null });
   };
 
-  const save = async () => {
+  /**
+   * Save, and ask first if somebody else has saved since this screen opened.
+   *
+   * Two things it deliberately does not do any more.
+   *
+   * It asked what the current revision was by fetching the entire site - a
+   * megabyte and a half - to read one number off the front of it. The revision
+   * is a column of its own, so it can be had for a few bytes; the rest was
+   * being downloaded and thrown away, on every save.
+   *
+   * And it asked the question during live scoring, where it is the wrong
+   * question. A goal saves, so a goal was opening a dialog about overwriting
+   * other people's work, in the middle of a game, on a screen where the next
+   * thing needed is the clock. Nobody else is editing a game while it is being
+   * scored; the console is the authority on it, and the revision is taken only
+   * so the number still moves forward and the update still reaches everyone.
+   */
+  const save = async (opts = {}) => {
     const next = draftRef.current;
-    const stored = await loadKey(SITE_KEY, null);
     const mine = Number(next.rev || 0);
-    const theirs = Number((stored || {}).rev || 0);
-    if (stored && theirs !== mine) {
+    const cheap = window.storage && typeof window.storage.rev === "function";
+    const theirs = cheap
+      ? Number(await window.storage.rev(SITE_KEY))
+      : Number((await loadKey(SITE_KEY, null) || {}).rev || 0);
+    const known = Number.isFinite(theirs);
+    if (!opts.silent && !scoring && known && theirs !== mine) {
       const ok = await ask({
         title: "Saved somewhere else since you opened this",
         message: "The site is at revision " + theirs + " and this screen was loaded at "
@@ -16081,7 +16165,11 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
       });
       if (!ok) return false;
     }
-    setSite({ ...next, rev: mine + 1 });
+    /* Forward from whichever is higher. Stamping mine + 1 when somebody else
+       is already past it writes a revision every other browser has seen, and
+       they all decide there is nothing new - the save lands in the database
+       and reaches nobody. */
+    setSite({ ...next, rev: Math.max(mine, known ? theirs : 0) + 1 });
     return true;
   };
 
