@@ -6900,6 +6900,44 @@ function downloadICS(games, seasonName, orgName) {
   } catch (e) { console.error("ics failed", e); }
 }
 
+/**
+ * A team's side of the scorebug.
+ *
+ * Declared here rather than inside the page that uses it. A component defined
+ * in another component's body is a new function on every render, so React
+ * treats it as a different kind of element and throws the old one away -
+ * meaning the crest was a fresh <img> every time the page drew. On a finished
+ * game nobody sees that; on a live one the clock redraws every second, so the
+ * two logos were being downloaded and painted once a second for as long as
+ * anybody watched. That is the flicker.
+ *
+ * `scored` and `anyShots` were read from the enclosing scope and are passed
+ * now, which is the whole cost of moving it out.
+ */
+function TeamSide({ name, mascot, short, logo, score, sog, align, beaten, scored, anyShots }) {
+  return (
+    <div className={"gcteam " + align}>
+      {align === "right" && scored && (
+        <div className={"gcscore" + (beaten ? " beaten" : "")}>{score}</div>
+      )}
+      <div className="gcid">
+        {logo ? <img className="gclogo" src={logo} alt="" /> : <OppBadge name={name} size={44} />}
+        <div className="gcnames">
+          <span className="gcabbr">{mascot}</span>
+          <span className="gcname">{name}</span>
+          {/* The phone shows this instead of the two lines above it. Both are
+              in the markup so the swap is a stylesheet decision. */}
+          <span className="gcshort">{short || name}</span>
+          {scored && anyShots ? <span className="gcsog">SOG: {sog || 0}</span> : null}
+        </div>
+      </div>
+      {align === "left" && scored && (
+        <div className={"gcscore" + (beaten ? " beaten" : "")}>{score}</div>
+      )}
+    </div>
+  );
+}
+
 /* ---------------- Game page ----------------
  * A dedicated page per game: banner header, scoring summary, goaltending,
  * season series and game info.
@@ -7350,28 +7388,6 @@ function GamePage({ site, gameId, onBack, backTo, onPlayer, openPost, onTickets 
      behind is not the losing side, and dimming it says otherwise. */
   const lost = (score, other) => final && Number(score) < Number(other);
 
-  const TeamSide = ({ name, mascot, short, logo, score, sog, align, beaten }) => (
-    <div className={"gcteam " + align}>
-      {align === "right" && scored && (
-        <div className={"gcscore" + (beaten ? " beaten" : "")}>{score}</div>
-      )}
-      <div className="gcid">
-        {logo ? <img className="gclogo" src={logo} alt="" /> : <OppBadge name={name} size={44} />}
-        <div className="gcnames">
-          <span className="gcabbr">{mascot}</span>
-          <span className="gcname">{name}</span>
-          {/* The phone shows this instead of the two lines above it. Both are
-              in the markup so the swap is a stylesheet decision. */}
-          <span className="gcshort">{short || name}</span>
-          {scored && anyShots ? <span className="gcsog">SOG: {sog || 0}</span> : null}
-        </div>
-      </div>
-      {align === "left" && scored && (
-        <div className={"gcscore" + (beaten ? " beaten" : "")}>{score}</div>
-      )}
-    </div>
-  );
-
   return (
     <main style={{ background: "var(--page)", flex: 1 }}>
       <div className="wrap backbar"><BackLink to={backTo} onClick={onBack} /></div>
@@ -7415,7 +7431,7 @@ function GamePage({ site, gameId, onBack, backTo, onPlayer, openPost, onTickets 
           <div className="gcbannerinner">
             <TeamSide name={usName} mascot={usMascot} short={usAbbr} logo={org.logo} score={scoreUs}
               sog={scored ? totalShots.us : null} align="left"
-              beaten={lost(scoreUs, scoreThem)} />
+              beaten={lost(scoreUs, scoreThem)} scored={scored} anyShots={anyShots} />
             <div className="gcmid">
               {live ? (
                 <>
@@ -7451,7 +7467,7 @@ function GamePage({ site, gameId, onBack, backTo, onPlayer, openPost, onTickets 
             </div>
             <TeamSide name={themName} mascot={themMascot} short={themShort} logo={game.opponentLogo}
               score={scoreThem} sog={scored ? totalShots.them : null} align="right"
-              beaten={lost(scoreThem, scoreUs)} />
+              beaten={lost(scoreThem, scoreUs)} scored={scored} anyShots={anyShots} />
           </div>
         </div>
 
