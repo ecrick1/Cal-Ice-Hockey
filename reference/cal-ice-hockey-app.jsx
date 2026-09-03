@@ -15350,15 +15350,24 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
               sent ? (
                 <>
                   <p className="bsm" style={{ margin: 0 }}>
-                    An email is on its way to <strong>{email}</strong>. Type the code from it
-                    below, or open its link on this device.
+                    Enter the code to sign in. It is in the email if one was sent, and it works
+                    whoever it reached you from.
                   </p>
+                  {/* Shown here too, because this screen is reachable without
+                      having typed one - and verifying needs the address the
+                      code was made for. */}
+                  <div className="field" style={{ marginTop: 14 }}>
+                    <label className="h6">Email</label>
+                    <input type="email" value={email} autoComplete="email"
+                      placeholder="you@berkeley.edu"
+                      onChange={(e) => { setEmail(e.target.value); setAuthErr(""); }} />
+                  </div>
                   {/* The code, not the link, is the reliable half: a link is a
                       one-time token in a URL, and plenty of things follow a URL
                       before a person does. */}
                   <div className="field" style={{ marginTop: 14 }}>
                     <label className="h6">Code from the email</label>
-                    <input value={code} autoFocus inputMode="numeric" autoComplete="one-time-code"
+                    <input value={code} inputMode="numeric" autoComplete="one-time-code"
                       placeholder="123456"
                       onChange={(e) => { setCode(e.target.value); setAuthErr(""); }}
                       onKeyDown={(e) => e.key === "Enter" && enterCode()} />
@@ -15367,7 +15376,7 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
                     <p className="bsm" style={{ color: "var(--au-danger)", marginTop: 8 }}>{authErr}</p>
                   )}
                   <button className="btn bNavy" style={{ marginTop: 14, width: "100%" }}
-                    disabled={sending || !code.trim()} onClick={enterCode}>
+                    disabled={sending || !code.trim() || !email.trim()} onClick={enterCode}>
                     {sending ? "Checking…" : "Sign in"}
                   </button>
                   <button className="btn bGhost" style={{ marginTop: 8, width: "100%" }}
@@ -15390,6 +15399,14 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
                   <button className="btn bNavy" style={{ marginTop: 16, width: "100%" }}
                     disabled={sending || !email.trim()} onClick={sendLink}>
                     {sending ? "Sending…" : "Email me a sign-in link"}
+                  </button>
+                  {/* A code can arrive by means other than this screen asking for
+                      one - handed over in person, or made when the mailer will
+                      not send. Requiring the send first made those unusable, at
+                      exactly the moments they were needed. */}
+                  <button className="btn bGhost" style={{ marginTop: 8, width: "100%" }}
+                    onClick={() => { setSent(true); setAuthErr(""); }}>
+                    I already have a code
                   </button>
                   <p className="bsm" style={{ color: "var(--au-faint)", marginTop: 16, fontSize: 11.5 }}>
                     Editing is by invitation — an address that has not been given access will

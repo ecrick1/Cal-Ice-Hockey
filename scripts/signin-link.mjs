@@ -68,17 +68,32 @@ const res = await api('/auth/v1/admin/generate_link', {
 });
 if (!res.ok) { console.error('could not make a link: ' + await res.text()); process.exit(1); }
 const body = await res.json();
-const link = body.action_link || (body.properties && body.properties.action_link);
+const props = body.properties || body;
+const link = props.action_link;
+const otp = props.email_otp;
 if (!link) { console.error('no link came back: ' + JSON.stringify(body).slice(0, 300)); process.exit(1); }
 
+/* Two ways in, because they fail differently. The link depends on the redirect
+   being configured and on nothing having followed the URL first; the code
+   depends on neither, and is typed straight into the console. */
 const out = path.resolve('signin-link.html');
 await writeFile(out,
   '<!doctype html><meta charset="utf-8"><title>Sign in</title>'
   + '<body style="font:16px system-ui;padding:40px;max-width:34em">'
   + '<h1 style="font-size:20px">Sign in as ' + email + '</h1>'
-  + '<p><a href="' + link + '">Open the site signed in</a></p>'
-  + '<p style="color:#666;font-size:14px">One use only, and it stops working once used. '
-  + 'Delete this file afterwards.</p>');
+  + (otp
+    ? '<p>On the site, open <strong>Admin</strong>, choose <strong>I already have a code</strong>, '
+      + 'enter this address and this code:</p>'
+      + '<p style="font:600 30px/1.2 ui-monospace,monospace;letter-spacing:.12em;'
+      + 'background:#f4f7f9;padding:14px 18px;border-radius:8px;display:inline-block">'
+      + otp + '</p>'
+      + '<p style="color:#666;font-size:14px">The code needs no email and no redirect, '
+      + 'so it works when the link does not.</p><hr style="margin:26px 0;border:0;'
+      + 'border-top:1px solid #ddd">'
+    : '')
+  + '<p><a href="' + link + '">Or open the site signed in</a></p>'
+  + '<p style="color:#666;font-size:14px">One use only, and both stop working once either is '
+  + 'used. Delete this file afterwards.</p>');
 
 console.log('link written to ' + out);
 console.log('  open it, click through, then delete the file:');
