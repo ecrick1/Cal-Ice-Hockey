@@ -972,9 +972,23 @@ a.socialbtn:hover { color: var(--deep); background: var(--gold); }
 
 /* ---- Game center ---- */
 .gchead { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
-/* Pushed to the far end of the heading row. */
+/* Pushed to the far end of the heading row.
+ *
+ * Outlined rather than filled. Beside a heading these are somewhere to go if
+ * you want to, not the thing the page is asking of you, and two solid navy
+ * blocks up there read as the loudest thing on a page whose job is to show a
+ * game. The rule is drawn inset so nothing shifts by a pixel on hover, and the
+ * hover is a wash of the same navy at a tenth - enough to answer the pointer,
+ * not enough to announce itself. */
 .gcacts { margin-left: auto; display: inline-flex; gap: 8px; flex-wrap: wrap; }
-.gcacts .btn { min-width: 0; }
+.gcacts .btn { min-width: 0; background: transparent; color: var(--blue);
+  box-shadow: inset 0 0 0 1.5px var(--border); padding: 7px 14px; font-size: 12.5px;
+  letter-spacing: 0.06em; transition: background 0.15s, box-shadow 0.15s; }
+.gcacts .btn:hover { background: rgba(4, 30, 66, 0.06);
+  box-shadow: inset 0 0 0 1.5px var(--blue); }
+.gcacts .btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+/* The icon sat at the size a filled button wants; smaller, with the text. */
+.gcacts .btn svg { width: 14px; height: 14px; }
 @media (max-width: 620px) {
   /* On a phone the heading and the links each get their own line, and the
      links stay together rather than straddling the gap. */
