@@ -277,7 +277,24 @@ createServer(async (req, res) => {
     });
     res.end(body);
   } catch {
-    res.writeHead(404, { 'Content-Type': 'text/plain' });
-    res.end('Not found');
+    /* Every page of the app is a path now - /schedule, /game/<id> - and none
+       of them is a file. The published site answers those with index.html and
+       lets the app read the address; without the same rule here, reloading on
+       any page but the front returns Not found, which is a fault that only
+       appears in development. Anything with an extension is a real asset that
+       is genuinely missing, and says so. */
+    if (path.extname(full)) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Not found');
+      return;
+    }
+    try {
+      const html = await readFile(path.join(dir, 'index.html'));
+      res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' });
+      res.end(html);
+    } catch {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Not found');
+    }
   }
 }).listen(port, () => console.log(`prototype on http://localhost:${port}`));

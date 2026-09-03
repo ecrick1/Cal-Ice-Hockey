@@ -88,7 +88,7 @@ const page = `<!doctype html>
   </head>
   <body>
     <div id="root"></div>
-    <script src="./app.js"></script>
+    <script src="/app.js"></script>
   </body>
 </html>
 `;

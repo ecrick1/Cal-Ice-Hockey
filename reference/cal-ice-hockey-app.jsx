@@ -5257,6 +5257,46 @@ const DEFAULT_NAV = [
 const pageView = (id) => "page:" + id;
 const viewPageId = (view) => (String(view || "").startsWith("page:") ? view.slice(5) : null);
 
+/**
+ * The address of a page, and the page at an address.
+ *
+ * Every view was one document with no URL of its own, so a refresh put you
+ * back at the front and a link to a game was a link to the home page. These
+ * two turn the state into a path and back again.
+ *
+ * The site is served with a catch-all rewrite - every path returns
+ * index.html - so a real path can be handed to the browser and still come
+ * back to this app when somebody reloads on it or opens it cold.
+ */
+function pathOf(view, ids) {
+  const id = viewPageId(view);
+  if (id) return "/p/" + id;
+  switch (view) {
+    case "home": return "/";
+    case "player": return ids.playerId ? "/roster/" + ids.playerId : "/roster";
+    case "game": return ids.gameId ? "/game/" + ids.gameId : "/schedule";
+    case "news": return ids.postId ? "/news/" + ids.postId : "/news";
+    case "newsindex": return "/news";
+    default: return "/" + view;
+  }
+}
+
+/* The reverse. An unknown path is the home page rather than an error: a link
+   that has rotted should land somewhere, and the front is somewhere. */
+function viewOf(pathname) {
+  const parts = String(pathname || "/").split("/").filter(Boolean);
+  if (!parts.length) return { view: "home" };
+  const [head, id] = parts;
+  if (head === "p" && id) return { view: pageView(id) };
+  if (head === "roster" && id) return { view: "player", playerId: id };
+  if (head === "game" && id) return { view: "game", gameId: id };
+  if (head === "news" && id) return { view: "news", postId: id };
+  if (head === "news") return { view: "newsindex" };
+  const known = new Set(["home", "schedule", "roster", "stats", "tickets", "recruit",
+    "prospects", "staff", "volunteers", "alumni", "venue", "admin", "newsindex"]);
+  return known.has(head) ? { view: head } : { view: "home" };
+}
+
 /* The bar to draw: what has been arranged, or the default if nothing has.
    Items pointing at a page that no longer exists are dropped rather than
    left as a link to nowhere. */
@@ -5417,10 +5457,13 @@ export default function CalIceHockey() {
   const [site, setSite] = useState(null);
   const [recruits, setRecruits] = useState([]);
   const [alumni, setAlumni] = useState([]);
-  const [view, setView] = useState("home"); // home | schedule | roster | stats | tickets | recruit | player | game | news | admin
-  const [playerId, setPlayerId] = useState(null);
-  const [postId, setPostId] = useState(null);
-  const [gameId, setGameId] = useState(null);
+  /* Opened at whatever address the browser is on, so a reload, a bookmark and
+     a pasted link all land on the page they name rather than the front. */
+  const first = typeof window === "undefined" ? { view: "home" } : viewOf(window.location.pathname);
+  const [view, setView] = useState(first.view);
+  const [playerId, setPlayerId] = useState(first.playerId || null);
+  const [postId, setPostId] = useState(first.postId || null);
+  const [gameId, setGameId] = useState(first.gameId || null);
   /* The mobile menu. `navGroup` is which accordion section is open inside it -
      one at a time, because two open sections on a phone means scrolling to
      find the link you wanted. */
@@ -5483,15 +5526,15 @@ export default function CalIceHockey() {
   useEffect(() => {
     const here = { view, playerId, postId, gameId, cameFrom };
     if (fromPop.current) { fromPop.current = false; return; }
-    if (pushed.current === 0) window.history.replaceState(here, "");
-    else window.history.pushState(here, "");
+    const url = pathOf(view, here);
+    if (pushed.current === 0) window.history.replaceState(here, "", url);
+    else window.history.pushState(here, "", url);
     pushed.current += 1;
   }, [view, playerId, postId, gameId]);
 
   useEffect(() => {
     const onPop = (e) => {
-      const st = e.state;
-      if (!st || !st.view) return;
+      const st = e.state && e.state.view ? e.state : viewOf(window.location.pathname);
       fromPop.current = true;
       setView(st.view);
       setPlayerId(st.playerId ?? null);

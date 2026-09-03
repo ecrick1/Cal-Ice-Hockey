@@ -193,33 +193,91 @@ window.auth = {
  * worse of the two. They get told instead.
  */
 if (sb) {
+  const revHere = () => {
+    try { return Number(JSON.parse(localStorage.getItem('cal-hockey-site') || '{}').rev || 0); }
+    catch { return 0; }
+  };
+
+  /**
+   * Fetch the site and hand it to the page.
+   *
+   * One request at a time, but a change that arrives during one is remembered
+   * and fetched after it rather than dropped. That distinction is the whole
+   * of live scoring: goals, penalties and clock stops arrive in bursts, and
+   * dropping the ones that land mid-request means the burst ends with the
+   * page holding whatever happened to arrive first - stale until something
+   * else changes, which during a quiet period could be the rest of the game.
+   */
   let fetching = false;
-  sb.channel('site_state')
+  let again = false;
+  const pull = async () => {
+    if (fetching) { again = true; return; }
+    fetching = true;
+    try {
+      do {
+        again = false;
+        const { data, error } = await sb.from(TABLE).select('value,rev')
+          .eq('key', 'cal-hockey-site').maybeSingle();
+        if (error || !data || !data.value) return;
+        if (Number(data.rev || 0) <= revHere()) continue;
+        local.set('cal-hockey-site', data.value);
+        window.dispatchEvent(new CustomEvent('cal-site-updated', {
+          detail: { rev: Number(data.rev || 0), value: data.value },
+        }));
+      } while (again);
+    } finally {
+      fetching = false;
+    }
+  };
+
+  const channel = sb.channel('site_state')
     .on('postgres_changes',
       { event: '*', schema: 'public', table: TABLE, filter: 'key=eq.cal-hockey-site' },
-      async (payload) => {
+      (payload) => {
         const rev = Number((payload.new || {}).rev || 0);
         if (mine.has(rev)) return;                       // our own write, echoed back
-        const here = Number(JSON.parse(localStorage.getItem('cal-hockey-site') || '{}').rev || 0);
-        if (rev <= here) return;
-        /* Goals arrive in bursts and each one is a row change. One fetch at a
-           time, and the last rev wins - a second request racing the first
-           would only be a slower way to the same answer. */
-        if (fetching) return;
-        fetching = true;
-        try {
-          const { data, error } = await sb.from(TABLE).select('value')
-            .eq('key', 'cal-hockey-site').maybeSingle();
-          if (error || !data || !data.value) return;
-          local.set('cal-hockey-site', data.value);
-          window.dispatchEvent(new CustomEvent('cal-site-updated', {
-            detail: { rev, value: data.value },
-          }));
-        } finally {
-          fetching = false;
-        }
-      })
-    .subscribe();
+        if (rev <= revHere()) return;
+        pull();
+      });
+  channel.subscribe();
+
+  /**
+   * And a heartbeat, because a socket is not a promise.
+   *
+   * A realtime connection drops - a phone sleeping in a pocket at a rink, a
+   * network changing, a proxy giving up on an idle socket - and a page that
+   * was relying on it alone goes quiet without saying so. Asking for the rev
+   * is a few bytes and settles it: the document is only fetched when the
+   * number has actually moved.
+   *
+   * Faster while a game is being scored, because that is when a minute of
+   * silence is a minute of the wrong score.
+   */
+  const beat = async () => {
+    if (document.visibilityState === 'hidden') return;
+    try {
+      const { data } = await sb.from(TABLE).select('rev').eq('key', 'cal-hockey-site').maybeSingle();
+      if (data && Number(data.rev || 0) > revHere()) pull();
+    } catch { /* offline; the next beat will do */ }
+  };
+  const liveNow = () => {
+    try {
+      const doc = JSON.parse(localStorage.getItem('cal-hockey-site') || '{}');
+      return Object.values(doc.seasons || {}).some((s) =>
+        (s.schedule || []).some((g) => g.live && g.live.running));
+    } catch { return false; }
+  };
+  let timer = null;
+  const schedule = () => {
+    clearTimeout(timer);
+    timer = setTimeout(async () => { await beat(); schedule(); }, liveNow() ? 15000 : 60000);
+  };
+  schedule();
+  /* Coming back to a tab that has been away is the moment a stale page is
+     most obvious, so it checks then rather than waiting for the next beat. */
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') { beat(); schedule(); }
+  });
 }
 
 (async () => {
