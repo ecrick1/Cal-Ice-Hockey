@@ -1680,6 +1680,16 @@ table.stats.sortable.gcbt .gcbthead th:nth-child(2) { text-align: left; }
      instead of third. */
   .gcgrid > .gccol { display: contents; }
   .gcroster { order: 2; }
+  /* Period by period is the first thing wanted after the final score, and in
+     one column it was arriving fourth, below every goal and every penalty.
+     The story stays the lead; the linescore comes straight after it. */
+  .gcrecap { order: -2; }
+  .gclinecard { order: -1; }
+  /* Three tabs that fit with room to spare should sit in the middle of it -
+     they were packed to the left with thirty-six pixels going begging on the
+     right. "safe" so a set too wide to fit still starts at the left edge and
+     scrolls, rather than centring its overflow out of reach. */
+  .gctabs { justify-content: safe center; }
   .gcbannerinner { gap: 0; padding: 16px 48px; }
   .gcslash { width: 46px; }
   .gcid { gap: 9px; }
@@ -7484,7 +7494,7 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
             </div>
 
             <div className="gccol">
-              <section className="statcard gcpad">
+              <section className="statcard gcpad gclinecard">
                 <h2 className="statsec">Linescore</h2>
                 <table className="stats gcline">
                   <thead>
