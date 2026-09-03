@@ -312,11 +312,21 @@ async function loadKey(key, fallback) {
 async function saveKey(key, val) {
   try {
     await window.storage.set(key, JSON.stringify(val));
+    window.dispatchEvent(new CustomEvent("cal-save-ok", { detail: { key } }));
     return { ok: true };
   } catch (e) {
     // Almost always the quota, and almost always images. Silently swallowing
     // this is how someone loses a full roster while the bar reads "saved".
     console.error("storage save failed", e);
+    /* Every caller of this is a fire-and-forget effect that does not read what
+       comes back, so returning the failure told nobody. Since the site moved
+       into a database there is a second way to fail that has nothing to do
+       with quota - the write is refused - and a publish that never left the
+       building looked exactly like one that worked. Announced, so a screen
+       can say so. */
+    window.dispatchEvent(new CustomEvent("cal-save-failed", {
+      detail: { key, message: String((e && e.message) || e) },
+    }));
     return { ok: false, error: e };
   }
 }
@@ -3903,6 +3913,14 @@ a.faffil:hover .faffilmark { opacity: 0.82; }
 .authemelabel { font-size: 12px; font-weight: 550; color: var(--au-text); }
 
 /* --- Hometown autocomplete --- */
+/* A publish that did not leave the building. Loud on purpose - the screen
+   still shows the change, because it did save here, and the only way to know
+   it is nowhere else is to be told. */
+.ausavefail { margin: 0 0 18px; padding: 13px 16px; border-radius: 8px;
+  background: rgba(200, 40, 40, 0.10); border: 1px solid rgba(200, 40, 40, 0.42);
+  color: #F6D3D3; font-size: 13.5px; line-height: 1.5; }
+.ausavefail strong { color: #FFB4B4; }
+
 .adminui .auhometown { position: relative; }
 .adminui .ausuggest { position: absolute; z-index: 60; top: calc(100% + 3px); left: 0; right: 0;
   margin: 0; padding: 4px; list-style: none; max-height: 240px; overflow-y: auto;
@@ -15193,6 +15211,24 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
   const [sending, setSending] = useState(false);
   const [authErr, setAuthErr] = useState("");
   const [code, setCode] = useState("");
+  /* Whether the last write actually reached the database.
+   *
+   * Publishing hands the document to an effect and returns; nothing waited to
+   * see whether it landed. On one machine that was fair, because the only way
+   * to fail was a full disk. Against a shared table a write can be refused -
+   * not signed in, not an editor, a session that has expired - and the console
+   * would have said "published" to every one of them. */
+  const [saveFailed, setSaveFailed] = useState(null);
+  useEffect(() => {
+    const bad = (e) => setSaveFailed((e.detail && e.detail.message) || "refused");
+    const good = () => setSaveFailed(null);
+    window.addEventListener("cal-save-failed", bad);
+    window.addEventListener("cal-save-ok", good);
+    return () => {
+      window.removeEventListener("cal-save-failed", bad);
+      window.removeEventListener("cal-save-ok", good);
+    };
+  }, []);
   const enterCode = async () => {
     const c = code.trim();
     if (!c || sending) return;
@@ -15444,6 +15480,15 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
 
   const unread = recruits.filter((r) => !r.read).length;
   const alumniUnread = (alumni || []).filter((a) => !a.read).length;
+  const saveBanner = saveFailed && (
+    /* Deliberately not dismissable and deliberately at the top: the screen
+       still shows the edit, because it is saved here - it is only everywhere
+       else that it is missing. */
+    <div className="ausavefail" role="alert">
+      <strong>Not published.</strong> Your changes are on this device only —
+      the database refused the write. {saveFailed}
+    </div>
+  );
   const acctInitials = ((draft.account && draft.account.name) || "")
     .trim().split(/\s+/).filter(Boolean).slice(0, 2)
     .map((w) => w[0].toUpperCase()).join("") || "?";
@@ -15631,6 +15676,8 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
               </button>
             </div>
           </header>
+
+          {saveBanner}
 
           {pending && <PendingBar pending={pending} dirty={dirty}
             onSchedule={(at) => saveDraft(at)}

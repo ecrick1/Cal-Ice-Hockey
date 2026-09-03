@@ -36,10 +36,11 @@ if (!email) {
   console.error('usage: node scripts/signin-link.mjs you@example.com [--site https://...]');
   process.exit(1);
 }
+/* The live site by default. NEXT_PUBLIC_SITE_URL is the Next apps' dev
+   address - localhost:3000 - and using it here sent the link somewhere with
+   nothing running on it, which is not a sign-in, it is a dead end. */
 const siteAt = args.indexOf('--site');
-const site = siteAt === -1
-  ? (process.env.NEXT_PUBLIC_SITE_URL || 'https://cal-ice-hockey.vercel.app')
-  : args[siteAt + 1];
+const site = siteAt === -1 ? 'https://cal-ice-hockey.vercel.app' : args[siteAt + 1];
 
 const api = (p, init = {}) =>
   fetch(url.replace(/\/$/, '') + p, {
