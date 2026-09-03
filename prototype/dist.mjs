@@ -139,6 +139,16 @@ if (Number(site.v) !== seedVersion) {
    ever reaches them; the site would look frozen and nobody would see why. */
 if (!Number(site.rev)) throw new Error("data has no rev — nothing would ever update");
 
+/* Vercel writes its project link into .vercel inside the folder it deploys,
+   and this build empties that folder. Left alone, every rebuild would unlink
+   the project and the next deploy would ask the setup questions again - and
+   answering them again makes a second project, so the domain everybody has
+   would stop being the one receiving updates. Carried across instead. */
+const link = path.join(out, ".vercel");
+const keptLink = existsSync(link)
+  ? await cp(link, path.join(root, ".vercel-link-tmp"), { recursive: true }).then(() => true)
+  : false;
+
 await rm(out, { recursive: true, force: true });
 await mkdir(out, { recursive: true });
 
@@ -158,6 +168,12 @@ await writeFile(path.join(out, "version.json"),
 
 await writeFile(path.join(out, "_redirects"), redirects);
 await writeFile(path.join(out, "vercel.json"), vercel);
+
+/* The project link back where Vercel expects it. */
+if (keptLink) {
+  await cp(path.join(root, ".vercel-link-tmp"), link, { recursive: true });
+  await rm(path.join(root, ".vercel-link-tmp"), { recursive: true, force: true });
+}
 
 const seasons = Object.keys(site.seasons).length;
 const games = Object.values(site.seasons)
