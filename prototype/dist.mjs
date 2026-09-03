@@ -97,9 +97,18 @@ const page = `<!doctype html>
    view state, so a host that returns index.html for anything it cannot find
    is the whole of the routing story. Both files, because Netlify reads one
    and Vercel the other, and a folder that works on either is worth two. */
-const redirects = "/*  /index.html  200\n";
+const redirects = "/acha/team-season  /api/acha-team-season  200\n"
+  + "/acha  /api/acha  200\n/*  /index.html  200\n";
+/* The ACHA proxy first, then the catch-all. Order matters: rewrites are tried
+   in turn and the first match wins, so a catch-all written first answers /acha
+   with the site's own HTML - which is what it did, with a 200 on it, so every
+   call succeeded and every parse failed, in production only. */
 const vercel = JSON.stringify(
-  { rewrites: [{ source: "/(.*)", destination: "/index.html" }] }, null, 2) + "\n";
+  { rewrites: [
+      { source: "/acha/team-season", destination: "/api/acha-team-season" },
+      { source: "/acha", destination: "/api/acha" },
+      { source: "/(.*)", destination: "/index.html" },
+    ] }, null, 2) + "\n";
 
 const size = async (p) => (await stat(p)).size;
 const mb = (n) => (n / 1024 / 1024).toFixed(1) + " MB";
@@ -168,6 +177,14 @@ await writeFile(path.join(out, "version.json"),
 
 await writeFile(path.join(out, "_redirects"), redirects);
 await writeFile(path.join(out, "vercel.json"), vercel);
+
+/* The proxy itself. A serverless function rather than part of the bundle,
+   because the feed sends no CORS headers and a browser therefore cannot be
+   the one to ask it. */
+await mkdir(path.join(out, "api"), { recursive: true });
+await cp(path.join(here, "api-acha.mjs"), path.join(out, "api", "acha.mjs"));
+await cp(path.join(here, "api-acha-team-season.mjs"),
+  path.join(out, "api", "acha-team-season.mjs"));
 
 /* The project link back where Vercel expects it. */
 if (keptLink) {
