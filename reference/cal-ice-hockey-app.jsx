@@ -6085,7 +6085,7 @@ function watchRows(game) {
    sentence and "PP" alone is not.
    The countdown is the penalty that expires first, because that is the moment
    the advantage changes; a 5-on-3 says how big it is rather than listing both. */
-function StrengthTag({ live, now, usAbbr, size }) {
+function StrengthTag({ live, now, usAbbr, size, lagMs = 0 }) {
   if (!live) return null;
   /* A count that is about to change is worse than no count. */
   if (assessing(live)) {
@@ -6095,7 +6095,7 @@ function StrengthTag({ live, now, usAbbr, size }) {
       </span>
     );
   }
-  const st = strengthState(live, now);
+  const st = strengthState(live, now, lagMs);
   if (st.kind === "EV") return null;
 
   /* Nobody is on a power play and it is still worth saying, because the ice
@@ -6328,7 +6328,7 @@ function Scoreboard({ schedule, goto, onGame }) {
                               <IcWhistle size={13} />
                             </span>
                           )}
-                          <StrengthTag live={g.live} now={tick} size="sm" />
+                          <StrengthTag live={g.live} now={tick} size="sm" lagMs={LIVE_LAG_MS} />
                         </>
                       : <>{localDate(g.date, g.time).replace(/^\w+,?\s*/, "")}, {r ? "Final" : localTime(g.date, g.time)}</>}
                   </span>
@@ -6545,11 +6545,35 @@ function intermissionLeft(live, now) {
 }
 
 /* Milliseconds left on the clock right now. */
-function clockLeft(live, now) {
+/**
+ * How much of the period is left.
+ *
+ * `lagMs` runs the answer deliberately behind, and only the public side asks
+ * for it. A watcher's clock keeps counting from the last thing it was told, so
+ * when the scorekeeper stops the clock it goes on running until that reaches
+ * them - measured at just over four seconds, two to write and two to arrive -
+ * and then jumps backwards to the real time. A clock that jumps backwards is
+ * worse than one that is slightly behind, because the first looks broken and
+ * the second looks like television.
+ *
+ * So the public clock is shown a few seconds in the past. The stop then
+ * arrives while the display is still short of it, and the clock simply comes
+ * to a halt where it should, having never shown a second it has to take back.
+ *
+ * The console does not lag: the person operating it has to see the clock they
+ * are operating.
+ */
+const LIVE_LAG_MS = 6000;
+
+function clockLeft(live, now, lagMs = 0) {
   if (!live) return 0;
   const base = Number(live.clockMs) || 0;
   if (!live.running || !live.startedAt) return Math.max(0, base);
-  return Math.max(0, base - ((now ?? Date.now()) - live.startedAt));
+  const at = (now ?? Date.now()) - lagMs;
+  /* Clamped to the period's length as well as to zero: lagging the moment can
+     put it before the clock was started, which would otherwise read as more
+     time left than the period holds. */
+  return Math.min(base, Math.max(0, base - (at - live.startedAt)));
 }
 
 function fmtClock(ms) {
@@ -6563,12 +6587,12 @@ function fmtClock(ms) {
 
 /* Seconds played since the opening face-off, so a penalty can be compared
  * against the clock without caring which period it started in. */
-function elapsedSecs(live, now) {
+function elapsedSecs(live, now, lagMs = 0) {
   if (!live) return 0;
   const order = ["1", "2", "3", "OT", "SO"];
   const i = Math.max(0, order.indexOf(live.period || "1"));
   const before = order.slice(0, i).reduce((n, p) => n + periodSecs(p), 0);
-  return before + (periodSecs(live.period) - clockLeft(live, now) / 1000);
+  return before + (periodSecs(live.period) - clockLeft(live, now, lagMs) / 1000);
 }
 
 /* Penalties still being served, with the time left on each. */
@@ -6610,9 +6634,9 @@ const kindOf = (p) => p.kind
     : p.minutes === 5 ? "major"
     : p.minutes === 4 ? "double" : "minor");
 
-function activePenalties(live, now) {
+function activePenalties(live, now, lagMs = 0) {
   if (!live || !Array.isArray(live.penalties)) return [];
-  const at = elapsedSecs(live, now);
+  const at = elapsedSecs(live, now, lagMs);
   return live.penalties
     .filter((p) => !p.ended)
     .map((p) => ({ ...p, left: p.endsAt - at, shorts: penaltyKind(kindOf(p)).shorts }))
@@ -6665,8 +6689,10 @@ const penaltyClass = (p) => {
  * types. */
 function assessing(live) { return !!(live && live.assessing); }
 
-function strengthState(live, now) {
-  const active = activePenalties(live, now);
+/* `lagMs` is passed straight through: a box countdown disagreeing with the
+   clock above it by six seconds would be worse than either alone. */
+function strengthState(live, now, lagMs = 0) {
+  const active = activePenalties(live, now, lagMs);
   const serving = active.filter((p) => p.shorts);
 
   /* Coincidental majors put nobody in the box as far as the ice is
@@ -6747,7 +6773,7 @@ function liveParts(live, now) {
       clock: bl > 0 ? fmtClock(bl) : null,
     };
   }
-  return { head: periodName(p), clock: fmtClock(clockLeft(live, now)) };
+  return { head: periodName(p), clock: fmtClock(clockLeft(live, now, LIVE_LAG_MS)) };
 }
 
 /* The same thing as one string, for anywhere that needs text rather than
@@ -7078,7 +7104,7 @@ function GamePage({ site, gameId, onBack, backTo, onPlayer, openPost, onTickets 
   const scored = final || live;
   const r = resultText(game);
   const plays = Array.isArray(game.plays) ? game.plays : [];
-  const strength = live ? strengthState(game.live, now) : null;
+  const strength = live ? strengthState(game.live, now, LIVE_LAG_MS) : null;
 
   const usName = gameName(site) || "Us";
   const usAbbr = org.abbr || usName;
@@ -7444,7 +7470,7 @@ function GamePage({ site, gameId, onBack, backTo, onPlayer, openPost, onTickets 
                       </span>
                     )}
                   </span>
-                  <StrengthTag live={game.live} now={now} usAbbr={usAbbr} />
+                  <StrengthTag live={game.live} now={now} usAbbr={usAbbr} lagMs={LIVE_LAG_MS} />
                 </>
               ) : final ? (
                 <>
@@ -17189,7 +17215,7 @@ function Home({ site, goto, openPost, openGame }) {
                             <IcWhistle size={14} />
                           </span>
                         )}
-                        <StrengthTag live={feature.live} now={tick}
+                        <StrengthTag live={feature.live} now={tick} lagMs={LIVE_LAG_MS}
                           usAbbr={(site.settings && site.settings.org || {}).abbr || gameName(site)} />
                       </>
                     : featureState === "final"
