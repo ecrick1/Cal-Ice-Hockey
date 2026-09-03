@@ -9767,15 +9767,18 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
       {rosterRows.length ? (
         <div className="twrap bare">
           <table className="stats sortable gcbt">
-            {/* One heading, not one per group. The band said "Forwards" over
-                columns that already carry a position, so it repeated what POS
-                says on every row and pushed the real heading down. Skaters read
-                as one list; goaltenders have a table of their own below. */}
-            {[null].map(() => {
-              const rows = sortRoster(rosterRows.filter((r) => groupOf(r.p) !== "G"));
+            {/* Forwards and defence read as two sections, each with its name
+                above its own column labels - the name says which group, the
+                labels say which figure, and neither has to do the other's
+                job. */}
+            {ROSTER_GROUPS.map(([g, title]) => {
+              const rows = sortRoster(rosterRows.filter((r) => groupOf(r.p) === g));
               if (!rows.length) return null;
               return (
-                <tbody key="skaters">
+                <tbody key={g}>
+                  <tr className="gcbtgroup">
+                    <th colSpan={ROSTER_COLS.length} scope="colgroup">{title}</th>
+                  </tr>
                   {rosterHeader()}
                   {rows.map((row) => {
                     const { p, t, mine } = row;
@@ -9819,11 +9822,14 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
           <div className="twrap bare gcgktable">
             <table className="stats sortable gcbt">
               <tbody>
-                {/* Same header treatment as the skaters above, so the two
-                    tables read as one sheet rather than two. */}
+                {/* Named and headed exactly as the two sections above, so all
+                    three read the same way down the sheet. */}
+                <tr className="gcbtgroup">
+                  <th colSpan={2 + GOALIE_COLS.length} scope="colgroup">Goaltenders</th>
+                </tr>
                 <tr className="gcbthead">
                   <th>#</th>
-                  <th>Goaltender</th>
+                  <th>Player</th>
                   {GOALIE_COLS.map((c) => <th key={c.key} title={c.title}>{c.label}</th>)}
                 </tr>
                 {rows.map((row) => {
