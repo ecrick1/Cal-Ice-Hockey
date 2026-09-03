@@ -3562,7 +3562,23 @@ table.stats tbody tr:last-child td { border-bottom: 0; }
    string made the row too wide and dropped the whole block to a second line -
    leaving the crest stranded on its own. Shrinking from zero keeps the crest
    and the opponent together whatever the venue happens to say. The roster rows
-   set their own flex inline and are unaffected. */
+   set their own basis just above, and are unaffected. */
+/* A roster row shares its slack between the name and the hometown.
+ *
+ * Declared here rather than on the elements, and only above the width where
+ * the card stacks, because flex-basis measures along whichever axis the
+ * container runs. Across a row it is a width and these are two columns; down
+ * a stacked card it is a HEIGHT, and the same numbers became 200 and 220
+ * pixels of nothing under a line of text apiece - about three hundred wasted
+ * pixels per player, eighteen players deep. The stacked layout already resets
+ * every child to its content size; it could not reach these, because they
+ * were written inline and nothing in a stylesheet outranks that. */
+@media (min-width: 561px) {
+  .gamemain > .rostname { flex: 1 1 200px; }
+  .gamemain > .rosthome { flex: 1 1 220px; }
+}
+.gamemain > .rostname, .gamemain > .rosthome { min-width: 0; }
+
 /* On a phone a game is a card rather than a row.
  *
  * The row arrangement is a desktop idea: crest, then opponent, then a date
@@ -11277,11 +11293,11 @@ function RosterPage({ site, onPlayer }) {
                           <PlayerAvatar size={78} photo={p.photo} />
                           {p.number && <span className="numbadge">{p.number}</span>}
                         </span>
-                        <div style={{ minWidth: 0, flex: "1 1 200px" }}>
+                        <div className="rostname">
                           <button onClick={() => onPlayer(p.id)} style={{ background: "none", border: 0, padding: 0, cursor: "pointer", fontFamily: "var(--body)", fontWeight: 800, fontSize: 18, color: "var(--ink)", textAlign: "left" }}>{p.name}</button>
                           <MetaLine p={p} />
                         </div>
-                        <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+                        <div className="rosthome">
                           <p className="bsm" style={{ margin: 0, color: "var(--ink)" }}><IcPin size={14} style={{ marginRight: 5 }} />{home}</p>
                           {prev && <p className="bsm" style={{ margin: "4px 0 0 19px", color: "var(--ink)" }}>{prev}</p>}
                         </div>
