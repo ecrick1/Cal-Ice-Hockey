@@ -1038,8 +1038,38 @@ a.socialbtn:hover { color: var(--deep); background: var(--gold); }
    and zeroes the cell itself - and that rule outranked this one, so the
    block headings had none at all. Matched at the same weight, and the left
    edge lines up with the first column of figures below it. */
-table.stats.sortable .gcbtgroup th { padding: 9px 16px; font-size: 11.5px;
-  background: #EEF2F6; border-top: 1px solid #E3E9EF; }
+/* The group name is a heading for the section under it, so it reads on the
+   left where a heading starts - not centred over eight columns it does not
+   describe. It sits above the column labels for the same reason. */
+table.stats.sortable .gcbtgroup th { padding: 14px 16px 7px; font-size: 11.5px;
+  background: #fff; border-top: 1px solid var(--border); text-align: left;
+  color: var(--ink); }
+table.stats.sortable tbody:first-of-type .gcbtgroup th { padding-top: 4px; }
+/* Repeated under each group now, so it needs the top rule the thead used to
+   supply and none of the rounding a table head would have. */
+table.stats.sortable .gcbthead th { background: #F4F7F9;
+  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+/* The label lives in a full-width flex button, which pins it to the left
+   however the cell is aligned - so the headings sat fifteen to twenty pixels
+   left of the figures they name. The button is told to centre what the cell
+   centres, and to leave the name column alone. */
+table.stats.sortable.gcbt th:not(:nth-child(2)) .sortbtn { justify-content: center;
+  position: relative; }
+/* Centring label and caret together still leaves the label short of centre by
+   half a caret and half a gap - five or six pixels, which is exactly enough to
+   look wrong over a column of figures. The caret is taken out of the flow so
+   what gets centred is the word. */
+table.stats.sortable.gcbt th:not(:nth-child(2)) .sortcaret { position: absolute;
+  right: 3px; top: 50%; transform: translateY(-50%); }
+/* The wide tables give their outer columns sixteen pixels of padding on the
+   outside edge and six on the inside. On a left-aligned column that is a
+   margin; on a centred one it is a shove, and the jersey number and penalty
+   minutes each sat five pixels off their own figures. Even here, so centred
+   means centred. */
+table.stats.sortable.gcbt th:first-child .sortbtn,
+table.stats.sortable.gcbt th:last-child .sortbtn { padding-left: 8px; padding-right: 8px; }
+table.stats.sortable.gcbt td:first-child { padding-left: 8px; }
+table.stats.sortable.gcbt td:last-child { padding-right: 8px; }
 /* The keepers' four columns are not the four above them, so they are
    labelled where they start rather than left to be inferred. */
 .gcbt tbody .gcbtsub td { padding-top: 8px; padding-bottom: 2px; border-top: 0;
@@ -1466,9 +1496,16 @@ table.stats.gcbt { width: 100%; table-layout: fixed; min-width: 720px; }
    floor there buys a sideways scroll to reach one column of penalty minutes.
    It gets the panel instead, and the six figure columns divide what the name
    leaves. */
-table.stats.sortable.gcbt { min-width: 0; }
+/* Laid out automatically rather than fixed, unlike the box score above it. A
+   fixed layout reads its widths from the first row, and the first row here is
+   a group heading spanning every column - nothing per-column to read, so the
+   browser split the table into eight equal parts and cut every name while GP
+   held eighty pixels for two digits. Automatic sizes each figure column to the
+   figures in it and gives the rest to the names, which is the order they
+   matter in. */
+table.stats.sortable.gcbt { min-width: 0; table-layout: auto; }
 table.stats.sortable.gcbt th:nth-child(2),
-table.stats.sortable.gcbt td:nth-child(2) { width: 178px; }
+table.stats.sortable.gcbt td:nth-child(2) { width: 100%; }
 /* And centred, because a single digit left-aligned in a hundred-pixel column
    sits against one edge with the rest of the column empty after it: the
    figures pooled at the left instead of marching across the row. */
@@ -9417,6 +9454,34 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
     });
   };
 
+  /* The column headings, built once and used under each group heading rather
+     than once at the top of the table. A section is easier to read with its
+     own labels above it than with one set thirty rows away, and it puts the
+     group name where a heading belongs - above what it names. Every copy
+     drives the same sort, because there is one sort. */
+  const rosterHeader = () => (
+    <tr className="gcbthead">
+      {ROSTER_COLS.map((col) => {
+        const on = rSortKey === col.key;
+        return (
+          <th key={col.key} title={col.title}
+            aria-sort={on ? (rSortDir === "asc" ? "ascending" : "descending") : "none"}>
+            <button className={"sortbtn " + (on ? "on" : "")}
+              onClick={() => {
+                if (on) setRSortDir((d) => (d === "desc" ? "asc" : "desc"));
+                else { setRSortKey(col.key); setRSortDir(col.first); }
+              }}>
+              {col.label}
+              <span className="sortcaret" aria-hidden="true">
+                {on ? (rSortDir === "asc" ? "▲" : "▼") : "▾"}
+              </span>
+            </button>
+          </th>
+        );
+      })}
+    </tr>
+  );
+
   /* A name reads better broken: the given name light, the surname bold
      under it, the way a team sheet sets one. */
   const splitName = (full) => {
@@ -9636,28 +9701,6 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
       {rosterRows.length ? (
         <div className="twrap">
           <table className="stats sortable gcbt">
-            <thead>
-              <tr>
-                {ROSTER_COLS.map((col) => {
-                  const on = rSortKey === col.key;
-                  return (
-                    <th key={col.key} title={col.title}
-                      aria-sort={on ? (rSortDir === "asc" ? "ascending" : "descending") : "none"}>
-                      <button className={"sortbtn " + (on ? "on" : "")}
-                        onClick={() => {
-                          if (on) setRSortDir((d) => (d === "desc" ? "asc" : "desc"));
-                          else { setRSortKey(col.key); setRSortDir(col.first); }
-                        }}>
-                        {col.label}
-                        <span className="sortcaret" aria-hidden="true">
-                          {on ? (rSortDir === "asc" ? "\u25b2" : "\u25bc") : "\u25be"}
-                        </span>
-                      </button>
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
             {ROSTER_GROUPS.map(([g, title]) => {
               const keepers = g === "G";
               const pool = rosterRows.filter((r) => groupOf(r.p) === g);
@@ -9673,6 +9716,7 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
                   <tr className="gcbtgroup">
                     <th colSpan={ROSTER_COLS.length} scope="colgroup">{title}</th>
                   </tr>
+                  {rosterHeader()}
                   {keepers && (
                     <tr className="gcbtsub">
                       <td /><td /><td />
