@@ -882,7 +882,12 @@ a.pbcard:hover { border-color: var(--rule-on); }
 .ice { background: var(--ice); }
 .navy { background: var(--blue); color: var(--ondark); }
 
-.h1, .h2, .h3, .h6, .eyebrow, .btn, .tab, .jersey, .statnum {
+/* .btn used to be in this list, and that was the whole of the inconsistency.
+   Every other button on the site - calbtn, watchbtn, goldpill, ghostbtn - is
+   Inter in the case it is written in, navy and fully rounded. Only .btn was
+   set in the condensed display face and shouted, because it was grouped with
+   the headings rather than with the buttons. */
+.h1, .h2, .h3, .h6, .eyebrow, .tab, .jersey, .statnum {
   font-family: var(--disp); text-transform: uppercase;
 }
 .h1 { font-weight: 700; font-size: clamp(2.5rem, 6.5vw, 4.5rem); line-height: 0.95; letter-spacing: 0.01em; margin: 0; }
@@ -995,12 +1000,6 @@ a.socialbtn:hover { color: var(--deep); background: var(--gold); }
   /* Room around the words. A pill this size with fourteen pixels either side
      had the text against the ends of it. */
   padding: 8px 20px; font-size: 13px;
-  /* Inter, sentence case. .btn is one of a set the display face and uppercase
-     were applied to together - right for a heading and for a gold call to
-     action, wrong for a small outlined link that reads as a word rather than
-     a sign. */
-  font-family: var(--body); text-transform: none; font-weight: 600;
-  letter-spacing: 0.005em;
   transition: background 0.15s, box-shadow 0.15s; }
 .gcacts .btn:hover { background: rgba(4, 30, 66, 0.06);
   box-shadow: inset 0 0 0 1px var(--blue); }
@@ -2837,8 +2836,19 @@ button.gtrow:hover { background: var(--page); }
   color: var(--blue); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 /* Buttons */
-.btn { display: inline-block; border: 0; cursor: pointer; text-decoration: none;
-  font-weight: 600; font-size: 14.5px; letter-spacing: 0.1em; padding: 13px 26px; border-radius: 999px; }
+/* Matched to .calbtn, which is what a button on this site already looked like:
+   Inter at seven hundred, fourteen and a half, fully rounded, and a laid-out
+   row so a label and an icon sit beside each other instead of flowing until
+   one of them wraps. The tenth-of-an-em tracking went with the capitals - it
+   is there to open up uppercase and only loosens a sentence. */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  border: 0; cursor: pointer; text-decoration: none; font-family: var(--body);
+  text-transform: none; font-weight: 700; font-size: 14.5px; letter-spacing: 0.005em;
+  padding: 13px 26px; border-radius: 999px;
+  /* A label does not break. Inside a flex row a button is shrunk to fit like
+     anything else, and "Save draft" in the console had been coming out on two
+     lines at half the width of its own words for some time. */
+  white-space: nowrap; }
 .bGold { background: var(--gold); color: var(--deep); }
 .bGold:hover { background: var(--gold-hot); }
 .bGhost { background: transparent; color: var(--ondark); box-shadow: inset 0 0 0 2px var(--gold); }
