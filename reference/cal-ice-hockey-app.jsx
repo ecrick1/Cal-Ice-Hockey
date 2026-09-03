@@ -14704,8 +14704,17 @@ const IMAGE_PRESETS = {
 
 /**
  * Read a file, scale it to fit within the preset, and return a data URI.
- * Keeps PNG for anything with transparency (logos) so marks do not gain a
- * black box; everything else becomes JPEG, which is far smaller for photos.
+ *
+ * WebP, which is both smaller than JPEG and able to keep transparency - so
+ * one format serves a photograph and a crest, and the choice between them
+ * stops mattering. It matters a great deal when it is got wrong: a
+ * photograph arriving as a PNG was kept as a PNG, on the reasoning that PNG
+ * means transparency, and one team photo stored that way came to 2.9MB - by
+ * itself three quarters of everything the site knows.
+ *
+ * PNG and JPEG remain the fallback for a browser whose canvas cannot write
+ * WebP. toDataURL quietly returns a PNG when it does not recognise the type,
+ * so what comes back is checked rather than assumed.
  */
 function readScaledImage(file, preset) {
   return new Promise((resolve, reject) => {
@@ -14725,11 +14734,11 @@ function readScaledImage(file, preset) {
         const ctx = canvas.getContext("2d");
         ctx.drawImage(img, 0, 0, w, h);
         const keepAlpha = /png|svg|webp/i.test(file.type);
-        resolve({
-          dataUrl: canvas.toDataURL(keepAlpha ? "image/png" : "image/jpeg", p.quality),
-          width: w,
-          height: h,
-        });
+        const webp = canvas.toDataURL("image/webp", p.quality);
+        const dataUrl = webp.startsWith("data:image/webp")
+          ? webp
+          : canvas.toDataURL(keepAlpha ? "image/png" : "image/jpeg", p.quality);
+        resolve({ dataUrl, width: w, height: h });
       };
       img.src = reader.result;
     };
