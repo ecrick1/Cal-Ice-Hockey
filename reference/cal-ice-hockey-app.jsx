@@ -971,7 +971,15 @@ a.socialbtn:hover { color: var(--deep); background: var(--gold); }
 .sscore.live { font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
 
 /* ---- Game center ---- */
-.gchead { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+.gchead { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+/* Pushed to the far end of the heading row. */
+.gcacts { margin-left: auto; display: inline-flex; gap: 8px; flex-wrap: wrap; }
+.gcacts .btn { min-width: 0; }
+@media (max-width: 620px) {
+  /* On a phone the heading and the links each get their own line, and the
+     links stay together rather than straddling the gap. */
+  .gcacts { margin-left: 0; width: 100%; }
+}
 .gctitle { margin: 0; font-family: var(--body); font-weight: 800; font-size: 1.35rem;
   letter-spacing: -0.025em; color: var(--ink); }
 .gcbanner { position: relative; overflow: hidden; background: #fff;
@@ -1506,6 +1514,14 @@ table.stats.gcbt { width: 100%; table-layout: fixed; min-width: 720px; }
 table.stats.sortable.gcbt { min-width: 0; table-layout: auto; }
 table.stats.sortable.gcbt th:nth-child(2),
 table.stats.sortable.gcbt td:nth-child(2) { width: 100%; }
+/* Automatic sizing gives a figure column exactly the width of its widest
+   figure, so six of them ended up shouldered together against the right edge
+   while the names had three hundred pixels. A floor each, so they are spaced
+   like columns rather than stacked like a right margin. */
+table.stats.sortable.gcbt th:nth-child(n+3),
+table.stats.sortable.gcbt td:nth-child(n+3) { min-width: 54px; }
+/* The goaltenders' own table, under the skaters'. */
+.gcgktable { margin-top: 18px; }
 /* And centred, because a single digit left-aligned in a hundred-pixel column
    sits against one edge with the rest of the column empty after it: the
    figures pooled at the left instead of marching across the row. */
@@ -6717,6 +6733,12 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
   const liveRunning = !!(game && game.live && game.live.running);
   const now = useClockTick(clockTicking(game && game.live));
 
+  /* Read here rather than in the preview, because the buttons they drive now
+     live in this page's heading. */
+  const gcOnSale = sellable(game);
+  const gcTickets = ticketsFor(game, site);
+  const gcOffer = watchOffer(game, true);
+
   if (!game) {
     return (
       <main className="section" style={{ flex: 1 }}>
@@ -7070,8 +7092,32 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
   return (
     <main style={{ background: "var(--page)", flex: 1 }}>
       <div className="wrap" style={{ paddingTop: 18, paddingBottom: 56 }}>
+        {/* Watching and buying sit up here beside the title rather than in a
+            band of their own under the scorebug. They are two links, not a
+            section, and a full-width row of 210px buttons announced them as
+            the main event on a page that is mostly a preview. */}
         <div className="gchead">
           <h1 className="gctitle">Game center</h1>
+          {(gcOffer || gcOnSale) && (
+            <span className="gcacts">
+              {gcOffer && (
+                <a className="btn bNavy bSm" href={gcOffer.href}
+                  target="_blank" rel="noreferrer noopener">
+                  {gcOffer.label} <WatchMark offer={gcOffer} />
+                </a>
+              )}
+              {gcOnSale && (
+                gcTickets
+                  ? <a className="btn bNavy bSm" href={gcTickets}
+                      target="_blank" rel="noreferrer noopener">
+                      Get tickets <IcTicket size={14} />
+                    </a>
+                  : <button className="btn bNavy bSm" onClick={() => onTickets && onTickets()}>
+                      Get tickets <IcTicket size={14} />
+                    </button>
+              )}
+            </span>
+          )}
         </div>
 
         {sheetOpen && (
@@ -9438,7 +9484,18 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
       get: (r) => (r.t ? (r.t.g || 0) + (r.t.a || 0) : -1) },
     { key: "pim", label: "PIM", numeric: true, first: "desc", get: (r) => (r.t ? r.t.pim || 0 : -1) },
   ];
-  const ROSTER_GROUPS = [["F", "Forwards"], ["D", "Defense"], ["G", "Goaltenders"]];
+  /* Skaters only. Goaltenders answer different questions - appearances,
+     goals against, save percentage - and sharing a header with goals and
+     assists meant six of their eight columns were headed by something they
+     do not do, with a second row underneath quietly renaming four of them.
+     They get a table. */
+  const ROSTER_GROUPS = [["F", "Forwards"], ["D", "Defense"]];
+  const GOALIE_COLS = [
+    { key: "gp", label: "GP", title: "Games played" },
+    { key: "gaa", label: "GAA", title: "Goals against average" },
+    { key: "svpct", label: "SV%", title: "Save percentage" },
+    { key: "so", label: "SO", title: "Shutouts" },
+  ];
   const [rSortKey, setRSortKey] = useState("p");
   const [rSortDir, setRSortDir] = useState("desc");
   const sortRoster = (list) => {
@@ -9530,27 +9587,8 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
 
   return (
     <>
-      {(offer || onSale) && (
-        <div className="gpbar">
-          {offer && (
-            <a className="btn bNavy" href={offer.href} target="_blank" rel="noreferrer noopener">
-              {offer.label} <WatchMark offer={offer} />
-            </a>
-          )}
-          {/* Only a home game still to be played is ours to sell a seat to.
-              This asked whether the game was at home and nothing else, so a
-              night in 2008 offered seats as readily as one next week. */}
-          {onSale && (
-            ticketsUrl
-              ? <a className="btn bNavy" href={ticketsUrl} target="_blank" rel="noreferrer noopener">
-                  Get tickets <IcTicket size={16} />
-                </a>
-              : <button className="btn bNavy" onClick={() => onTickets && onTickets()}>
-                  Get tickets <IcTicket size={16} />
-                </button>
-          )}
-        </div>
-      )}
+      {/* Watching and buying moved up beside the Game center heading, where
+          two links read as two links. Nothing renders here now. */}
     <div className="gcgrid">
       <div className="gccol">
       <GameStory story={story} label="Preview" openPost={openPost} lead />
@@ -9702,14 +9740,7 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
         <div className="twrap">
           <table className="stats sortable gcbt">
             {ROSTER_GROUPS.map(([g, title]) => {
-              const keepers = g === "G";
-              const pool = rosterRows.filter((r) => groupOf(r.p) === g);
-              /* Keepers by appearances: the column the table is sorted on is
-                 asking about goals, which is not a question about them. */
-              const rows = keepers
-                ? [...pool].sort((a, b) => ((keeperFor(b) || {}).gp || 0) - ((keeperFor(a) || {}).gp || 0)
-                    || (Number(a.p.number) || 0) - (Number(b.p.number) || 0))
-                : sortRoster(pool);
+              const rows = sortRoster(rosterRows.filter((r) => groupOf(r.p) === g));
               if (!rows.length) return null;
               return (
                 <tbody key={g}>
@@ -9717,15 +9748,8 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
                     <th colSpan={ROSTER_COLS.length} scope="colgroup">{title}</th>
                   </tr>
                   {rosterHeader()}
-                  {keepers && (
-                    <tr className="gcbtsub">
-                      <td /><td /><td />
-                      <td>GP</td><td>GAA</td><td>SV%</td><td>SO</td><td />
-                    </tr>
-                  )}
                   {rows.map((row) => {
                     const { p, t, mine } = row;
-                    const k = keepers ? keeperFor(row) : null;
                     const dash = "\u2014";
                     return (
                       <tr key={p.id}>
@@ -9736,23 +9760,11 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
                             : p.name}
                         </td>
                         <td className="gcbtspot">{posOf(p)}</td>
-                        {keepers ? (
-                          <>
-                            <td>{k && k.gp != null ? k.gp : dash}</td>
-                            <td>{k && k.gaa != null ? k.gaa : dash}</td>
-                            <td>{k && k.svpct ? k.svpct : dash}</td>
-                            <td>{k && k.so != null ? k.so : dash}</td>
-                            <td />
-                          </>
-                        ) : (
-                          <>
-                            <td>{t ? (t.gp || 0) : dash}</td>
-                            <td>{t ? (t.g || 0) : dash}</td>
-                            <td>{t ? (t.a || 0) : dash}</td>
-                            <td className="gcbtpts">{t ? (t.g || 0) + (t.a || 0) : dash}</td>
-                            <td>{t ? (t.pim || 0) : dash}</td>
-                          </>
-                        )}
+                        <td>{t ? (t.gp || 0) : dash}</td>
+                        <td>{t ? (t.g || 0) : dash}</td>
+                        <td>{t ? (t.a || 0) : dash}</td>
+                        <td className="gcbtpts">{t ? (t.g || 0) + (t.a || 0) : dash}</td>
+                        <td>{t ? (t.pim || 0) : dash}</td>
                       </tr>
                     );
                   })}
@@ -9764,6 +9776,51 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
       ) : (
         <p className="bsm gcnone">{rosterSide === "them" ? "No roster published." : "No roster on file."}</p>
       )}
+      {/* Goaltenders, on their own terms. Ordered by appearances rather than
+          by whatever the skaters are sorted on, since that column is asking
+          about goals scored. */}
+      {(() => {
+        const keepers = rosterRows.filter((r) => groupOf(r.p) === "G");
+        if (!keepers.length) return null;
+        const rows = [...keepers].sort((a, b) =>
+          ((keeperFor(b) || {}).gp || 0) - ((keeperFor(a) || {}).gp || 0)
+          || (Number(a.p.number) || 0) - (Number(b.p.number) || 0));
+        const dash = "—";
+        return (
+          <div className="twrap gcgktable">
+            <table className="stats sortable gcbt">
+              <tbody>
+                <tr className="gcbtgroup">
+                  <th colSpan={2 + GOALIE_COLS.length} scope="colgroup">Goaltenders</th>
+                </tr>
+                <tr className="gcbthead">
+                  <th>#</th>
+                  <th>Player</th>
+                  {GOALIE_COLS.map((c) => <th key={c.key} title={c.title}>{c.label}</th>)}
+                </tr>
+                {rows.map((row) => {
+                  const { p, mine } = row;
+                  const k = keeperFor(row);
+                  return (
+                    <tr key={p.id}>
+                      <td>{p.number}</td>
+                      <td className="gcbtname">
+                        {mine
+                          ? <button className="pboxname" onClick={() => onPlayer(p.id)}>{p.name}</button>
+                          : p.name}
+                      </td>
+                      <td>{k && k.gp != null ? k.gp : dash}</td>
+                      <td>{k && k.gaa != null ? k.gaa : dash}</td>
+                      <td>{k && k.svpct ? k.svpct : dash}</td>
+                      <td>{k && k.so != null ? k.so : dash}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        );
+      })()}
       </section>
       </div>
 
