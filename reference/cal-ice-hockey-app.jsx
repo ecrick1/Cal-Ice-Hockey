@@ -14000,15 +14000,14 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
         favicon: { ...((s.settings || {}).favicon || {}), [k]: v } },
     }));
 
-  const readImage = (file, onDone) => {
+  const readImage = async (file, onDone, preset) => {
     if (!file) return;
-    if (file.size > 400 * 1024) {
-      ask({ title: "Image too large", message: "Images must be under 400KB.", blocked: true });
-      return;
+    try {
+      const img = await readImageUpload(file, preset || "logo");
+      onDone(img.dataUrl);
+    } catch (e) {
+      ask({ title: "Could not use that image", message: String(e.message || e), blocked: true });
     }
-    const fr = new FileReader();
-    fr.onload = () => onDone(fr.result);
-    fr.readAsDataURL(file);
   };
 
   const acctInitials = (acct.name || "")
@@ -14421,12 +14420,12 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
                 <div style={{ display: "grid", gap: 7 }}>
                   <input type="file" accept="image/*" style={{ fontSize: 12 }}
                     onChange={(e) => readImage(e.target.files && e.target.files[0],
-                      (d) => setAcct("avatar", d))} />
+                      (d) => setAcct("avatar", d), "avatar")} />
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     {acct.avatar && (
                       <button className="btn bGhost bSm" onClick={() => setAcct("avatar", null)}>Remove</button>
                     )}
-                    <span className="bsm" style={{ color: "var(--au-faint)" }}>PNG or JPG, under 400KB.</span>
+                    <span className="bsm" style={{ color: "var(--au-faint)" }}>Any size. Stored small.</span>
                   </div>
                 </div>
               </div>
@@ -14500,6 +14499,7 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
  * with seven renderers.
  */
 function BlockFields({ block, set }) {
+  const ask = useAsk();
   const def = blockType(block.type);
   if (!def) return null;
   const fields = def[3] || [];
@@ -14512,12 +14512,15 @@ function BlockFields({ block, set }) {
   const addRow = (key) => () => set(key, [...(block[key] || []), {}]);
   const dropRow = (key, i) => () => set(key, (block[key] || []).filter((_, j) => j !== i));
 
-  const readImage = (key) => (e) => {
+  const readImage = (key) => async (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
-    const fr = new FileReader();
-    fr.onload = () => set(key, fr.result);
-    fr.readAsDataURL(file);
+    try {
+      const img = await readImageUpload(file, "cover");
+      set(key, img.dataUrl);
+    } catch (err) {
+      ask({ title: "Could not use that image", message: String(err.message || err), blocked: true });
+    }
   };
 
   return (
@@ -15078,6 +15081,54 @@ function readScaledImage(file, preset) {
   });
 }
 
+/**
+ * Every uploaded image, through one door.
+ *
+ * Re-encoding lived in the roster and news picker and nowhere else, so a
+ * headshot was scaled to 640px and turned into a WebP while the crest beside
+ * it, the sponsor's logo, the club's own mark and the picture in a page block
+ * were all stored exactly as they arrived - every byte the camera wrote,
+ * inside a document that is loaded whole by every visitor. The size limits
+ * those pickers carried were the admission: 400KB is not a design decision,
+ * it is what you write when nothing is going to make the file smaller and a
+ * phone photograph would otherwise end the site.
+ *
+ * So the compressor is the way in rather than one of the ways in, and the
+ * limits go with it. A six-megabyte photograph is a normal thing to be handed
+ * and comes out the other side in tens of kilobytes; refusing it was never
+ * protecting anything except from ourselves.
+ *
+ * An SVG is the exception and is kept as it arrived. It is already smaller
+ * than any raster of it, it is sharp at every size, and rasterising one to
+ * save bytes would cost both - which matters most for exactly the things that
+ * arrive as SVGs here: crests and wordmarks, drawn once and shown at a dozen
+ * sizes. The markup comes back alongside the data URI, because a mark
+ * sometimes has to be read and rewritten - a white version of an away crest
+ * is the same drawing with every paint changed, and that can only be done
+ * while it is still text.
+ */
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+
+async function readImageUpload(file, preset) {
+  if (!file) return null;
+  if (file.size > MAX_UPLOAD_BYTES) {
+    throw new Error("That file is " + Math.round(file.size / 1024 / 1024)
+      + "MB. Anything up to " + Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)
+      + "MB is fine - beyond that it is probably not a photograph.");
+  }
+  const isSvg = file.type === "image/svg+xml" || /\.svg$/i.test(file.name || "");
+  if (isSvg) {
+    const text = await file.text();
+    return { kind: "svg", dataUrl: svgDataUrl(text), svg: text, bytes: file.size };
+  }
+  const { dataUrl, width, height } = await readScaledImage(file, preset);
+  return {
+    kind: "raster", dataUrl, width, height,
+    was: file.size, bytes: dataUrlBytes(dataUrl),
+    format: (/^data:image\/([a-z]+)/.exec(dataUrl) || [])[1] || "",
+  };
+}
+
 /** Rough byte size of a data URI, for the storage warning. */
 function dataUrlBytes(s) {
   if (!s || s.indexOf(",") === -1) return 0;
@@ -15101,15 +15152,21 @@ function ImageField({ value, preset, label, aspect, onChange }) {
     if (!file) return;
     setBusy(true);
     try {
-      const { dataUrl, width, height } = await readScaledImage(file, preset);
-      onChange(dataUrl);
+      /* Through the same door as every other picker, so an SVG dropped here
+         stays an SVG rather than being flattened into a picture of itself. */
+      const img = await readImageUpload(file, preset);
+      onChange(img.dataUrl);
       // Warn rather than block: the image is already scaled, and the person
-      // should know if they are filling the prototype's storage.
-      if (dataUrlBytes(dataUrl) > 600 * 1024) {
+      // should know if they are filling the document.
+      if (dataUrlBytes(img.dataUrl) > 600 * 1024) {
         await ask({
           title: "That is a large image",
-          message: "Stored at " + width + "×" + height + ", about " + kb(dataUrlBytes(dataUrl)) + ".",
-          detail: "Fine in production, but the prototype keeps images in browser storage — a few of these will fill it.",
+          message: img.kind === "svg"
+            ? "A drawing of about " + kb(dataUrlBytes(img.dataUrl)) + "."
+            : "Stored at " + img.width + "×" + img.height + ", about "
+              + kb(dataUrlBytes(img.dataUrl)) + ".",
+          detail: "Every visitor loads the whole site in one piece, so a few of these "
+            + "are felt on every page.",
           blocked: true,
         });
       }
@@ -17340,35 +17397,31 @@ function OpponentsEditor({ site, setDraft }) {
   };
 
   /* Prototype stores the image inline; production uploads to Supabase Storage. */
-  const pickLogo = (id, field, file) => {
+  const pickLogo = async (id, field, file) => {
     if (!file) return;
-    if (file.size > 400 * 1024) {
-      ask({ title: "Image too large", message: "Logos must be under 400KB.", blocked: true });
+    let img;
+    try {
+      img = await readImageUpload(file, "logo");
+    } catch (e) {
+      ask({ title: "Could not use that image", message: String(e.message || e), blocked: true });
       return;
     }
-    const isSvg = file.type === "image/svg+xml" || /\.svg$/i.test(file.name || "");
-    const fr = new FileReader();
-    fr.onload = () => {
-      /* A raster is already a data URL by the time it gets here. An SVG was
-         read as text so its paints can be rewritten, so it has to be encoded
-         before it can be an <img src> - on either slot. Storing the raw
-         markup would leave a broken image behind. */
-      if (!isSvg) { setOpp(id, { [field]: fr.result }); return; }
+    /* A raster has been scaled and re-encoded on the way in and is ready to
+       be stored. An SVG is kept as it was drawn. */
+    if (img.kind !== "svg") { setOpp(id, { [field]: img.dataUrl }); return; }
 
-      if (field !== "logoLight") { setOpp(id, { [field]: svgDataUrl(fr.result) }); return; }
+    if (field !== "logoLight") { setOpp(id, { [field]: img.dataUrl }); return; }
 
-      /* An SVG dropped on the light slot also settles the dark one: the white
-         version is the same file with every paint turned white, so asking for
-         a second upload would only be asking for the same drawing twice.
-         Anything already in the dark slot is left alone - a mark uploaded on
-         purpose outranks one derived here. */
-      const current = (site.opponents || []).find((x) => x.id === id) || {};
-      setOpp(id, {
-        logoLight: svgDataUrl(fr.result),
-        ...(current.logoDark ? {} : { logoDark: svgDataUrl(whiteSvgMark(fr.result)) }),
-      });
-    };
-    if (isSvg) fr.readAsText(file); else fr.readAsDataURL(file);
+    /* An SVG dropped on the light slot also settles the dark one: the white
+       version is the same file with every paint turned white, so asking for
+       a second upload would only be asking for the same drawing twice.
+       Anything already in the dark slot is left alone - a mark uploaded on
+       purpose outranks one derived here. */
+    const current = (site.opponents || []).find((x) => x.id === id) || {};
+    setOpp(id, {
+      logoLight: img.dataUrl,
+      ...(current.logoDark ? {} : { logoDark: svgDataUrl(whiteSvgMark(img.svg)) }),
+    });
   };
 
   /* Filtering the view only. Reordering is by the arrows, and the arrows move
@@ -25854,16 +25907,14 @@ function SponsorsEditor({ site, setDraft }) {
   /* Same rule the opponent marks use: stored inline here, uploaded to
      Storage in production. An SVG is encoded rather than kept as markup,
      which would leave a broken image behind. */
-  const pickLogo = (id, file) => {
+  const pickLogo = async (id, file) => {
     if (!file) return;
-    if (file.size > 400 * 1024) {
-      ask({ title: "Image too large", message: "Sponsor logos must be under 400KB.", blocked: true });
-      return;
+    try {
+      const img = await readImageUpload(file, "logo");
+      setOne(id, { logo: img.dataUrl });
+    } catch (e) {
+      ask({ title: "Could not use that image", message: String(e.message || e), blocked: true });
     }
-    const isSvg = file.type === "image/svg+xml" || /\.svg$/i.test(file.name || "");
-    const fr = new FileReader();
-    fr.onload = () => setOne(id, { logo: isSvg ? svgDataUrl(fr.result) : fr.result });
-    if (isSvg) fr.readAsText(file); else fr.readAsDataURL(file);
   };
 
   return (
