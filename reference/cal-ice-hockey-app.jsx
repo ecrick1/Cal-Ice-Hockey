@@ -3423,14 +3423,20 @@ table.stats.sortable td { padding-left: 6px; padding-right: 6px; }
 table.stats.sortable .sortbtn { padding-left: 6px; padding-right: 6px; gap: 4px; }
 /* The caret is an affordance, not a glyph anyone reads - it can be small. */
 table.stats.sortable .sortcaret { font-size: 8px; }
-/* Except where the table has already planned its columns. Under the automatic
-   layout this rule was written for, 100% on the name column means "whatever is
-   left". Under a fixed layout it means all of it - so the game centre's roster,
-   which is fixed and assigns a width per column, handed the whole table to the
-   name and rendered Pos, GP, G, A, P and PIM at nought pixels wide. The figures
-   were there in the markup the entire time, in columns of no width. */
-table.stats.sortable:not(.gcbt) th:nth-child(2),
-table.stats.sortable:not(.gcbt) td:nth-child(2) { width: 100%; }
+/* The name column used to be given width: 100% here, meaning "whatever is
+   left" - true under the automatic layout the rule was written for, and false
+   under a fixed one, where it means all of it. The game centre's roster hit
+   that first and was let out of the rule by name; the public stats table
+   became fixed above 760 later, was not, and rendered Pos, GP, G, A, PTS and
+   every other figure at nought pixels wide, on every season. The numbers were
+   in the markup the whole time, in columns of no width.
+
+   Excluding the second table by name would have left the same trap for the
+   third. Every sortable table now plans its own columns - .gcbt and
+   .statstable both assign a width per column - so the rule had no remaining
+   subject and is gone rather than narrowed. A table that wants the name to
+   take the slack says so itself, where the widths it is competing with are
+   written down beside it. */
 table.stats.sortable td:first-child { padding-left: 16px; }
 table.stats.sortable td:last-child { padding-right: 16px; }
 table.stats.sortable th:first-child .sortbtn { padding-left: 16px; }
