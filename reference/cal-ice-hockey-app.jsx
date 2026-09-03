@@ -2842,11 +2842,14 @@ button.gtrow:hover { background: var(--page); }
  * element, no frames, and it reads at any size. Gold on navy is the club's
  * own pair, so a loading state still looks like the site it is loading. */
 .loadmark { position: relative; display: grid; place-items: center;
-  width: 96px; height: 96px; }
+  width: 112px; height: 112px; }
 .loadring { position: absolute; inset: 0; border-radius: 50%;
   border: 3px solid rgba(4, 30, 66, 0.12); border-top-color: var(--gold);
   animation: loadspin 0.9s linear infinite; }
-.loadcal { width: 52px; height: auto; display: block; }
+/* The club lockup is taller than it is wide - the script over the wordmark -
+   so it is sized by height and left to find its own width, and the ring is
+   opened up to hold it with air around it. */
+.loadcal { height: 62px; width: auto; display: block; }
 @keyframes loadspin { to { transform: rotate(360deg); } }
 /* Somebody who has asked not to be shown movement gets a ring that is simply
    there, rather than one that turns. */
@@ -5574,7 +5577,7 @@ export default function CalIceHockey() {
             through. */}
         <div className="loadmark" role="status" aria-label="Loading">
           <span className="loadring" aria-hidden="true" />
-          <img className="loadcal" src="/logos/cal.svg" alt="" />
+          <img className="loadcal" src="/logos/cal-ice-hockey.svg" alt="" />
         </div>
       </div>
     );
