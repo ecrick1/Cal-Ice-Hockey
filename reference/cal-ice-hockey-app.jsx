@@ -23618,23 +23618,63 @@ function RosterEditor({ site, updateSeason: updateSeasonProp }) {
     .filter((n) => n !== sel && (site.seasons[n].roster || []).length)
     .sort().reverse();
 
+  /* A year on. Anyone out of eligibility has left; everyone else is a year
+     older. A player with no class recorded is copied unchanged rather than
+     guessed at - a blank is not a claim that somebody is a freshman. */
+  const NEXT_YEAR = { Fr: "So", So: "Jr", Jr: "Sr" };
+  const LEAVING = new Set(["Sr", "Grad"]);
+
   const copyFrom = async (from) => {
     const src = site.seasons[from].roster || [];
     const have = new Set(roster.map((p) => p.name));
-    const add = src.filter((p) => !have.has(p.name))
-      .map((p) => ({ ...p, id: uid(), stats: {}, captain: "" }));
+    const fresh = src.filter((p) => !have.has(p.name));
+    /* Only forward. Season names sort by year, and copying a later roster
+       back into an earlier one is a different job - moving those players up
+       would be moving them the wrong way. */
+    const rollForward = from < sel;
+    const graduating = rollForward ? fresh.filter((p) => LEAVING.has(p.year)) : [];
+    const carried = rollForward ? fresh.filter((p) => !LEAVING.has(p.year)) : fresh;
+    const promoted = rollForward
+      ? carried.filter((p) => NEXT_YEAR[p.year]).length : 0;
+    const unknown = rollForward
+      ? carried.filter((p) => !NEXT_YEAR[p.year]).length : 0;
+
+    const add = carried.map((p) => ({
+      ...p, id: uid(), stats: {}, captain: "",
+      year: rollForward ? (NEXT_YEAR[p.year] || p.year) : p.year,
+    }));
+
     if (!add.length) {
       await ask({
         title: "Nothing to copy",
-        message: "Every player from " + from + " is already on this roster.",
+        message: graduating.length
+          ? "Every player from " + from + " has either used up their eligibility or is "
+            + "already on this roster."
+          : "Every player from " + from + " is already on this roster.",
         blocked: true,
       });
       return;
     }
+
+    const lines = ["Stats and captaincy are not copied — only the players."];
+    if (rollForward) {
+      if (graduating.length) {
+        lines.unshift(
+          graduating.length + " left after " + from + ": "
+          + graduating.map((p) => p.name).join(", "));
+      }
+      if (promoted) lines.unshift(promoted + " move up a year.");
+      if (unknown) {
+        lines.push(unknown + " with no class recorded " + (unknown === 1 ? "is" : "are")
+          + " copied as " + (unknown === 1 ? "it is" : "they are") + ".");
+      }
+    }
+
     const ok = await ask({
       title: "Copy roster?",
-      message: "Adds " + add.length + " player" + (add.length === 1 ? "" : "s") + " from " + from + " to " + sel + ".",
-      detail: "Stats and captaincy are not copied — only the players.",
+      message: "Adds " + add.length + " player" + (add.length === 1 ? "" : "s")
+        + " from " + from + " to " + sel + ".",
+      detail: lines.join(" "),
       confirmLabel: "Copy",
     });
     if (!ok) return;
