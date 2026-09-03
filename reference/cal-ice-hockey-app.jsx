@@ -9016,7 +9016,9 @@ function GameStory({ story, label, openPost, lead }) {
     <section className={"statcard gcpad gcrecap" + (lead ? " lead" : "")}>
       <p className="gcrecapkick">{sentenceCase(story.tag || label)}</p>
       <h2 className="gcrecaptitle">{story.title}</h2>
-      {story.blurb && <p className="gcrecapsub">{story.blurb}</p>}
+      {story.blurb && (
+        <p className="gcrecapsub">{renderExcerpt(story.blurb, "gcsub")}</p>
+      )}
       {story.image && (
         <img className="gcrecapart" src={story.image} alt=""
           onError={(e) => { e.currentTarget.style.display = "none"; }} />
@@ -9024,7 +9026,11 @@ function GameStory({ story, label, openPost, lead }) {
       <p className="gcrecapby">
         {story.author ? story.author + " · " : ""}{fmtDate(story.date)}
       </p>
-      {story.body && <p className="gcrecaplede">{firstParagraph(story.body)}</p>}
+      {story.body && (
+        <p className="gcrecaplede">
+          {renderExcerpt(firstParagraph(story.body), "gclede")}
+        </p>
+      )}
       <button className="btn bNavy bSm" onClick={() => openPost(story.id)}>
         Full story <IcArrowR size={15} />
       </button>
@@ -17906,9 +17912,12 @@ function inlineNodes(text, onPlayer, key) {
   const k = key + "-" + m.index;
   if (rule.tag === "mention") {
     const name = m[1].trim();
-    out.push(
-      <button key={k} className="artmention" onClick={() => onPlayer(name)}>{name}</button>
-    );
+    /* In an excerpt there is nowhere for a mention to go - the card it sits on
+       is already a link to the story. A button that did nothing would look
+       like one that was broken, so out of the article it is just the name. */
+    out.push(onPlayer
+      ? <button key={k} className="artmention" onClick={() => onPlayer(name)}>{name}</button>
+      : name);
   } else {
     const inner = inlineNodes(m[1], onPlayer, k + "i");
     if (rule.tag === "strongem") out.push(<strong key={k}><em>{inner}</em></strong>);
@@ -17924,6 +17933,22 @@ function inlineNodes(text, onPlayer, key) {
 /** Split a line into mentions, marks and plain text. */
 function renderInline(line, onPlayer, keyBase) {
   return inlineNodes(String(line == null ? "" : line), onPlayer, String(keyBase));
+}
+
+/**
+ * One line of a story, shown somewhere that is not the story.
+ *
+ * Subheaders and opening lines are written in the same box as the body and in
+ * the same shapes, so a word bolded in a subheader was bold in the article and
+ * a pair of asterisks everywhere the subheader was quoted - the game centre's
+ * recap card, the standfirst at the top of the story. Reading a line as
+ * markdown in one place and as characters in another is the sort of thing that
+ * looks like the editor is broken, which is roughly what it is.
+ *
+ * Marks only, and mentions flattened to names: there is no player to open from
+ * a card whose whole surface already goes somewhere else. */
+function renderExcerpt(line, keyBase) {
+  return renderInline(line, null, keyBase);
 }
 
 /* The canonical address of a story. Settings holds the public origin because
@@ -18157,7 +18182,9 @@ function NewsPage({ site, postId, onBack, backTo, onPlayerName }) {
         <h1 className="h1" style={{ color: "var(--blue)", margin: "0 0 12px", fontSize: "clamp(2rem,4.5vw,3rem)" }}>
           {post.title}
         </h1>
-        {post.blurb && <p className="artdeck">{post.blurb}</p>}
+        {post.blurb && (
+          <p className="artdeck">{renderExcerpt(post.blurb, "deck")}</p>
+        )}
         {/* Under the standfirst rather than over the headline. It says what
             kind of story this is, which is worth knowing after the story has
             introduced itself and not before. */}
