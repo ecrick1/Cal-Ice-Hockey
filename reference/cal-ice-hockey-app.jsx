@@ -2898,7 +2898,14 @@ button.gtrow:hover { background: var(--page); }
 /* A story starts with its way back, not with its heading, and a section's
    padding is written for the second of those - eighty-eight pixels above a
    back link put the headline below the fold on a laptop. */
-.artpage { padding-top: 26px; }
+.artpage { padding-top: 0; }
+/* The one place a way back sits, on every page that has one: the site's own
+   left gutter, twenty-two pixels down. It was landing in three different
+   places - two hundred pixels apart across the article and the game centre,
+   because a story's column is narrower and the link was inside it. It sits in
+   a full-width row of its own now, so the page underneath can be as narrow as
+   it likes. */
+.backbar { padding-top: 22px; }
 
 /* Buttons */
 /* Matched to .calbtn, which is what a button on this site already looked like:
@@ -5460,7 +5467,53 @@ export default function CalIceHockey() {
   const openPlayer = (id) => openSub("player", setPlayerId, id);
   const openPost = (id) => openSub("news", setPostId, id);
   const openGame = (id) => openSub("game", setGameId, id);
-  const goBack = () => setView(cameFrom);
+
+  /**
+   * The browser's own back button, made to mean what it looks like it means.
+   *
+   * Every page of this site is one document and one piece of state, so the
+   * browser had no record of anywhere you had been - back went to whatever
+   * you were reading before the site, which is out of it. Each change of view
+   * pushes an entry now, and going back puts the state that entry holds.
+   *
+   * `fromPop` keeps the two from chasing each other: restoring a state is a
+   * change of view like any other, and without it every step backwards would
+   * push a new entry and you could never leave.
+   */
+  const fromPop = useRef(false);
+  const pushed = useRef(0);
+  useEffect(() => {
+    const here = { view, playerId, postId, gameId, cameFrom };
+    if (fromPop.current) { fromPop.current = false; return; }
+    if (pushed.current === 0) window.history.replaceState(here, "");
+    else window.history.pushState(here, "");
+    pushed.current += 1;
+  }, [view, playerId, postId, gameId]);
+
+  useEffect(() => {
+    const onPop = (e) => {
+      const st = e.state;
+      if (!st || !st.view) return;
+      fromPop.current = true;
+      setView(st.view);
+      setPlayerId(st.playerId ?? null);
+      setPostId(st.postId ?? null);
+      setGameId(st.gameId ?? null);
+      setCameFrom(st.cameFrom || "home");
+      window.scrollTo(0, 0);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  /* The link on the page does what the browser's button does, so the two
+     cannot disagree and pressing back twice does not undo one step. Straight
+     to the view only when there is no history to step through - somebody who
+     arrived on this page and has nowhere to go back to. */
+  const goBack = () => {
+    if (pushed.current > 1) window.history.back();
+    else setView(cameFrom);
+  };
   /* A mention carries a name, not an id — resolve it against the current
    * roster first, then any season, so archived players still link. */
   const openPlayerNamed = (name, alsoPostId) => {
@@ -7277,12 +7330,12 @@ function GamePage({ site, gameId, onBack, backTo, onPlayer, openPost, onTickets 
 
   return (
     <main style={{ background: "var(--page)", flex: 1 }}>
-      <div className="wrap" style={{ paddingTop: 18, paddingBottom: 56 }}>
+      <div className="wrap backbar"><BackLink to={backTo} onClick={onBack} /></div>
+      <div className="wrap" style={{ paddingTop: 0, paddingBottom: 56 }}>
         {/* Watching and buying sit up here beside the title rather than in a
             band of their own under the scorebug. They are two links, not a
             section, and a full-width row of 210px buttons announced them as
             the main event on a page that is mostly a preview. */}
-        <BackLink to={backTo} onClick={onBack} />
         <div className="gchead">
           <h1 className="gctitle">Game center</h1>
           {(gcOffer || gcOnSale) && (
@@ -12289,8 +12342,8 @@ function PlayerPage({ site, playerId, onBack, backTo, onPlayer, onGame }) {
 
   return (
     <main style={{ background: "var(--page)" }}>
-      <section className="section" style={{ paddingTop: 30 }}>
-        <div className="wrap"><BackLink to={backTo} onClick={onBack} /></div>
+      <section className="section" style={{ paddingTop: 0 }}>
+        <div className="wrap backbar"><BackLink to={backTo} onClick={onBack} /></div>
         <div className="wrap" style={{ maxWidth: 980 }}>
           <div style={{ display: "flex", gap: 14, alignItems: "center", margin: "0 0 16px", flexWrap: "wrap" }}>
             {/* The way back is the link above the heading, the same one every
@@ -17528,8 +17581,8 @@ function NewsPage({ site, postId, onBack, backTo, onPlayerName }) {
 
   return (
     <main className="section artpage" style={{ flex: 1 }}>
+      <div className="wrap backbar"><BackLink to={backTo} onClick={onBack} /></div>
       <div className="wrap" style={{ maxWidth: 760 }}>
-        <BackLink to={backTo} onClick={onBack} />
 
         <p className="artlabel arttag">{casedTag(post.tag || "News")}</p>
         <h1 className="h1" style={{ color: "var(--blue)", margin: "8px 0 12px", fontSize: "clamp(2rem,4.5vw,3rem)" }}>
