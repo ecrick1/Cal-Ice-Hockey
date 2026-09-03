@@ -91,6 +91,16 @@ const SEED_SITE = {
   sponsors: [],
   settings: {
     ticketsUrl: "", contactEmail: "", homeVenue: "Oakland Ice Center", siteUrl: "",
+    /* The icon in the browser tab, in two versions.
+     *
+     * A tab strip is either light or dark, and one icon cannot be right on
+     * both: a navy crest disappears against a dark tab, and a white one
+     * against a light tab. Which is why the two are named for the browser
+     * they are shown in rather than for the colour they are - the mistake
+     * otherwise made is to upload the dark-coloured mark under "dark".
+     *
+     * Empty falls back to the icon the build shipped with. */
+    favicon: { light: null, dark: null },
     /* The university's own giving page, with the fund already selected. */
     donateUrl: "https://give.berkeley.edu/giftdetails?fund1=FU0852000",
     /* The club's channel on its broadcaster, which does not change from
@@ -299,6 +309,68 @@ async function shippedRev() {
   } catch {
     return null;
   }
+}
+
+/**
+ * The icon in the browser tab.
+ *
+ * Two of them, because a tab strip is either light or dark and no single mark
+ * reads on both. The browser will not choose between them for us: `media` on a
+ * link element is honoured by some browsers and ignored by others, so the
+ * choice is made here, where it can also be redone when somebody switches
+ * their system to dark at half past four in the afternoon.
+ */
+/* Whatever the build shipped with, read before anything replaces it, so that
+   removing both uploads goes back to the club's mark rather than to the blank
+   page the browser draws when there is no icon at all. */
+const SHIPPED_FAVICON = (() => {
+  if (typeof document === "undefined") return null;
+  const el = document.querySelector('link[rel~="icon"]');
+  return el ? el.getAttribute("href") : null;
+})();
+
+function setFavicon(href) {
+  if (typeof document === "undefined" || !href) return;
+  const head = document.head;
+  const old = Array.from(head.querySelectorAll('link[rel~="icon"]'));
+  if (old.length === 1 && old[0].getAttribute("href") === href) return;
+  const link = document.createElement("link");
+  link.rel = "icon";
+  /* A data URI already says what it is, and saying so again saves the browser
+     sniffing it. */
+  const m = /^data:([^;,]+)/.exec(href);
+  if (m) link.type = m[1];
+  link.href = href;
+  /* Added before the old ones go, so there is never a moment with no icon -
+     which some browsers take as a cue to draw the blank page and keep it. */
+  head.appendChild(link);
+  old.forEach((n) => n.remove());
+}
+
+function useFavicon(settings) {
+  const fav = (settings || {}).favicon || {};
+  const light = fav.light || null;
+  const dark = fav.dark || null;
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) {
+      setFavicon(light || dark || SHIPPED_FAVICON);
+      return;
+    }
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    /* One set falls back to the other rather than to the shipped mark: an icon
+       meant for the wrong tab colour is still the club's, and still better
+       than a different logo appearing depending on the reader's settings. */
+    const apply = () => setFavicon(
+      (mq.matches ? (dark || light) : (light || dark)) || SHIPPED_FAVICON);
+    apply();
+    const on = () => apply();
+    if (mq.addEventListener) mq.addEventListener("change", on);
+    else mq.addListener(on);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener("change", on);
+      else mq.removeListener(on);
+    };
+  }, [light, dark]);
 }
 
 async function loadKey(key, fallback) {
@@ -4834,6 +4906,42 @@ a.faffil:hover .faffilmark { opacity: 0.82; }
   background: var(--au-panel); border: 1px solid var(--au-line); border-radius: 10px; }
 .auorgpreview img { max-width: 78%; max-height: 78%; object-fit: contain; }
 
+/* --- Tab icon --- */
+.adminui .aufavgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.adminui .aufav { border: 1px solid var(--au-line); border-radius: 10px; overflow: hidden;
+  min-width: 0; }
+/* The two grounds are the browser's, not the site's, and are deliberately not
+   theme variables: they have to stay what Chrome actually draws even when the
+   console itself is in the other mode. */
+.adminui .aufav.light .aufavstage { background: #dee1e6; }
+.adminui .aufav.dark .aufavstage { background: #202124; }
+.adminui .aufavstage { display: flex; align-items: flex-end; justify-content: space-between;
+  gap: 10px; padding: 16px 14px 0; min-height: 78px; }
+.adminui .aufavtab { display: inline-flex; align-items: center; gap: 7px; min-width: 0;
+  padding: 8px 10px; border-radius: 8px 8px 0 0; }
+.adminui .aufav.light .aufavtab { background: #fff; color: #3c4043; }
+.adminui .aufav.dark .aufavtab { background: #35363a; color: #e8eaed; }
+/* Sixteen pixels, which is the whole point of the preview. */
+.adminui .aufavicon { width: 16px; height: 16px; flex: 0 0 auto; object-fit: contain; }
+.adminui .aufavtitle { font-size: 11.5px; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; }
+.adminui .aufavx { font-size: 13px; opacity: 0.55; flex: 0 0 auto; }
+.adminui .aufavbig { width: 40px; height: 40px; object-fit: contain; flex: 0 0 auto;
+  margin-bottom: 10px; }
+.adminui .aufavnone { font-size: 11px; padding-bottom: 14px; }
+.adminui .aufav.light .aufavnone { color: #5f6368; }
+.adminui .aufav.dark .aufavnone { color: #9aa0a6; }
+.adminui .aufavctl { display: grid; gap: 7px; padding: 11px 12px 12px;
+  background: var(--au-surface); border-top: 1px solid var(--au-line); }
+.adminui .aufavhead { font-family: var(--disp); text-transform: uppercase;
+  font-size: 11.5px; letter-spacing: 0.04em; color: var(--au-ink); }
+.adminui .aufavctl input[type="file"] { font-size: 11.5px; max-width: 100%; }
+.adminui .aufavmeta { display: flex; gap: 9px; align-items: center; flex-wrap: wrap;
+  min-height: 22px; }
+@media (max-width: 620px) {
+  .adminui .aufavgrid { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 780px) {
   .ausettings { grid-template-columns: 1fr; gap: 16px; }
   .ausubnav { position: static; grid-auto-flow: column; overflow-x: auto; }
@@ -5743,6 +5851,7 @@ export default function CalIceHockey() {
       s.account = { ...SEED_SITE.account, ...(s.account || {}) };
       s.settings.org = { ...SEED_SITE.settings.org, ...(s.settings.org || {}) };
       s.settings.socials = { ...SEED_SITE.settings.socials, ...(s.settings.socials || {}) };
+      s.settings.favicon = { ...SEED_SITE.settings.favicon, ...(s.settings.favicon || {}) };
       // Opponents used to carry one `logo`; it was always the light-background one.
       s.opponents = (s.opponents || []).map((o) =>
         "logo" in o ? { ...o, logoLight: o.logoLight ?? o.logo, logoDark: o.logoDark ?? null, logo: undefined } : o
@@ -5767,6 +5876,10 @@ export default function CalIceHockey() {
     if (fromRemote.current) { fromRemote.current = false; return; }
     saveKey(SITE_KEY, site);
   }, [site]);
+
+  /* The tab icon follows the site rather than the build, so changing it is an
+     edit somebody makes rather than a deploy somebody asks for. */
+  useFavicon(site && site.settings);
 
   /**
    * Somebody else published, so show it - without throwing the page away.
@@ -13790,6 +13903,12 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
       settings: { ...(s.settings || {}), org: { ...((s.settings || {}).org || {}), [k]: v } },
     }));
   const setAcct = (k, v) => setDraft((s) => ({ ...s, account: { ...(s.account || {}), [k]: v } }));
+  const setTabIcon = (k, v) =>
+    setDraft((s) => ({
+      ...s,
+      settings: { ...(s.settings || {}),
+        favicon: { ...((s.settings || {}).favicon || {}), [k]: v } },
+    }));
 
   const readImage = (file, onDone) => {
     if (!file) return;
@@ -13902,6 +14021,27 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
               </div>
               <p className="bsm" style={{ marginTop: 8, color: "var(--au-faint)" }}>
                 Used by the “School colors” theme under Appearance.
+              </p>
+            </section>
+
+            <section className="card">
+              <p className="h6" style={{ marginBottom: 6 }}>Browser tab icon</p>
+              <p className="bsm" style={{ marginBottom: 14 }}>
+                Shown in the tab, in bookmarks, and on a phone’s home screen. Two of
+                them, because a tab is either light or dark and one mark cannot read
+                on both — each is named for the browser it appears in, not for the
+                colour it is, so the white version goes under “dark browser”.
+              </p>
+              <div className="aufavgrid">
+                <FaviconField mode="light" value={(st.favicon || {}).light || null}
+                  onChange={(v) => setTabIcon("light", v)} />
+                <FaviconField mode="dark" value={(st.favicon || {}).dark || null}
+                  onChange={(v) => setTabIcon("dark", v)} />
+              </div>
+              <p className="bsm" style={{ marginTop: 12, color: "var(--au-faint)" }}>
+                Stored square at 128px as a PNG, so transparency is kept. Set one and it
+                is used for both. Publishing changes it for everyone; a tab already open
+                may keep the old one until it is reloaded.
               </p>
             </section>
 
@@ -14790,6 +14930,13 @@ const IMAGE_PRESETS = {
   cover: { w: 1600, h: 900, quality: 0.78, hint: "Wide action shot, used as a banner." },
   logo: { w: 512, h: 512, quality: 0.9, hint: "Square mark on transparent works best." },
   avatar: { w: 256, h: 256, quality: 0.85, hint: "Square. Shown small." },
+  /* PNG rather than WebP, which is the one place the smaller format is the
+     wrong answer: Safari renders WebP everywhere in a page but has never
+     reliably taken one as a tab icon, and the failure is a blank tab rather
+     than anything that says why. At 128px square the difference is a couple
+     of kilobytes. Square, because every browser crops it to square. */
+  favicon: { w: 128, h: 128, quality: 0.92, format: "png",
+    hint: "Square. Shown at 16px, so keep it simple." },
 };
 
 /**
@@ -14824,10 +14971,15 @@ function readScaledImage(file, preset) {
         const ctx = canvas.getContext("2d");
         ctx.drawImage(img, 0, 0, w, h);
         const keepAlpha = /png|svg|webp/i.test(file.type);
-        const webp = canvas.toDataURL("image/webp", p.quality);
-        const dataUrl = webp.startsWith("data:image/webp")
-          ? webp
-          : canvas.toDataURL(keepAlpha ? "image/png" : "image/jpeg", p.quality);
+        let dataUrl;
+        if (p.format === "png") {
+          dataUrl = canvas.toDataURL("image/png");
+        } else {
+          const webp = canvas.toDataURL("image/webp", p.quality);
+          dataUrl = webp.startsWith("data:image/webp")
+            ? webp
+            : canvas.toDataURL(keepAlpha ? "image/png" : "image/jpeg", p.quality);
+        }
         resolve({ dataUrl, width: w, height: h });
       };
       img.src = reader.result;
@@ -14899,6 +15051,81 @@ function ImageField({ value, preset, label, aspect, onChange }) {
           )}
           {!busy && !value && (
             <span className="bsm" style={{ color: "var(--au-faint)" }}>{p.hint}</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A tab icon, shown where it is going to be seen.
+ *
+ * The reason to build this rather than reuse the ordinary image field is that
+ * an ordinary image field would show a 128px picture on a white card, and
+ * neither of those is the question. The question is whether the mark still
+ * reads at sixteen pixels against that particular tab colour, and the honest
+ * way to answer it is to draw the tab. A crest with a wordmark under it looks
+ * fine in the picker and is a grey smudge in the browser; seen at size, that
+ * is obvious before it is published rather than after.
+ *
+ * So: a mock tab at true size, on the ground it will sit on, and the same
+ * image large enough beside it to see what was actually uploaded.
+ */
+function FaviconField({ value, mode, onChange }) {
+  const ask = useAsk();
+  const [busy, setBusy] = useState(false);
+  const inputRef = useRef(null);
+  const dark = mode === "dark";
+
+  const pick = async (file) => {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const { dataUrl } = await readScaledImage(file, "favicon");
+      onChange(dataUrl);
+    } catch (e) {
+      await ask({ title: "Could not use that image", message: String(e.message || e), blocked: true });
+    } finally {
+      setBusy(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  return (
+    <div className={"aufav " + (dark ? "dark" : "light")}>
+      <div className="aufavstage">
+        {value ? (
+          <>
+            <span className="aufavtab">
+              <img className="aufavicon" src={value} alt="" />
+              <span className="aufavtitle">Cal Ice Hockey</span>
+              <span className="aufavx">×</span>
+            </span>
+            <img className="aufavbig" src={value} alt="" />
+          </>
+        ) : (
+          <span className="aufavnone">
+            {dark ? "Nothing set — the light one is used" : "Nothing set — the shipped icon is used"}
+          </span>
+        )}
+      </div>
+      <div className="aufavctl">
+        <p className="aufavhead">{dark ? "Dark browser" : "Light browser"}</p>
+        <input ref={inputRef} type="file" accept="image/*" disabled={busy}
+          onChange={(e) => pick(e.target.files && e.target.files[0])} />
+        <div className="aufavmeta">
+          {busy && <span className="bsm">Processing…</span>}
+          {!busy && value && (
+            <>
+              <span className="bsm" style={{ color: "var(--au-faint)" }}>{kb(dataUrlBytes(value))}</span>
+              <button className="btn bGhost bSm" onClick={() => onChange(null)}>Remove</button>
+            </>
+          )}
+          {!busy && !value && (
+            <span className="bsm" style={{ color: "var(--au-faint)" }}>
+              {dark ? "A light mark reads here." : "A dark mark reads here."}
+            </span>
           )}
         </div>
       </div>
