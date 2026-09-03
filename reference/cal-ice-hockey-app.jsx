@@ -2884,6 +2884,17 @@ button.gtrow:hover { background: var(--page); }
   .loadring { animation: none; border-top-color: rgba(4, 30, 66, 0.35); }
 }
 
+/* The way out of a sub-page, in the same place on all of them: above the
+   heading, at the left, where a reader who has gone one level down looks for
+   it. Quiet - it is a way back, not a thing to do. */
+.backlink { display: inline-flex; align-items: center; gap: 6px; background: none;
+  border: 0; padding: 6px 10px 6px 0; margin: 0 0 4px -2px; cursor: pointer;
+  font-family: var(--body); font-weight: 600; font-size: 13.5px; color: var(--muted);
+  border-radius: 6px; transition: color 0.15s; }
+.backlink:hover { color: var(--blue); }
+.backlink:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.backlink svg { flex: 0 0 auto; }
+
 /* Buttons */
 /* Matched to .calbtn, which is what a button on this site already looked like:
    Inter at seven hundred, fourteen and a half, fully rounded, and a laid-out
@@ -3927,6 +3938,10 @@ a.faffil:hover .faffilmark { opacity: 0.82; }
 .adminui.compact .boxrow { padding: 2px 0; }
 
 /* --- Top bar --- */
+/* The console's own colours - the site's grey on this dark bar is unreadable,
+   and it takes the whole first line so the title starts where it did. */
+.aubacklink { color: var(--au-dim); flex: 1 0 100%; margin: 0 0 2px -2px; }
+.aubacklink:hover { color: var(--au-text); }
 .autop { display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
   padding: 14px 26px; border-bottom: 1px solid var(--au-line);
   background: var(--au-topbar); backdrop-filter: blur(8px);
@@ -4835,7 +4850,11 @@ a.faffil:hover .faffilmark { opacity: 0.82; }
 .adminui .btn.bDestruct:hover:not(:disabled) { background: #F4808A; border-color: #F4808A; }
 
 /* --- Sign-in --- */
-.augate { min-height: 100vh; display: grid; place-items: center; padding: 24px;
+/* Top left of the gate, out of the way of the card in the middle of it. */
+.augateback { position: absolute; top: 18px; left: 18px; color: var(--au-dim); z-index: 2; }
+.augateback:hover { color: var(--au-text); }
+.augate { position: relative;
+  min-height: 100vh; display: grid; place-items: center; padding: 24px;
   background:
     radial-gradient(680px 380px at 50% -8%, rgba(99,102,241,0.16), transparent 70%),
     var(--au-bg); }
@@ -5414,9 +5433,29 @@ export default function CalIceHockey() {
     };
   }, [navOpen]);
 
-  const openPlayer = (id) => { setPlayerId(id); setView("player"); };
-  const openPost = (id) => { setPostId(id); setView("news"); window.scrollTo(0, 0); };
-  const openGame = (id) => { setGameId(id); setView("game"); window.scrollTo(0, 0); };
+  /* Where a sub-page was opened from.
+   *
+   * A player is reached from the roster, from the stats table, from a story
+   * that mentions them and from another player's page; a game from the
+   * schedule, from the home page and from the strip that runs across the top
+   * of every page. Sending all of them "back to roster" is right once and
+   * wrong the rest of the time, so the way in is remembered and the way out
+   * is the way in.
+   *
+   * A sub-page opened from a sub-page keeps the last real page: two clicks
+   * deep, "back" wants the list, not the other player. */
+  const SUBVIEWS = new Set(["player", "game", "news"]);
+  const [cameFrom, setCameFrom] = useState("home");
+  const openSub = (next, set, id) => {
+    if (!SUBVIEWS.has(view)) setCameFrom(view);
+    set(id);
+    setView(next);
+    window.scrollTo(0, 0);
+  };
+  const openPlayer = (id) => openSub("player", setPlayerId, id);
+  const openPost = (id) => openSub("news", setPostId, id);
+  const openGame = (id) => openSub("game", setGameId, id);
+  const goBack = () => setView(cameFrom);
   /* A mention carries a name, not an id — resolve it against the current
    * roster first, then any season, so archived players still link. */
   const openPlayerNamed = (name, alsoPostId) => {
@@ -5772,16 +5811,17 @@ export default function CalIceHockey() {
       {view === "newsindex" && <NewsIndexPage site={pub} openPost={openPost} />}
       {view === "stats" && <StatsPage site={pub} onPlayer={openPlayer} onGame={openGame} />}
       {view === "tickets" && <TicketsPage site={pub} goto={setView} />}
+      {/* Back goes where the reader came from, not to a fixed page. */}
       {view === "player" && (
-        <PlayerPage site={pub} playerId={playerId} onBack={() => setView("roster")}
+        <PlayerPage site={pub} playerId={playerId} onBack={goBack} backTo={cameFrom}
           onPlayer={openPlayer} onGame={openGame} />
       )}
       {view === "game" && (
-        <GamePage site={pub} gameId={gameId} onBack={() => setView("schedule")}
+        <GamePage site={pub} gameId={gameId} onBack={goBack} backTo={cameFrom}
           onPlayer={openPlayer} openPost={openPost} onTickets={() => setView("tickets")} />
       )}
       {view === "news" && (
-        <NewsPage site={pub} postId={postId} onBack={() => setView("home")}
+        <NewsPage site={pub} postId={postId} onBack={goBack} backTo={cameFrom}
           onPlayerName={openPlayerNamed} />
       )}
       {view === "venue" && <VenuePage site={pub} />}
@@ -6858,7 +6898,7 @@ function sortPlays(plays) {
 const PERIOD_HEADING = { OT: "Overtime", SO: "Shootout" };
 const periodHeading = (p) => PERIOD_HEADING[p] || PERIOD_LABEL[p] + " period";
 
-function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
+function GamePage({ site, gameId, onBack, backTo, onPlayer, openPost, onTickets }) {
   const seasonName = Object.keys(site.seasons || {}).find((n) =>
     (site.seasons[n].schedule || []).some((g) => g.id === gameId)
   );
@@ -7237,6 +7277,7 @@ function GamePage({ site, gameId, onBack, onPlayer, openPost, onTickets }) {
             band of their own under the scorebug. They are two links, not a
             section, and a full-width row of 210px buttons announced them as
             the main event on a page that is mostly a preview. */}
+        <BackLink to={backTo} onClick={onBack} />
         <div className="gchead">
           <h1 className="gctitle">Game center</h1>
           {(gcOffer || gcOnSale) && (
@@ -8536,6 +8577,23 @@ function Scoresheet({ site, season, game, onClose }) {
         </p>
       </div>
     </div>
+  );
+}
+
+/* The name of a page as a destination rather than as a title - what a back
+   link says it is going to. */
+const VIEW_LABEL = {
+  home: "Home", schedule: "Schedule", roster: "Roster", stats: "Stats",
+  news: "News", tickets: "Tickets", recruit: "Interest form", team: "Team",
+};
+
+/** The way out of a sub-page, saying where it goes. */
+function BackLink({ to, onClick }) {
+  if (!onClick) return null;
+  return (
+    <button className="backlink" onClick={onClick}>
+      <IcChevL size={15} /> {VIEW_LABEL[to] || "Back"}
+    </button>
   );
 }
 
@@ -12190,7 +12248,7 @@ function renderBio(text) {
   return blocks;
 }
 
-function PlayerPage({ site, playerId, onBack, onPlayer, onGame }) {
+function PlayerPage({ site, playerId, onBack, backTo, onPlayer, onGame }) {
   const [tab, setTab] = useState("bio");
   const POS_FULL = { F: "Forward", D: "Defense", G: "Goaltender" };
   let player = null, seasonName = site.currentSeason, siblings = [];
@@ -12225,6 +12283,7 @@ function PlayerPage({ site, playerId, onBack, onPlayer, onGame }) {
   return (
     <main style={{ background: "var(--page)" }}>
       <section className="section" style={{ paddingTop: 30 }}>
+        <div className="wrap"><BackLink to={backTo} onClick={onBack} /></div>
         <div className="wrap" style={{ maxWidth: 980 }}>
           <div style={{ display: "flex", gap: 14, alignItems: "center", margin: "0 0 16px", flexWrap: "wrap" }}>
             <button className="fullbio" style={{ margin: 0, marginLeft: 0 }} onClick={onBack}>
@@ -15699,6 +15758,12 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
     return (
       <main className="adminui">
         <div className="augate">
+          {/* The gate is where somebody who clicked Admin from the footer
+              actually lands, and it had no way out at all - not signed in,
+              and nothing on the screen going anywhere but further in. */}
+          <button className="backlink augateback" onClick={() => goto && goto("home")}>
+            <IcChevL size={15} /> Back to site
+          </button>
           <div className="augatecard">
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
               <span className="aumark">{orgInitials(((site.settings || {}).org || {}).name)}</span>
@@ -15772,7 +15837,7 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
                   <p className="bsm" style={{ color: "var(--au-faint)", marginTop: 16, fontSize: 11.5 }}>
                     Editing is by invitation — an address that has not been given access will
                     not be sent anything. Every save is recorded against the account that made
-                    it, and the last twenty versions are kept.
+                    it, and the last eight versions are kept.
                   </p>
                 </>
               )
@@ -15966,6 +16031,14 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
 
         <div className="aumain">
           <header className="autop">
+            {/* The way out was a link at the foot of the sidebar, which is
+                collapsed on a phone and below the fold on a laptop - so the
+                console had no visible exit from the screen you were on. It
+                sits above the title now, where every other page on the site
+                puts one, and it still asks before leaving unsaved work. */}
+            <button className="backlink aubacklink" onClick={leave}>
+              <IcChevL size={15} /> Back to site
+            </button>
             <h1 className="autitle">{adminTitle(tab, draft)}</h1>
             <div className="auactions">
               <span className={"austate " + (dirty ? "dirty" : "")}>
@@ -17430,7 +17503,7 @@ function ShareRow({ site, post }) {
 }
 
 /* ---------------- Public article page ---------------- */
-function NewsPage({ site, postId, onBack, onPlayerName }) {
+function NewsPage({ site, postId, onBack, backTo, onPlayerName }) {
   const post = (site.news || []).filter(isLive).find((n) => n.id === postId);
 
   if (!post) {
@@ -17452,7 +17525,7 @@ function NewsPage({ site, postId, onBack, onPlayerName }) {
   return (
     <main className="section" style={{ flex: 1 }}>
       <div className="wrap" style={{ maxWidth: 760 }}>
-        <button className="gb-link" onClick={onBack} style={{ marginBottom: 18 }}>← All news</button>
+        <BackLink to={backTo} onClick={onBack} />
 
         <p className="artlabel arttag">{casedTag(post.tag || "News")}</p>
         <h1 className="h1" style={{ color: "var(--blue)", margin: "8px 0 12px", fontSize: "clamp(2rem,4.5vw,3rem)" }}>

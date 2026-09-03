@@ -3,7 +3,7 @@
  *
  * Anyone signed in can edit, so the answer to a bad edit is not preventing it
  * but reversing it. Every version the site is replaced from is kept - the last
- * twenty - with the account that wrote it and when.
+ * eight - with the account that wrote it and when.
  *
  *   node scripts/site-restore.mjs                 # list what is kept
  *   node scripts/site-restore.mjs --show 12       # what that version contains
