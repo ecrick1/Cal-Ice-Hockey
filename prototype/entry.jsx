@@ -136,6 +136,25 @@ window.auth = {
     });
     if (error) throw new Error(error.message);
   },
+
+  /**
+   * The same sign-in, typed rather than clicked.
+   *
+   * A link is a one-time token in a URL, and plenty of things follow a URL
+   * before a person does - mail scanners, link previews, a second click after
+   * a first that went nowhere. Any of them spends the token, and what the
+   * person then sees is that it has expired, which is true and useless.
+   *
+   * The code in the same email cannot be spent by anything that merely reads
+   * the message, and it does not care which device it is typed on.
+   */
+  async verifyCode(email, token) {
+    if (!sb) throw new Error('No database configured.');
+    const { error } = await sb.auth.verifyOtp({
+      email, token: String(token).replace(/\s+/g, ''), type: 'email',
+    });
+    if (error) throw new Error(error.message);
+  },
   async signOut() { if (sb) await sb.auth.signOut(); },
   onChange(fn) {
     if (!sb) return () => {};

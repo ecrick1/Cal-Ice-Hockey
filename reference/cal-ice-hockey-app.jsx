@@ -15192,6 +15192,21 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
   const [sent, setSent] = useState(false);
   const [sending, setSending] = useState(false);
   const [authErr, setAuthErr] = useState("");
+  const [code, setCode] = useState("");
+  const enterCode = async () => {
+    const c = code.trim();
+    if (!c || sending) return;
+    setSending(true);
+    setAuthErr("");
+    try {
+      await window.auth.verifyCode(email.trim(), c);
+      /* Nothing to do on success: the session change is what flips the gate. */
+    } catch (e) {
+      setAuthErr(String((e && e.message) || e));
+    } finally {
+      setSending(false);
+    }
+  };
   const sendLink = async () => {
     const addr = email.trim();
     if (!addr || sending) return;
@@ -15335,12 +15350,29 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
               sent ? (
                 <>
                   <p className="bsm" style={{ margin: 0 }}>
-                    A sign-in link is on its way to <strong>{email}</strong>. Open it on this
-                    device and you will land back here signed in.
+                    An email is on its way to <strong>{email}</strong>. Type the code from it
+                    below, or open its link on this device.
                   </p>
-                  <button className="btn bGhost" style={{ marginTop: 16, width: "100%" }}
-                    onClick={() => { setSent(false); setAuthErr(""); }}>
-                    Use a different address
+                  {/* The code, not the link, is the reliable half: a link is a
+                      one-time token in a URL, and plenty of things follow a URL
+                      before a person does. */}
+                  <div className="field" style={{ marginTop: 14 }}>
+                    <label className="h6">Code from the email</label>
+                    <input value={code} autoFocus inputMode="numeric" autoComplete="one-time-code"
+                      placeholder="123456"
+                      onChange={(e) => { setCode(e.target.value); setAuthErr(""); }}
+                      onKeyDown={(e) => e.key === "Enter" && enterCode()} />
+                  </div>
+                  {authErr && (
+                    <p className="bsm" style={{ color: "var(--au-danger)", marginTop: 8 }}>{authErr}</p>
+                  )}
+                  <button className="btn bNavy" style={{ marginTop: 14, width: "100%" }}
+                    disabled={sending || !code.trim()} onClick={enterCode}>
+                    {sending ? "Checking…" : "Sign in"}
+                  </button>
+                  <button className="btn bGhost" style={{ marginTop: 8, width: "100%" }}
+                    onClick={() => { setSent(false); setCode(""); setAuthErr(""); }}>
+                    Start again
                   </button>
                 </>
               ) : (
