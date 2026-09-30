@@ -19,3 +19,10 @@ prototype/app.js
 
 # A one-use sign-in token; never committed.
 signin-link.html
+
+# Real names, emails and phone numbers. Kept local by design - never
+# centralized, never public - so they never belong in git history either.
+data/recruits.json
+data/alumni.json
+data/backup-*/recruits.json
+data/backup-*/alumni.json
