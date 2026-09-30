@@ -73,6 +73,17 @@ const props = body.properties || body;
 const link = props.action_link;
 const otp = props.email_otp;
 if (!link) { console.error('no link came back: ' + JSON.stringify(body).slice(0, 300)); process.exit(1); }
+/* Supabase rate-limits how often one email can be issued a new code - request
+   a second one too soon after the first and the reply still carries a link,
+   just no `email_otp`. The file below already handles this (the code section
+   only appears when there is one), but silently was how "the code isn't in
+   the file" turned into "sign-in is broken" - it looked identical to success
+   until somebody went looking for a code that was never going to be there. */
+if (!otp) {
+  console.error('note: no code came back this time (probably asked again too soon after');
+  console.error('the last one for this address) - the file below will only have the link.');
+  console.error('Wait a minute and rerun if you want the code as a fallback too.');
+}
 
 /* Two ways in, because they fail differently. The link depends on the redirect
    being configured and on nothing having followed the URL first; the code
