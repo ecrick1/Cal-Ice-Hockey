@@ -99,14 +99,17 @@ const page = `<!doctype html>
    and Vercel the other, and a folder that works on either is worth two. */
 const redirects = "/acha/team-season  /api/acha-team-season  200\n"
   + "/acha  /api/acha  200\n/*  /index.html  200\n";
-/* The ACHA proxy first, then the catch-all. Order matters: rewrites are tried
-   in turn and the first match wins, so a catch-all written first answers /acha
-   with the site's own HTML - which is what it did, with a 200 on it, so every
-   call succeeded and every parse failed, in production only. */
+/* Every function's own alias first, then the catch-all. Order matters:
+   rewrites are tried in turn and the first match wins, so a catch-all written
+   first answers /acha with the site's own HTML - which is what it did, with
+   a 200 on it, so every call succeeded and every parse failed, in production
+   only. manage-users learned this the easy way, from the comment rather than
+   from a second outage. */
 const vercel = JSON.stringify(
   { rewrites: [
       { source: "/acha/team-season", destination: "/api/acha-team-season" },
       { source: "/acha", destination: "/api/acha" },
+      { source: "/manage-users", destination: "/api/manage-users" },
       { source: "/(.*)", destination: "/index.html" },
     ] }, null, 2) + "\n";
 
@@ -185,6 +188,9 @@ await mkdir(path.join(out, "api"), { recursive: true });
 await cp(path.join(here, "api-acha.mjs"), path.join(out, "api", "acha.mjs"));
 await cp(path.join(here, "api-acha-team-season.mjs"),
   path.join(out, "api", "acha-team-season.mjs"));
+/* Holds the service-role key at runtime, in Vercel's own server environment -
+   never in the bundle a visitor's browser downloads. */
+await cp(path.join(here, "api-manage-users.mjs"), path.join(out, "api", "manage-users.mjs"));
 
 /* The project link back where Vercel expects it. */
 if (keptLink) {

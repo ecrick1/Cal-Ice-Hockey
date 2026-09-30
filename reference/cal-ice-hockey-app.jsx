@@ -7814,7 +7814,7 @@ function GamePage({ site, gameId, onBack, backTo, onPlayer, openPost, onTickets 
                     {stars.map((st, i) => (
                       <div className="gcstar" key={i}>
                         <span className="gcstarart">
-                          <PlayerAvatar size={58} photo={st.p ? st.p.photo : null} />
+                          <PlayerAvatar size={58} photo={st.p ? st.p.photo : null} seed={st.p ? st.p.id : null} />
                           <span className="gcstarnum">{i + 1}</span>
                         </span>
                         <span className="gcstarbody">
@@ -7853,7 +7853,7 @@ function GamePage({ site, gameId, onBack, backTo, onPlayer, openPost, onTickets 
                       <div className="gcgoals">
                         {boxScorers.map(({ p, l }) => (
                           <div className="gcgoal" key={p.id}>
-                            <PlayerAvatar size={46} photo={p.photo} />
+                            <PlayerAvatar size={46} photo={p.photo} seed={p.id} />
                             <span className="gcgoalwho">
                               <span className="gcgoalname">
                                 <button className="pboxname" onClick={() => onPlayer(p.id)}>{p.name}</button>
@@ -7902,7 +7902,7 @@ function GamePage({ site, gameId, onBack, backTo, onPlayer, openPost, onTickets 
                         const mark = x.team === "us" ? org.logo : game.opponentLogo;
                         return (
                           <div className="gcgoal" key={x.id}>
-                            <PlayerAvatar size={46} photo={scorerP ? scorerP.photo : null} />
+                            <PlayerAvatar size={46} photo={scorerP ? scorerP.photo : null} seed={scorerP ? scorerP.id : null} />
                             <span className="gcgoalwho">
                               <span className="gcgoalname">
                                 {x.scorerId
@@ -7971,7 +7971,7 @@ function GamePage({ site, gameId, onBack, backTo, onPlayer, openPost, onTickets 
                           <li className={"sorow " + (mine ? "us" : "them")} key={a.id}>
                             <span className="soface">
                               {mine
-                                ? <PlayerAvatar size={44} photo={p ? p.photo : null} />
+                                ? <PlayerAvatar size={44} photo={p ? p.photo : null} seed={p ? p.id : null} />
                                 : (game.opponentLogo
                                   ? <img className="sooppmark" src={game.opponentLogo} alt="" />
                                   : <OppBadge name={themShort} size={44} />)}
@@ -10270,7 +10270,7 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
                   tab order rather than a second stop at the same place. */}
               <button className="h2hpic" onClick={() => onPlayer(x.p.id)}
                 tabIndex={-1} aria-hidden="true">
-                <PlayerAvatar size={38} photo={x.p.photo} />
+                <PlayerAvatar size={38} photo={x.p.photo} seed={x.p.id} />
               </button>
               <button className="h2hwho" onClick={() => onPlayer(x.p.id)}>
                 <span className="h2hname">
@@ -10350,7 +10350,7 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
                         reads as a person. A visiting keeper has no photo to
                         have, so their crest stands in. */}
                     {g.mine
-                      ? <PlayerAvatar size={44} photo={g.photo} />
+                      ? <PlayerAvatar size={44} photo={g.photo} seed={g.id} />
                       : (side.logo
                         ? <img className="gtmark" src={side.logo} alt="" />
                         : <OppBadge name={side.abbr} size={44} />)}
@@ -10688,7 +10688,7 @@ function GameBoxScore({ site, game, roster, schedule, usAbbr, themAbbr, onPlayer
             const num = goalNumber(schedule, p);
             return (
               <div className="qlgoal" key={p.id}>
-                <PlayerAvatar size={42} photo={scorer ? scorer.photo : null} />
+                <PlayerAvatar size={42} photo={scorer ? scorer.photo : null} seed={scorer ? scorer.id : null} />
                 <span className="qlbody">
                   <span className="qlname">
                     {scorer
@@ -10754,7 +10754,7 @@ function GameBoxScore({ site, game, roster, schedule, usAbbr, themAbbr, onPlayer
       <GoalStrip label="Scorers">
         {scorers.map(({ p, l }) => (
           <div className="qlgoal" key={p.id}>
-            <PlayerAvatar size={42} photo={p.photo} />
+            <PlayerAvatar size={42} photo={p.photo} seed={p.id} />
             <span className="qlbody">
               <span className="qlname">
                 <button className="pboxname" onClick={() => onPlayer && onPlayer(p.id)}>{p.name}</button>
@@ -11383,7 +11383,7 @@ function RosterPage({ site, onPlayer }) {
                     <article className="gamecard plaincard" key={p.id}>
                       <div className="gamemain">
                         <span style={{ position: "relative", flex: "0 0 auto" }}>
-                          <PlayerAvatar size={78} photo={p.photo} />
+                          <PlayerAvatar size={78} photo={p.photo} seed={p.id} />
                           {p.number && <span className="numbadge">{p.number}</span>}
                         </span>
                         <div className="rostname">
@@ -11415,7 +11415,7 @@ function RosterPage({ site, onPlayer }) {
                   return (
                     <article className="pcard" key={p.id} onClick={() => onPlayer(p.id)} style={{ cursor: "pointer" }}>
                       <div className="pcard-photo" style={{ position: "relative" }}>
-                        <PlayerAvatar size={300} flat photo={p.photo} />
+                        <PlayerAvatar size={300} flat photo={p.photo} seed={p.id} />
                         {p.number && <span className="numbadge numbadge-lg">{p.number}</span>}
                         <span className="pcard-name">{p.name}</span>
                       </div>
@@ -12033,7 +12033,31 @@ function Meta({ k, v }) {
   );
 }
 
-function PlayerAvatar({ size = 72, flat = false, photo }) {
+/* A handful of backgrounds distinct enough that two blank avatars in the same
+ * list read as two different people rather than the same placeholder
+ * repeated - the whole reason a roster of blank icons is hard to scan. None
+ * of them are navy or gold, so a blank avatar is never mistaken for a badge
+ * or a button.
+ *
+ * Picked by a hash of the player's id, not Math.random(): the same person
+ * needs the same color wherever they appear - a roster row, a box score, a
+ * three-stars strip - or seeing them twice would look like two people. A
+ * fresh random pick on every render would also mean a color that changes
+ * every time the page re-renders, which reads as broken rather than blank.
+ */
+const AVATAR_COLORS = [
+  "#8E7CC3", "#5B9AA0", "#C9975A", "#7A9E7E", "#B26A7A",
+  "#6E8CAE", "#9C8265", "#7B8794", "#A17FB5", "#5F9E86",
+];
+function avatarColor(seed) {
+  if (!seed) return null;
+  let h = 0;
+  const s = String(seed);
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+
+function PlayerAvatar({ size = 72, flat = false, photo, seed }) {
   if (photo) {
     return (
       <img src={photo} alt="" aria-hidden="true"
@@ -12044,12 +12068,18 @@ function PlayerAvatar({ size = 72, flat = false, photo }) {
         }} />
     );
   }
+  /* A caller with nobody to seed this from (no id in scope, an opponent
+     with no roster entry) keeps the flat neutral look this always had,
+     rather than a white icon on top of the fallback's own pale background -
+     which reads fine on a color and unreadable on var(--ice). */
+  const bg = avatarColor(seed);
+  const iconFill = bg ? "rgba(255,255,255,0.92)" : "#B9C6D2";
   return (
     <svg width={flat ? "100%" : size} height={flat ? "100%" : size} viewBox="0 0 72 72" aria-hidden="true"
       preserveAspectRatio="xMidYMax slice"
-      style={{ background: "var(--ice)", borderRadius: flat ? 0 : "50%", flex: "0 0 auto", display: "block" }}>
-      <circle cx="36" cy="27" r="13" fill="#B9C6D2" />
-      <path d="M12 72 C12 52 24 46 36 46 C48 46 60 52 60 72 Z" fill="#B9C6D2" />
+      style={{ background: bg || "var(--ice)", borderRadius: flat ? 0 : "50%", flex: "0 0 auto", display: "block" }}>
+      <circle cx="36" cy="27" r="13" fill={iconFill} />
+      <path d="M12 72 C12 52 24 46 36 46 C48 46 60 52 60 72 Z" fill={iconFill} />
     </svg>
   );
 }
@@ -12232,7 +12262,7 @@ function StatsPage({ site, onPlayer, onGame }) {
   const NameCell = ({ p }) => (
     <td>
       <button className="statname" onClick={() => onPlayer(p.id)}>
-        <PlayerAvatar size={30} photo={p.photo} />
+        <PlayerAvatar size={30} photo={p.photo} seed={p.id} />
         <span>{lastFirst(p.name)}</span>
       </button>
     </td>
@@ -12589,7 +12619,7 @@ function StatsPage({ site, onPlayer, onGame }) {
                       <p className="cleadcat">{label}</p>
                       {leaders(key).slice(0, 1).map(({ p, v }) => (
                         <button className="cleadtop" key={p.id} onClick={() => onPlayer(p.id)}>
-                          <PlayerAvatar size={56} photo={p.photo} />
+                          <PlayerAvatar size={56} photo={p.photo} seed={p.id} />
                           <span className="cleadtopwho">
                             <span className="cleadtopname">{p.name}</span>
                             <span className="cleadtopmeta">
@@ -12606,7 +12636,7 @@ function StatsPage({ site, onPlayer, onGame }) {
                           <span className="cleadrank">{i + 2}.</span>
                           <button className="statname" style={{ flex: 1 }}
                             onClick={() => onPlayer(p.id)}>
-                            <PlayerAvatar size={26} photo={p.photo} />
+                            <PlayerAvatar size={26} photo={p.photo} seed={p.id} />
                             <span>{lastFirst(p.name)}</span>
                           </button>
                           <span className="cleadval">{v}</span>
@@ -12774,7 +12804,7 @@ function PlayerPage({ site, playerId, onBack, backTo, onPlayer, onGame }) {
             </div>
 
             <div className="ppinfo">
-              <span className="ppshot"><PlayerAvatar size={148} photo={player.photo} /></span>
+              <span className="ppshot"><PlayerAvatar size={148} photo={player.photo} seed={player.id} /></span>
               <div className="ppvitals">
                 <p><b>Height:</b> {player.height || "\u2014"}</p>
                 <p><b>Weight:</b> {player.weight || "\u2014"}</p>
@@ -16161,7 +16191,7 @@ const ADMIN_NAV = [
   ["Pages", [["menubar", "Menu bar"], ["venue", "Venue page"],
     ["legal", "Footer pages"], ["form", "Interest form"]]],
   ["Inbox", [["inbox", "Interest forms"], ["alumni", "Alumni list"]]],
-  ["System", [["seasons", "Seasons"], ["import", "Import"], ["settings", "Settings"]]],
+  ["System", [["seasons", "Seasons"], ["import", "Import"], ["users", "Manage users"], ["settings", "Settings"]]],
 ];
 
 /* A built page is titled by its own name rather than by a fixed string. */
@@ -16186,6 +16216,7 @@ const ADMIN_TITLES = {
   inbox: "Recruit inbox",
   alumni: "Alumni list",
   seasons: "Seasons",
+  users: "Manage users",
   settings: "Settings",
   import: "Bulk import",
   venue: "Venue page",
@@ -16241,6 +16272,31 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
       window.removeEventListener("cal-save-ok", good);
     };
   }, []);
+  /* Whether this signed-in editor is also an admin, and who else is on the
+     list - fetched once here rather than inside the screen itself, so the
+     nav item can decide whether to exist at all before anyone has opened it.
+     `users` staying null means "haven't asked, or asked and it said no" -
+     both read the same from here, which is the point: a non-admin and a
+     visitor who hasn't loaded yet should look identical, not one of them
+     showing a screen halfway. */
+  const [users, setUsers] = useState(null);
+  const [usersErr, setUsersErr] = useState("");
+  const loadUsers = async () => {
+    if (!remoteAuth || !window.auth.user) { setUsers(null); return; }
+    try {
+      const token = await window.auth.token();
+      if (!token) { setUsers(null); return; }
+      const res = await fetch("/manage-users", { headers: { Authorization: "Bearer " + token } });
+      if (!res.ok) { setUsers(null); if (res.status !== 403) setUsersErr((await res.json().catch(() => ({}))).error || "could not load"); return; }
+      setUsersErr("");
+      setUsers(await res.json());
+    } catch (e) {
+      setUsers(null);
+      setUsersErr(String((e && e.message) || e));
+    }
+  };
+  useEffect(() => { loadUsers(); }, [authed]);
+
   const enterCode = async () => {
     const c = code.trim();
     if (!c || sending) return;
@@ -16643,7 +16699,13 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
             {ADMIN_NAV.map(([group, items]) => (
               <div className="aunavgroup" key={group}>
                 <p className="augroup">{group}</p>
-                {items.map(([k, label]) => (
+                {items
+                  /* Not hidden as a courtesy - the server refuses this to
+                     anyone but an admin regardless. Hidden so an editor who
+                     is not one never sees a door that was always going to
+                     say no. */
+                  .filter(([k]) => k !== "users" || !!users)
+                  .map(([k, label]) => (
                   <button key={k} className={"aulink " + (tab === k ? "on" : "")}
                     onClick={() => setTab(k)}>
                     <span className="audot" />
@@ -16772,6 +16834,9 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
                 alumni={alumni} setAlumni={setAlumni} />
             )}
             {tab === "seasons" && <SeasonManager site={draft} setSite={setDraft} />}
+            {tab === "users" && users && (
+              <UsersEditor data={users} onReload={loadUsers} />
+            )}
             {/* Settings and the three pages lifted out of it are one editor.
                 The tab picks the section: Settings keeps its own sub-nav, and
                 a page opened from the sidebar renders only itself. */}
@@ -26036,6 +26101,173 @@ function SponsorsEditor({ site, setDraft }) {
       <button className="btn bNavy bSm" style={{ marginTop: 18 }} onClick={add}>
         <IcPlusC size={15} /> Add sponsor
       </button>
+    </>
+  );
+}
+
+/**
+ * Who can edit the site, and who can decide that - the one screen in the
+ * console that does not write through window.storage at all.
+ *
+ * Everything else here edits a draft and only reaches the database on
+ * Publish. This can't work that way: adding somebody is either done or not,
+ * there is no draft version of "this account exists now," and a page reload
+ * before publishing would not just lose the change, it would lose the only
+ * record that it was ever asked for. So every action here is immediate and
+ * goes straight to api-manage-users.mjs, which re-checks that the person
+ * clicking is still an admin on every single call - not because this screen
+ * doubts itself, but because that is the same rule scripts/users.mjs has
+ * always applied to removal: the check runs on every write, not when
+ * somebody signed in.
+ */
+function UsersEditor({ data, onReload }) {
+  const ask = useAsk();
+  const [busy, setBusy] = useState("");
+  const [err, setErr] = useState("");
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState("editor");
+
+  const call = async (body) => {
+    const token = await window.auth.token();
+    if (!token) throw new Error("your session has expired — reload and sign in again");
+    const res = await fetch("/manage-users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const body2 = await res.json().catch(() => ({}));
+      throw new Error(body2.error || "that didn't work");
+    }
+  };
+
+  const run = async (key, body) => {
+    setErr("");
+    setBusy(key);
+    try {
+      await call(body);
+      await onReload();
+    } catch (e) {
+      setErr(String((e && e.message) || e));
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const invite = async () => {
+    const addr = email.trim().toLowerCase();
+    if (!addr) return;
+    await run("invite", { action: "add", email: addr, role });
+    if (!err) { setEmail(""); setRole("editor"); }
+  };
+
+  const setEditorRole = async (e, next) => {
+    if (next === "admin") {
+      const ok = await ask({
+        title: "Make " + e.email + " an admin?",
+        message: "They will be able to add, remove, and promote or demote other editors — "
+          + "not just save content the way editors already can.",
+        confirmLabel: "Make admin",
+      });
+      if (!ok) return;
+    }
+    run(e.email + ":role", { action: "setRole", email: e.email, role: next });
+  };
+
+  const remove = async (e) => {
+    const ok = await ask({
+      title: "Remove " + e.email + "?",
+      message: e.role === "admin"
+        ? "They will lose admin access and the ability to save changes, effective immediately."
+        : "They will no longer be able to save changes, effective immediately.",
+      detail: "Their account stays — this only takes them off the editors list. "
+        + "Adding them back later needs a fresh invite, not a restore.",
+      confirmLabel: "Remove",
+      danger: true,
+    });
+    if (!ok) return;
+    run(e.email + ":remove", { action: "remove", email: e.email });
+  };
+
+  return (
+    <>
+      <p className="bsm" style={{ marginBottom: 18 }}>
+        Editors can save changes to the site. Admins can also do this — add, remove, or
+        change who else can. Signed in as <strong>{data.you}</strong>.
+      </p>
+
+      {err && (
+        <p className="bsm" style={{ color: "var(--au-danger)", marginBottom: 14 }}>{err}</p>
+      )}
+
+      {/* A row per editor rather than a table. table.stats and .twrap are the
+          public site's light styling with no dark-console override anywhere
+          in this file - unlike .card, .field, input and select, which the
+          console already recolors for its own background. Built from the
+          same pieces SponsorsEditor uses, for the same reason: those already
+          render correctly in here, and a table would have needed its own
+          override written and checked from nothing. */}
+      <div style={{ display: "grid", gap: 12, marginBottom: 22 }}>
+        {data.editors.map((e) => {
+          const isSelf = e.email === data.you;
+          return (
+            <article className="card" key={e.email}>
+              <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+                  <p style={{ margin: 0, fontWeight: 700, color: "var(--au-text)" }}>
+                    {e.email}{isSelf && <span style={{ color: "var(--au-faint)", fontWeight: 400 }}> (you)</span>}
+                  </p>
+                  <p className="bsm" style={{ margin: "4px 0 0", color: "var(--au-faint)" }}>
+                    {e.hasAccount
+                      ? <span>ready</span>
+                      : <span style={{ color: "var(--au-danger)" }}>no account yet</span>}
+                    {" · last in "}{e.lastSignIn ? e.lastSignIn.slice(0, 10) : "—"}
+                  </p>
+                </div>
+                {isSelf ? (
+                  <span className="bsm" style={{ color: "var(--au-faint)" }}>
+                    {e.role === "admin" ? "Admin" : "Editor"}
+                  </span>
+                ) : (
+                  <button className="btn bGhost bSm"
+                    disabled={busy === e.email + ":role"}
+                    onClick={() => setEditorRole(e, e.role === "admin" ? "editor" : "admin")}>
+                    {e.role === "admin" ? "Admin — make editor" : "Editor — make admin"}
+                  </button>
+                )}
+                {!isSelf && (
+                  <button className="btn bDanger bSm" disabled={busy === e.email + ":remove"}
+                    onClick={() => remove(e)}>Remove</button>
+                )}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+
+      <div className="card" style={{ maxWidth: 480 }}>
+        <p className="h6" style={{ marginBottom: 12 }}>Invite someone</p>
+        <div className="field">
+          <label className="h6">Email</label>
+          <input type="email" value={email} placeholder="name@berkeley.edu"
+            onChange={(e2) => setEmail(e2.target.value)} />
+        </div>
+        <div className="field" style={{ marginTop: 12 }}>
+          <label className="h6">Role</label>
+          <select value={role} onChange={(e2) => setRole(e2.target.value)}>
+            <option value="editor">Editor — can save changes</option>
+            <option value="admin">Admin — can also manage other editors</option>
+          </select>
+        </div>
+        <button className="btn bNavy" style={{ marginTop: 14, width: "100%" }}
+          disabled={busy === "invite" || !email.trim()} onClick={invite}>
+          {busy === "invite" ? "Inviting…" : "Invite"}
+        </button>
+        <p className="bsm" style={{ marginTop: 10, color: "var(--au-faint)" }}>
+          Creates their account and puts them on the editors list in one step. They sign
+          in the same way anyone does — the console's own sign-in screen sends them a code.
+        </p>
+      </div>
     </>
   );
 }

@@ -230,6 +230,24 @@ window.auth = {
     if (error) throw new Error(error.message);
   },
   async signOut() { if (sb) await sb.auth.signOut(); },
+
+  /**
+   * The current session's own token, for the one screen that has to prove
+   * who is asking rather than just who is signed in.
+   *
+   * Everything else here writes through `window.storage`, which the RLS
+   * policies gate by row - anyone signed in can reach it, and "signed in"
+   * has always been the whole bar. Deciding who else gets to sign in is a
+   * question the browser cannot be trusted to answer honestly on its own,
+   * so it is asked of a server instead, and the server needs this token to
+   * know who is actually asking - a user who was never on the editors list
+   * calling the console's own code cannot claim to be one by skipping this.
+   */
+  async token() {
+    if (!sb) return null;
+    const { data } = await sb.auth.getSession();
+    return (data.session && data.session.access_token) || null;
+  },
   onChange(fn) {
     if (!sb) return () => {};
     const { data } = sb.auth.onAuthStateChange((_e, session) => {
