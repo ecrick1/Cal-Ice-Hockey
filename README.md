@@ -1,95 +1,32 @@
-# Cal Ice Hockey — Build Kickoff
+# Cal Ice Hockey
 
-Two sites, one Supabase database:
-- apps/web    -> public site (read-only, fast, ISR)
-- apps/admin  -> staff dashboard (magic-link auth; news, roster, stats, schedule, seasons, recruit inbox, settings)
+The current website and admin console are built from
+`reference/cal-ice-hockey-app.jsx` through `prototype/entry.jsx`.
+The Next.js projects under `apps/` are separate scaffolding, not the deployed site.
 
-Tickets: external third-party link (settings.tickets_url) — no tickets page is built.
+## Developer setup
 
-## What's in this folder
-- CLAUDE.md                          -> project brief for Claude Code (start here)
-- supabase/migrations/0001_init.sql  -> schema + RLS policies + season_records view
-- reference/cal-ice-hockey-app.jsx   -> working prototype = design + behavior spec
-- assets/logo.svg                    -> Cal script logo
+Start with **[Supabase and local setup](supabase/README.md)**. It covers a new
+database, migrations, your first admin, password login, email delivery, and
+local preview. Each developer should use their own Supabase project.
 
-## Build order (each phase ships)
-1. pnpm monorepo scaffold + `supabase db push` + seed script from prototype SEED_SITE
-2. Public site pages
-3. Admin app (auth + screens)
-4. Recruit form -> insert + Resend email notification
-5. Optional later: EliteProspects API nightly sync (team 10366) — request a key at
-   developer.eliteprospects.com; current season tier is free. Sync owns EP fields
-   (numbers/heights/results); admins own year/bios/photos/stats.
+- [Deployment instructions](DEPLOY.md)
+- [Database migrations](supabase/migrations)
+- [Environment variable template](.env.example)
 
-## First Claude Code prompt
-"Read CLAUDE.md and reference/cal-ice-hockey-app.jsx. Execute Phase 1: scaffold the
-monorepo, apply the migration, and write scripts/seed.ts that loads SEED_SITE from
-the reference file into Supabase. Then stop for review."
+Use Node.js 22+ and the pnpm version declared in `package.json`.
 
----
-
-## Getting started (after Phase 1 scaffold)
-
-Prerequisites: Node 20+ and pnpm (`npm i -g pnpm`).
-
-### 1. Create the Supabase project
-
-Do this yourself at [supabase.com](https://supabase.com) — sign in, **New project**,
-pick the `us-west-1` region (closest to Berkeley), and save the database password.
-
-Then from **Project Settings -> API** copy three values:
-
-| Supabase field       | Goes in `.env.local` as          |
-| -------------------- | -------------------------------- |
-| Project URL          | `NEXT_PUBLIC_SUPABASE_URL`       |
-| `anon` `public` key  | `NEXT_PUBLIC_SUPABASE_ANON_KEY`  |
-| `service_role` key   | `SUPABASE_SERVICE_ROLE_KEY`      |
-
-```
-cp .env.example .env.local
-```
-
-The `service_role` key bypasses RLS. It belongs only in `.env.local` (git-ignored)
-and in Vercel's server-side env vars — never in a client component.
-
-### 2. Apply the schema
-
-Either paste `supabase/migrations/0001_init.sql` into the Supabase SQL editor, or:
-
-```
-pnpm dlx supabase link --project-ref YOUR-PROJECT-REF
-pnpm db:push
-```
-
-Then create the Storage bucket `media` (public read) under **Storage -> New bucket**.
-
-### 3. Seed and run
-
-```
+```sh
 pnpm install
-pnpm seed
-pnpm dev:web     # http://localhost:3000
-pnpm dev:admin   # http://localhost:3001
+cp .env.example .env.local
+# Fill in your own project settings and complete supabase/README.md.
+pnpm run build:site
 ```
 
-`pnpm seed` is idempotent. `pnpm seed -- --reset` wipes seasons and news first.
+The production build is `dist/`. Do not deploy the repository root or use the
+monorepo `build` script for this website. Never commit `.env.local`, database
+passwords, private API keys, auth exports, or private recruit/alumni records.
 
-## Repo layout
-
-```
-apps/web              public site (Next 15 App Router, ISR 60s)
-apps/admin            staff dashboard (dynamic, magic-link auth in Phase 3)
-packages/shared       row types, record computation, Supabase client factories, theme.css
-scripts/seed.ts       loads the prototype's SEED_SITE into Supabase
-supabase/migrations   schema + RLS
-reference/            the prototype — design and behavior spec
-```
-
-### Which Supabase client to use
-
-| Import                          | Key          | Use for                                     |
-| ------------------------------- | ------------ | ------------------------------------------- |
-| `@cal/shared/supabase/public`   | anon         | all `apps/web` reads (no cookies -> ISR works) |
-| `@cal/shared/supabase/server`   | anon + session | admin server components and actions       |
-| `@cal/shared/supabase/browser`  | anon + session | admin client components                   |
-| `@cal/shared/supabase/admin`    | service_role | node scripts only — bypasses RLS            |
+Source code and a sanitized public-content snapshot are included. Hosted user
+accounts, passwords, live database updates, and dashboard configuration are not
+copied by cloning the repository.

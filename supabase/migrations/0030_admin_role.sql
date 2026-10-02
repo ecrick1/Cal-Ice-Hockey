@@ -14,11 +14,7 @@ alter table public.site_admins
   add column if not exists role text not null default 'editor'
     check (role in ('admin', 'editor'));
 
--- The two addresses already on the list, promoted by hand rather than left
--- at the new default: both have been editing the site already, which is a
--- higher bar than the default assumes.
-update public.site_admins set role = 'admin'
-  where lower(email) in ('ecrick@berkeley.edu', 'ethanjcrick@gmail.com');
+-- Assign admins explicitly during setup; migrations do not grant named accounts access.
 
 comment on column public.site_admins.role is
   'admin: can also add, remove, and promote/demote other editors. '

@@ -51,9 +51,4 @@ create policy "history readable by editors"
   using (exists (select 1 from public.site_admins a
                  where lower(a.email) = lower(auth.jwt() ->> 'email')));
 
--- The account actually used to sign in, added alongside the one that was
--- listed. Both belong to the same person; the list had the address on file
--- rather than the address that reached the console.
-insert into public.site_admins (email, note)
-values ('ethanjcrick@gmail.com', 'signed in 2026-09-03')
-on conflict (email) do nothing;
+-- No identities are seeded. See supabase/README.md to choose the first admin.

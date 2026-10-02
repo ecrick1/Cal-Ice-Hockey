@@ -6,6 +6,7 @@
  * before there is anything to read, and a recovery, when what is in the
  * database is worse than what is in the repo.
  *
+ *   node scripts/site-push.mjs --if-empty          # initialize a NEW project only
  *   node scripts/site-push.mjs                     # upload the newest backup
  *   node scripts/site-push.mjs --admin a@b.edu     # ...and allow that address
  *   node scripts/site-push.mjs --admin a@b.edu --only-admin
@@ -33,6 +34,11 @@ if (!url || !secret) {
 const args = process.argv.slice(2);
 const adminAt = args.indexOf('--admin');
 const admin = adminAt === -1 ? null : args[adminAt + 1];
+const ifEmpty = args.includes('--if-empty');
+if (ifEmpty && admin) {
+  console.error('--if-empty seeds content only; create the first admin separately.');
+  process.exit(1);
+}
 const onlyAdmin = args.includes('--only-admin');
 
 const api = (path, init = {}) =>
@@ -82,6 +88,10 @@ if (!onlyAdmin) {
   const rows = await cur.json();
   const there = rows.length ? Number(rows[0].rev || 0) : null;
   const here = Number(site.rev || 0);
+  if (ifEmpty && rows.length) {
+    console.error('Site already exists; --if-empty will not overwrite it.');
+    process.exit(1);
+  }
   if (there !== null && there > here) {
     console.error(
       'the database is at rev ' + there + ' and this file is rev ' + here + '. '
@@ -90,9 +100,9 @@ if (!onlyAdmin) {
     process.exit(1);
   }
 
-  const res = await api('/rest/v1/site_state?on_conflict=key', {
+  const res = await api(ifEmpty ? '/rest/v1/site_state' : '/rest/v1/site_state?on_conflict=key', {
     method: 'POST',
-    headers: { Prefer: 'resolution=merge-duplicates' },
+    headers: ifEmpty ? {} : { Prefer: 'resolution=merge-duplicates' },
     body: JSON.stringify([{
       key: 'cal-hockey-site', value: text, rev: here, updated_at: new Date().toISOString(),
     }]),
