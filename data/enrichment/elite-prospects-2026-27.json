@@ -1,0 +1,246 @@
+{
+  "season": "2026-27",
+  "checkedAt": "2026-09-29",
+  "players": [
+    {
+      "id": "5dsh7c8",
+      "name": "Aidan Comeau",
+      "weight": "163 lbs",
+      "birthday": "May 23, 2004",
+      "source": "https://www.eliteprospects.com/player/586191/aidan-comeau"
+    },
+    {
+      "id": "1ltyqbz",
+      "name": "Enzo Goebel",
+      "weight": "174 lbs",
+      "birthday": "October 10, 2004",
+      "source": "https://www.eliteprospects.com/player/763304/enzo-goebel"
+    },
+    {
+      "id": "i8fgi5f",
+      "name": "William Hagan",
+      "weight": "165 lbs",
+      "birthday": "2007",
+      "source": "https://www.eliteprospects.com/player/983838/william-hagan"
+    },
+    {
+      "id": "h5off7z",
+      "name": "Simon Mantoani",
+      "weight": "185 lbs",
+      "birthday": "",
+      "source": "https://www.eliteprospects.com/player/888761/simon-mantoani"
+    },
+    {
+      "id": "3q70nfe",
+      "name": "Ellis O'Dowd",
+      "weight": "165 lbs",
+      "birthday": "September 6, 2003",
+      "source": "https://www.eliteprospects.com/player/711238/ellis-o-dowd"
+    },
+    {
+      "id": "eu3ws8u",
+      "name": "Trent Teruya",
+      "weight": "179 lbs",
+      "birthday": "July 22, 2004",
+      "source": "https://www.eliteprospects.com/player/723655/trent-teruya"
+    },
+    {
+      "id": "piejd5y",
+      "name": "Bryan Bartolo",
+      "weight": "183 lbs",
+      "birthday": "January 30, 2005",
+      "source": "https://www.eliteprospects.com/player/763435/bryan-bartolo"
+    },
+    {
+      "id": "h7ivlnj",
+      "name": "Liam Collins",
+      "weight": "176 lbs",
+      "birthday": "July 2007",
+      "source": "https://www.eliteprospects.com/player/845621/liam-collins"
+    },
+    {
+      "id": "6tm4sqe",
+      "name": "Henry Conlin",
+      "weight": "201 lbs",
+      "birthday": "2008",
+      "source": "https://www.eliteprospects.com/player/1071946/henry-conlin"
+    },
+    {
+      "id": "t05ujjq",
+      "name": "Colten Fazio",
+      "weight": "205 lbs",
+      "birthday": "April 13, 2007",
+      "source": "https://www.eliteprospects.com/player/755343/colten-fazio"
+    },
+    {
+      "id": "8as9yo6",
+      "name": "Lucas Fung",
+      "weight": "159 lbs",
+      "birthday": "June 23, 2006",
+      "source": "https://www.eliteprospects.com/player/882234/lucas-fung"
+    },
+    {
+      "id": "mcmsdas",
+      "name": "Connor Kanas",
+      "weight": "154 lbs",
+      "birthday": "October 17, 2007",
+      "source": "https://www.eliteprospects.com/player/846028/connor-kanas"
+    },
+    {
+      "id": "hhaqszk",
+      "name": "Ryan Lee",
+      "weight": "170 lbs",
+      "birthday": "December 18, 2004",
+      "source": "https://www.eliteprospects.com/player/845503/ryan-lee"
+    },
+    {
+      "id": "tilkd8f",
+      "name": "Kodai Mizuno",
+      "weight": "161 lbs",
+      "birthday": "May 8, 2003",
+      "source": "https://www.eliteprospects.com/player/695958/kodai-mizuno"
+    },
+    {
+      "id": "1p6gs6n",
+      "name": "Arya Nahavandi",
+      "weight": "154 lbs",
+      "birthday": "September 4, 2006",
+      "source": "https://www.eliteprospects.com/player/763711/arya-nahavandi"
+    },
+    {
+      "id": "ie1qkt5",
+      "name": "Mark Rejna",
+      "weight": "176 lbs",
+      "birthday": "October 10, 2003",
+      "source": "https://www.eliteprospects.com/player/444313/mark-rejna"
+    },
+    {
+      "id": "q4fqlw7",
+      "name": "Kayden Roloff",
+      "weight": "170 lbs",
+      "birthday": "2005",
+      "source": "https://www.eliteprospects.com/player/763749/kayden-roloff"
+    },
+    {
+      "id": "k495m59",
+      "name": "Dominik Sedlak-Braude",
+      "weight": "176 lbs",
+      "birthday": "March 16, 2007",
+      "source": "https://www.eliteprospects.com/player/786602/dominik-sedlak-braude"
+    },
+    {
+      "id": "acha-73-player-17403",
+      "name": "Roy Chebaclo",
+      "weight": "205 lbs",
+      "birthday": "October 29, 2004",
+      "source": "https://www.eliteprospects.com/player/707598/roy-chebaclo"
+    },
+    {
+      "id": "acha-73-player-22010",
+      "name": "Brendan Baker",
+      "weight": "174 lbs",
+      "birthday": "October 1, 2005",
+      "source": "https://www.eliteprospects.com/player/1036045/brendan-baker"
+    },
+    {
+      "id": "acha-73-player-43582",
+      "name": "Tsan Lam Wang",
+      "weight": "165 lbs",
+      "birthday": "April 29, 2008",
+      "source": "https://www.eliteprospects.com/player/1080745/tsan-lam-wang",
+      "rosterDetails": {
+        "height": "5′11″",
+        "shoots": "L",
+        "priorTeam": "Hong Kong U20"
+      },
+      "rosterDetailsSource": "https://www.eliteprospects.com/player/1080745/tsan-lam-wang"
+    },
+    {
+      "id": "acha-73-player-43578",
+      "name": "Aidan Myers",
+      "weight": "174 lbs",
+      "birthday": "August 25, 2006",
+      "source": "https://www.eliteprospects.com/player/763488/aidan-myers",
+      "rosterDetails": {
+        "height": "5′11″",
+        "shoots": "R",
+        "priorTeam": "Connecticut Nor’Easter (EHL)"
+      },
+      "rosterDetailsSource": "https://www.eliteprospects.com/player/763488/aidan-myers"
+    },
+    {
+      "id": "acha-73-player-31987",
+      "name": "Eamon Navin",
+      "weight": "165 lbs",
+      "birthday": "September 3, 2005",
+      "source": "https://www.eliteprospects.com/player/928227/eamon-navin",
+      "rosterDetails": {
+        "height": "6′0″",
+        "shoots": "L",
+        "priorTeam": "UC Davis (ACHA III)"
+      },
+      "rosterDetailsSource": "https://www.eliteprospects.com/player/928227/eamon-navin"
+    },
+    {
+      "id": "acha-73-player-43581",
+      "name": "Anthony Sergeyev",
+      "weight": "176 lbs",
+      "birthday": "January 5, 2007",
+      "source": "https://www.eliteprospects.com/player/936424/anthony-sergeyev",
+      "rosterDetails": {
+        "height": "5′8″",
+        "shoots": "L",
+        "priorTeam": "Hawkesbury Hawks (CCHL)"
+      },
+      "rosterDetailsSource": "https://www.eliteprospects.com/player/936424/anthony-sergeyev"
+    },
+    {
+      "id": "acha-73-player-43583",
+      "name": "Eddie Yu",
+      "weight": "",
+      "birthday": "2008",
+      "source": "https://www.eliteprospects.com/player/1003801/eddie-yu",
+      "rosterDetails": {
+        "priorTeam": "Hinsdale Central High (USHS-IL)",
+        "highSchool": "Hinsdale Central High School"
+      },
+      "rosterDetailsSource": "https://www.eliteprospects.com/player/1003801/eddie-yu"
+    },
+    {
+      "id": "acha-73-player-43576",
+      "name": "Sean Lohmeier",
+      "weight": "",
+      "birthday": "2007",
+      "source": "https://www.eliteprospects.com/player/846051/sean-lohmeier",
+      "rosterDetails": {
+        "priorTeam": "Capistrano United Coyotes 2 (USHS-CA)"
+      },
+      "rosterDetailsSource": "https://www.eliteprospects.com/player/846051/sean-lohmeier"
+    },
+    {
+      "id": "acha-73-player-43577",
+      "name": "Kaiden Montero",
+      "weight": "",
+      "birthday": "2007",
+      "source": "https://www.eliteprospects.com/team/22548/lutheran-high-2/2022-2023",
+      "rosterDetails": {
+        "priorTeam": "Los Alamitos High (USHS-CA)",
+        "highSchool": "Los Alamitos High School"
+      },
+      "rosterDetailsSource": "https://www.eliteprospects.com/team/3015/los-alamitos-high/stats/all-time-season?sort=G"
+    },
+    {
+      "id": "acha-73-player-43585",
+      "name": "Cole Nelson",
+      "weight": "143 lbs",
+      "birthday": "March 27, 2008",
+      "source": "https://www.eliteprospects.com/player/1003888/cole-nelson",
+      "rosterDetails": {
+        "height": "5′9″",
+        "shoots": "L",
+        "priorTeam": "Chicago North (USHS-IL)"
+      },
+      "rosterDetailsSource": "https://www.eliteprospects.com/player/1003888/cole-nelson"
+    }
+  ]
+}

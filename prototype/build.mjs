@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
 const watch = process.argv.includes('--watch');
+const production = process.argv.includes('--production');
 
 /**
  * The two public Supabase values, baked into the bundle.
@@ -32,6 +33,9 @@ const env = (() => {
 })();
 const SUPABASE_URL = env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+if (production && (!SUPABASE_URL || !SUPABASE_ANON_KEY)) {
+  throw new Error('Production build requires NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local. Refusing to package an offline site for deployment.');
+}
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   console.warn('no Supabase settings found — building a localStorage-only copy');
 }
@@ -48,7 +52,7 @@ const options = {
   outfile: path.join(dir, 'app.js'),
   logLevel: 'info',
   define: {
-    'process.env.NODE_ENV': '"development"',
+    'process.env.NODE_ENV': JSON.stringify(production ? 'production' : 'development'),
     'process.env.SUPABASE_URL': JSON.stringify(SUPABASE_URL),
     'process.env.SUPABASE_ANON_KEY': JSON.stringify(SUPABASE_ANON_KEY),
   },

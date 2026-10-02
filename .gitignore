@@ -11,6 +11,8 @@ dist/
 !.env.example
 
 .DS_Store
+.vercel/
+.vercel-link-tmp/
 Thumbs.db
 
 supabase/.branches/
@@ -26,3 +28,5 @@ data/recruits.json
 data/alumni.json
 data/backup-*/recruits.json
 data/backup-*/alumni.json
+
+/work/

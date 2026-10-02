@@ -179,13 +179,29 @@ window.storage = {
 /**
  * Sign-in, for the console.
  *
- * A magic link rather than a password: the console's passcode was compared in
- * the browser against a constant in the bundle, which was fine while the data
- * was your own and is not fine now that a write reaches everybody.
+ * Both passwords and email links are verified by Supabase. Neither grants
+ * access through the offline console's local passcode.
  */
 window.auth = {
   available: !!sb,
   user: null,
+  recovery: new URLSearchParams(window.location.hash.slice(1)).get('type') === 'recovery',
+  async setPassword(password) {
+    if (!sb) throw new Error('No database configured.');
+    const { error } = await sb.auth.updateUser({ password });
+    if (error) throw new Error(error.message);
+    window.auth.recovery = false;
+  },
+  async signInWithPassword(email, password) {
+    if (!sb) throw new Error('No database configured.');
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) {
+      if (error.code === 'invalid_credentials') {
+        throw new Error('Email or password is incorrect. If you have only used email links, you need to set a password for this account first.');
+      }
+      throw new Error(error.message);
+    }
+  },
   async signIn(email) {
     if (!sb) throw new Error('No database configured.');
     const { error } = await sb.auth.signInWithOtp({
@@ -206,6 +222,12 @@ window.auth = {
       if (/signups? not allowed|not allowed for otp/i.test(error.message)) {
         throw new Error('That address has not been given access. Ask someone who edits '
           + 'the site to add it.');
+      }
+      if (/error sending.*email/i.test(error.message)) {
+        throw new Error('The sign-in email could not be sent. Please use your password, or contact the site administrator to repair email delivery.');
+      }
+      if (error.status === 429 || /rate.limit|too many requests/i.test(error.message)) {
+        throw new Error('Too many email requests. Please wait a few minutes before trying again, or sign in with your password.');
       }
       throw new Error(error.message);
     }
@@ -251,6 +273,7 @@ window.auth = {
   onChange(fn) {
     if (!sb) return () => {};
     const { data } = sb.auth.onAuthStateChange((_e, session) => {
+      if (_e === 'PASSWORD_RECOVERY') window.auth.recovery = true;
       window.auth.user = (session && session.user) || null;
       signedIn = !!window.auth.user;
       fn(window.auth.user);

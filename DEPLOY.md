@@ -1,104 +1,101 @@
-# Publishing the site
+# Deploying Cal Ice Hockey from this workspace
 
-The prototype is a static folder. `dist/` is built from the source plus the
-newest `data/backup-*/site.json`, and hosted at a domain root.
+The current website is `reference/cal-ice-hockey-app.jsx`, bundled by
+`prototype/build.mjs` and packaged by `prototype/dist.mjs`. The Next.js apps
+in `apps/` are separate scaffolding and are not the current production site.
 
-## Why your data is safe
+## Existing deployment
 
-`localStorage` is per-origin. Your editing happens at `localhost:3002`; the
-live site is a different origin with a completely separate store. **A deploy
-cannot reach the browser you work in.** Nothing below can overwrite your data.
+- Vercel team: `cal-ice-hockey`
+- Vercel project: `cal-ice-hockey`
+- Project ID: `prj_Y3JbN8231ri1wK7wBpR53YippxBh`
+- Public URL: https://cal-ice-hockey.vercel.app
+- Supabase project: `mdwbudjoerjczemaxcjo`
+- Source repository: https://github.com/ecrick1/Cal-Ice-Hockey
 
-The risks are the other direction — shipping the wrong data, or losing work
-done in the wrong place. See [What actually loses data](#what-actually-loses-data).
+These identities were checked in the signed-in dashboards on September 29,
+2026. Vercel shows no Git integration. The imported ZIP does not include Git
+history; this workspace has a new, empty Git repository. Do not force-push it
+over the existing remote repository.
 
-## Deploying
+## Connection settings
 
-**1. Export the browser's copy — only if the browser is ahead.** The repo is
-only as fresh as the last export, and the browser is the only place admin
-edits exist until you do this. But an export is not automatically an
-improvement: a browser that has not reloaded lately is *behind* the repo, and
-writing it to today's folder would sort newest and undo the newer work. The
-build now refuses that rather than shipping it, but the check is easier.
+The browser bundle needs only these public values in a root `.env.local`:
 
-Read the rev in the console at `localhost:3002`:
+```
+NEXT_PUBLIC_SUPABASE_URL=https://mdwbudjoerjczemaxcjo.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<existing public anon key>
+```
 
-    JSON.parse(localStorage.getItem('cal-hockey-site')).rev
+The file is ignored by Git. The private `SUPABASE_SERVICE_ROLE_KEY` belongs
+in Vercel's server environment for the manage-users API; it must never be
+embedded in the browser bundle. Confirm the existing server environment
+contains all three variables before deploying.
 
-Against the newest folder in `data/`. Browser higher, export. Equal or lower,
-reload the page and skip to step 2 — there is nothing in the browser that the
-repo does not already have.
+With Supabase configured, authenticated admin content edits can affect the
+live database immediately, even from localhost. Code edits still require a
+Vercel deployment. Without Supabase settings the preview uses localStorage.
 
-    node prototype/_recv.mjs data/backup-$(date +%F)/site.json
+## Preparation status
 
-Then in the console at `localhost:3002`:
+- Public Supabase key is configured in the git-ignored .env.local.
+- A read-only Supabase request verified and saved revision 650 (17 seasons, 387 games, 67 articles) in data/backup-2026-09-29/site.json.
+- Production bundle and static packaging passed with revision 650.
+- Vercel CLI 61.0.0 is authenticated; dist/ is linked to the existing project.
+- Production environment variable names were verified, including the server-side service-role key; secret values were not retrieved for this check.
+- Connected preview is running at http://localhost:3003.
+- No deployment or database write has been performed during preparation.
+- Hosted preview and serverless-function checks remain part of release verification.
 
-    fetch('http://localhost:3999/', { method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: localStorage.getItem('cal-hockey-site') })
+## Build and deploy
 
-**2. Build.** Takes the newest `data/backup-*` by folder name, so a fresh
-export is picked up with no further ceremony.
+From the project root, with Node and pnpm on PATH:
 
-    node prototype/build.mjs && node prototype/dist.mjs
+```
+pnpm run build:site
+```
 
-It refuses to build rather than ship something harmful — see
-[The guards](#the-guards). Check the printed rev matches your browser's.
+This creates `dist/` with the browser bundle, public assets, public site data,
+route configuration, and the three serverless functions. Only deploy `dist/`.
+Do not deploy the entire source folder or use the monorepo's `build` command.
 
-**3. Deploy a preview.** First run asks setup questions; accept the defaults.
+Authenticate the Vercel CLI, then link the existing project from `dist/`:
 
-    npx vercel login
-    npx vercel deploy dist
+```
+cd dist
+vercel login
+vercel link --project cal-ice-hockey --scope cal-ice-hockey
+vercel deploy
+```
 
-**4. Check the preview before promoting.** If `site.json` fails to load, a
-visitor falls through to the built-in seed and sees fictional players.
+Review the preview's homepage, schedule, roster, news, direct route reloads,
+Supabase reads, and server functions. Confirm `/version.json` matches the
+verified public data snapshot. Test admin writes only when explicitly intended
+to affect live data. Preview deployments also use production data if configured
+with the production Supabase project.
 
-    curl -s https://YOUR-PREVIEW.vercel.app/version.json
+When the user asks to publish:
 
-Must print the rev from step 2. Open the URL and confirm the season list is
-the real one. If either is wrong, stop.
+```
+vercel deploy --prod
+```
 
-**5. Promote.**
+Verify the production domain serves the expected bundle and data revision.
+The packaging script preserves `dist/.vercel/` across rebuilds. Vercel's
+existing deployment history provides the rollback path for code; a code
+rollback does not undo database edits.
 
-    npx vercel deploy dist --prod
+## Password setup and temporary mail configuration
 
-## The guards
+Supabase custom SMTP was disabled with the owner's approval on 2026-09-29.
+Resend had rejected mail because calicehockey.com was not verified. Supabase's
+built-in sender is now active, limited to project team addresses and two emails
+per hour; switching reset custom email templates. Configure a verified sender
+and restore appropriate templates when the domain is available.
 
-`dist.mjs` refuses to package a folder that would damage a visitor's data.
-Both run before `dist/` is cleared, so a refused build leaves the last good
-one in place.
-
-- **`v` vs `SEED_VERSION`.** The page runs a one-time migration when stored
-  data is behind the source, and that migration *replaces every season with
-  the sample data*. It is meant for a stale copy in someone's browser. Ship
-  data whose `v` is behind and it aims at the club's real seasons instead:
-  every returning visitor is handed fictional players and saves them over the
-  real ones. The number is read from the source, so the two cannot drift.
-
-- **A missing rev.** Zero means every returning visitor is already ahead, no
-  update ever reaches anyone, and the site looks frozen with no clue why.
-
-## What actually loses data
-
-- **Editing on the live site.** Those edits live only in that browser, for
-  that domain. The next deploy ships a higher rev and the load path replaces
-  them wholesale. Do all admin work at `localhost:3002`. The admin screens are
-  in the deployed bundle and reachable — they just edit a throwaway copy.
-
-- **Shipping a stale backup.** `dist.mjs` takes the newest folder by name,
-  because the date is the one thing a person controls when exporting. But the
-  date is a claim and the rev is the fact, so it also compares them: if the
-  newest folder holds a lower rev than another, it says so and stops rather
-  than quietly undoing the difference. Exporting a browser that had not
-  reloaded is the way this happens.
-
-- **Not exporting before the tab closes.** The browser copy is the only one
-  until step 1 runs. This has cost work before.
-
-## Rollback
-
-There is no git remote, so Vercel has no deploy history to roll back through.
-To undo a bad publish, rebuild from a known-good `data/backup-*` and deploy
-again. Pushing this repo to GitHub and connecting it to Vercel would give
-one-click rollback and a deploy on every commit — worth doing before the
-domain is public.
+The live app handles PASSWORD_RECOVERY sessions by opening the password setup
+form in the admin view. Recovery emails should explicitly redirect to
+https://cal-ice-hockey.vercel.app/admin, which is within the existing allowlist.
+The dashboard's default Site URL still references an older Vercel alias.
+A recovery email was requested for the owner's confirmed Gmail account;
+password entry and saving are performed by the owner, not the assistant.

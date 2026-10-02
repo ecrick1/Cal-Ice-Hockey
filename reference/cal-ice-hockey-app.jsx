@@ -1,3 +1,5 @@
+import { mergeAchaGames } from "../prototype/acha-sync.mjs";
+import { addPlayerDetails } from "../prototype/player-details.mjs";
 import { useState, useEffect, useMemo, useRef, useCallback, createContext, useContext } from "react";
 
 /* ============================================================
@@ -2060,7 +2062,8 @@ table.stats.sortable.gcbt .gcbthead th:nth-child(2) { text-align: left; }
 /* ---- Home: next home game ----
    Its own card in the page, not a strip welded to the navy header — it is
    content that changes weekly, and it should read that way. */
-.hnext { display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+.hnextcontainer { container-type: inline-size; container-name: next-game; }
+.hnext { display: flex; align-items: center; gap: 18px; flex-wrap: nowrap;
   background: #fff; border: 1px solid var(--border); border-left: 4px solid var(--gold);
   border-radius: 12px; padding: 16px 20px; }
 .hnextteams { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
@@ -2076,7 +2079,7 @@ table.stats.sortable.gcbt .gcbthead th:nth-child(2) { text-align: left; }
 .hnext.live { border-left-color: #E4002B; }
 .hnext.live .hnextlabel { color: #E4002B; }
 .hnext.final .hnextlabel { color: var(--muted); }
-.hnextinfo { display: grid; gap: 2px; min-width: 0; }
+.hnextinfo { display: grid; gap: 2px; min-width: 0; flex: 1 1 auto; }
 /* Sentence case in the body face. The condensed display face earns its keep
    in tracked caps; set as words it just reads narrow, and the two lines under
    it are Inter already. */
@@ -2084,7 +2087,7 @@ table.stats.sortable.gcbt .gcbthead th:nth-child(2) { text-align: left; }
   letter-spacing: 0; color: var(--blue); }
 .hnextopp { font-weight: 800; font-size: 17px; letter-spacing: -0.015em; color: var(--ink); }
 .hnextwhen { font-size: 13px; color: var(--muted); font-weight: 600; }
-.hnextactions { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.hnextactions { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 0 0 auto; }
 .hnextactions .btn { text-decoration: none; }
 /* .btn sets no family of its own, so a link inherited the condensed face
    from the banner while a button fell back to the body one - the same pair
@@ -2092,8 +2095,24 @@ table.stats.sortable.gcbt .gcbthead th:nth-child(2) { text-align: left; }
    Both bars declare it. */
 .hnextactions .btn, .gpbar .btn { font-family: var(--body); }
 
-@media (max-width: 720px) {
-  .hnextactions { margin-left: 0; width: 100%; }
+/* Tablet and compact desktop: keep the matchup beside the details, with
+   a narrow action column instead of stacking the entire card. */
+@container next-game (min-width: 601px) and (max-width: 1000px) {
+  .hnext { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 16px; padding: 16px; }
+  .hnextteams { gap: 8px; }
+  .hnextlogo { width: 36px; height: 36px; }
+  .hnextactions { display: grid; gap: 8px; margin-left: 0; }
+  .hnextactions .btn { justify-content: center; padding: 9px 14px; font-size: 12px; white-space: nowrap; }
+  .hnextwhen { line-height: 1.5; }
+}
+/* Reserve the centered stack for phone-sized cards. */
+@container next-game (max-width: 600px) {
+  .hnext { flex-direction: column; justify-content: center; text-align: center;
+    border-left: 1px solid var(--border); border-top: 4px solid var(--gold); }
+  .hnext.live { border-left-color: var(--border); border-top-color: #E4002B; }
+  .hnextinfo { justify-items: center; width: 100%; }
+  .hnextactions { margin-left: 0; width: 100%; justify-content: center; }
+  .hnextactions .btn { flex: 1 1 0; min-width: 0; justify-content: center; padding-left: 10px; padding-right: 10px; white-space: nowrap; }
 }
 /* Side by side rather than one above the other. Together they wanted 346 of
    a 302 row, so the second one dropped - given an equal share of what there
@@ -3112,8 +3131,27 @@ button.gtrow:hover { background: var(--page); }
 .bSm { padding: 9px 14px; font-size: 13px; }
 
 /* Page head */
-.phead { background: var(--blue); color: var(--ondark); padding: 44px 0; }
-.phead .blg { color: var(--ondark-muted); max-width: 640px; margin: 10px 0 0; }
+.phead { background: #fff; color: var(--blue); padding: 36px 0 0; }
+.phead .blg { color: var(--muted); max-width: 640px; margin: 10px 0 0; }
+
+/* Front office directory */
+.frontoffice { background: #fff; min-height: 60vh; }
+.fohero { background: #fff; color: var(--blue); padding: 36px 0 0; }
+.fohero .pagetitle { margin-bottom: 0; }
+.focontent { padding-top: 32px; padding-bottom: 64px; }
+.fotable { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 14px; }
+.fotable th, .fotable td { border: 1px solid var(--border); padding: 12px 16px; text-align: left; line-height: 1.45; overflow-wrap: anywhere; white-space: normal; }
+.fosection + .fosection { margin-top: 30px; }
+.fosection > h2 { margin: 0; padding: 13px 16px; background: var(--deep); color: #fff; font-size: 15px; font-weight: 750; letter-spacing: normal; text-transform: uppercase; }
+.fotable tbody th { color: var(--blue); font-weight: 650; }
+.fotable tbody td { color: var(--muted); }
+.fotable tbody tr:nth-child(even) { background: #F8FAFC; }
+.fotable .fosubsection th { background: #E5EBF2; color: var(--blue); font-weight: 750; }
+.austafffields { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+@media (max-width: 640px) {
+  .focontent { padding-top: 20px; }
+  .fotable th, .fotable td { padding: 10px 12px; }
+}
 
 /* Tables */
 .twrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 6px;
@@ -3251,6 +3289,12 @@ table.stats.sortable.statstable td:nth-child(2) { width: auto; }
   table.stats.sortable.statstable th:nth-child(2),
   table.stats.sortable.statstable td:nth-child(2) { width: 226px; }
 }
+/* Dense stats must scroll rather than compress their headings. */
+.seasonstats th, .seasonstats td, .seasonstats .sortbtn { white-space: nowrap; }
+.twrap:has(.seasonstats) { scrollbar-width: thin; scrollbar-color: #8796A7 #F1F5F8; }
+.twrap:has(.seasonstats)::-webkit-scrollbar { display: block; height: 8px; }
+.twrap:has(.seasonstats)::-webkit-scrollbar-thumb { background: #8796A7; border-radius: 8px; }
+.twrap:has(.seasonstats)::-webkit-scrollbar-track { background: #F1F5F8; }
 .statstable .statname { max-width: 100%; }
 .statstable .statname span { overflow: hidden; text-overflow: ellipsis; }
 
@@ -3573,6 +3617,8 @@ table.stats tbody tr:last-child td { border-bottom: 0; }
 /* Schedule page (Sidearm sport-schedule layout) */
 .stitle { font-family: var(--body); font-weight: 800; font-size: clamp(1.5rem, 3vw, 2rem);
   color: var(--ink); margin: 0 0 26px; padding-left: 16px; border-left: 5px solid var(--blue); }
+/* Shared public page title: the Front Office style. */
+.pagetitle, .phead h1 { font-family: var(--disp); font-weight: 700; font-size: clamp(32px, 5vw, 48px); line-height: 1.1; letter-spacing: normal; text-transform: none; color: var(--blue); margin: 0 0 32px; padding: 0; border: 0; }
 .sctrl { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .iconbtn { width: 46px; height: 46px; border-radius: 999px; border: 1.5px solid var(--deep);
   background: #fff; color: var(--deep); cursor: pointer; display: inline-flex;
@@ -3830,6 +3876,16 @@ button.watchbtn { border: 0; cursor: pointer; }
 .pcard-photo { position: relative; background: var(--ice); height: 210px; }
 .pcard-photo svg, .pcard-photo img { width: 100%; height: 100%; display: block;
   object-fit: cover; object-position: center top; }
+.roster-cards { grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); }
+.roster-cards .pcard-photo { height: auto; aspect-ratio: 1 / 1; }
+.roster-cards .pcard-photo > img,
+.roster-cards .pcard-photo > svg { position: absolute; inset: 0; }
+.roster-card-details { padding: 16px; }
+.roster-card-facts { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0; font-weight: 700; }
+.roster-card-facts > span { white-space: nowrap; }
+.roster-card-facts > span:first-child { color: var(--blue); font-weight: 800; }
+.roster-card-home { display: flex; align-items: flex-start; gap: 5px; margin: 10px 0 0; color: var(--muted); line-height: 1.5; }
+.roster-card-home > svg { flex-shrink: 0; margin-top: 3px; }
 .pcard-num { position: absolute; right: 10px; bottom: 10px; background: var(--blue); color: var(--gold);
   font-family: var(--disp); font-weight: 700; font-size: 16px; padding: 3px 11px; border-radius: 999px; }
 
@@ -4119,10 +4175,17 @@ a.faffil:hover .faffilmark { opacity: 0.82; }
 }
 .adminui *, .adminui *::before, .adminui *::after { box-sizing: border-box; }
 .adminui ::selection { background: rgba(99,102,241,0.35); }
+.adminui.strafe-login ::selection { background: rgba(255,90,31,0.3); }
+.strafe-brand { display: flex; flex-direction: column; gap: 12px; background: #141619; padding: 22px 18px; }
+.strafe-logo { display: block; width: 160px; max-width: 100%; height: auto; }
+.strafe-team { color: #ADB0B5; font-size: 12px; line-height: 1.5; }
+.strafe-gate-brand { margin: -26px -26px 24px; border-radius: 12px 12px 0 0; padding: 28px 26px; }
 .adminui :focus-visible { outline: 2px solid var(--au-primary); outline-offset: 1px; }
 
 /* --- Shell: fixed sidebar, scrolling content --- */
-.aushell { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; align-items: stretch; }
+.aushell { display: grid; grid-template-columns: var(--au-sidebar-width, 232px) minmax(0, 1fr); min-height: 100vh; align-items: stretch; }
+.aushell.is-collapsed { grid-template-columns: minmax(0, 1fr); }
+.aushell.is-collapsed .ausidebar { display: none; }
 .ausidebar { background: var(--au-sidebar); border-right: 1px solid var(--au-sidebar-line);
   color: var(--au-sidebar-text);
   display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; }
@@ -4168,11 +4231,12 @@ a.faffil:hover .faffilmark { opacity: 0.82; }
 .auacct:hover { background: rgba(127,127,127,0.14); color: var(--au-sidebar-text); }
 .auacct.on { background: rgba(127,127,127,0.2); color: var(--au-sidebar-text); }
 .auacctname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 550; }
-.auavatar { width: 24px; height: 24px; border-radius: 999px; flex: 0 0 auto;
-  object-fit: cover; background: var(--au-raised); }
+.auavatar { width: 32px; height: 32px; border-radius: 999px; flex: 0 0 auto;
+  object-fit: cover; overflow: hidden; background: var(--au-raised); }
 .auavatar.fallback { display: grid; place-items: center; font-family: var(--au-mono);
   font-size: 9.5px; font-weight: 700; color: var(--au-on-primary);
   background: var(--au-primary); }
+.auavatar svg { display: block; flex: none; }
 .auavatar.lg { width: 60px; height: 60px; }
 .auavatar.lg.fallback { font-size: 19px; }
 
@@ -4195,10 +4259,10 @@ a.faffil:hover .faffilmark { opacity: 0.82; }
 /* --- Top bar --- */
 /* The console's own colours - the site's grey on this dark bar is unreadable,
    and it takes the whole first line so the title starts where it did. */
-.aubacklink { color: var(--au-dim); flex: 1 0 100%; margin: 0 0 2px -2px; }
+.aubacklink { position: fixed; top: 12px; right: 18px; z-index: 45; margin: 0; padding: 9px 13px; border: 1px solid var(--au-line); border-radius: 8px; background: var(--au-surface); color: var(--au-text); }
 .aubacklink:hover { color: var(--au-text); }
 .autop { display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-  padding: 14px 26px; border-bottom: 1px solid var(--au-line);
+  padding: 60px 26px 14px; border-bottom: 1px solid var(--au-line);
   background: var(--au-topbar); backdrop-filter: blur(8px);
   position: sticky; top: 0; z-index: 30; }
 .autitle { font-family: var(--body); font-size: 16px; font-weight: 650;
@@ -4220,7 +4284,7 @@ a.faffil:hover .faffilmark { opacity: 0.82; }
    margin between the panel and its frame and wrong as the end of a page that
    scrolls - the last card, or worse the row of buttons that ends the page
    builder, sat against the bottom of the window with nothing beneath it. */
-.aubody { padding: 26px 26px 72px; max-width: 1500px; width: 100%; overflow-x: auto; }
+.aubody { padding: 26px 26px 72px; max-width: var(--au-content-width, 1500px); width: 100%; overflow-x: auto; }
 /* Keep data columns legible on narrow windows by scrolling instead of shrinking. */
 .adminui .arow, .adminui .ahead { min-width: 1300px; }
 .adminui .ahead span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -4361,7 +4425,7 @@ a.faffil:hover .faffilmark { opacity: 0.82; }
   text-align: center; color: var(--au-dim); background: var(--au-panel); }
 
 /* --- Settings: one screen, sections down the side --- */
-.ausettings { display: grid; grid-template-columns: 214px 1fr; gap: 26px; align-items: start; }
+.ausettings { display: grid; grid-template-columns: 214px minmax(0, 1fr); gap: 26px; align-items: start; }
 .ausubnav { display: grid; gap: 2px; position: sticky; top: 78px; }
 .ausubitem { display: grid; gap: 1px; text-align: left; background: none; border: 0;
   cursor: pointer; padding: 9px 11px; border-radius: 7px; color: var(--au-dim); font: inherit; }
@@ -4369,6 +4433,12 @@ a.faffil:hover .faffilmark { opacity: 0.82; }
 .ausubitem.on { background: var(--au-raised); }
 .ausubname { font-size: 13.5px; font-weight: 600; color: var(--au-text); }
 .ausubhint { font-size: 11px; color: var(--au-faint); line-height: 1.35; }
+.auseasonpicker { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; font-size: 14px; }
+.auseasonpicker select { min-width: 180px; max-width: 100%; }
+.aupreferences { display: grid; gap: 16px; margin-top: 22px; }
+.adminui.au-large-text :is(input, select, textarea, .bsm, .aulink, .ausubname, .auhint, .field, .auseasonpicker) { font-size: 16px; }
+.adminui.au-reduce-motion *, .adminui.au-reduce-motion *::before, .adminui.au-reduce-motion *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+.ausettings-page { grid-template-columns: minmax(0, 1fr); }
 .ausettingsbody { min-width: 0; }
 
 /* --- Theme picker --- */
@@ -5165,7 +5235,8 @@ a.faffil:hover .faffilmark { opacity: 0.82; }
   .augroup { display: none; }
   .ausidefoot { display: none; }
   .aubody { padding: 18px 14px 56px; }
-  .autop { padding: 12px 14px; }
+  .autop { padding: 58px 14px 12px; }
+  .auactions { flex-wrap: wrap; margin-left: 0; }
 }
 
 `;
@@ -5481,15 +5552,15 @@ function CustomPage({ page, goto }) {
   if (!page) return null;
   const blocks = (page.blocks || []).filter((b) => b && blockType(b.type));
   return (
-    <main style={{ background: "var(--page)", minHeight: "50vh" }}>
+    <main style={{ background: "#fff", minHeight: "50vh" }}>
       {blocks.length ? blocks.map((b) => <PageBlock key={b.id} block={b} goto={goto} />) : (
-        <section className="section" style={{ paddingTop: 40 }}>
+        <section className="section" style={{ paddingTop: 36 }}>
           <div className="wrap">
-            <h1 className="stitle">{page.title || "Untitled"}</h1>
+            <h1 className="stitle pagetitle">{page.title || "Untitled"}</h1>
             <div className="emptybox">
               <p style={{ margin: 0, fontWeight: 700, color: "var(--ink)" }}>Nothing here yet</p>
               <p className="bsm" style={{ margin: "6px 0 0", color: "var(--muted)" }}>
-                This page has no blocks on it. Add some in the console.
+                Please check back for updates.
               </p>
             </div>
           </div>
@@ -5505,6 +5576,7 @@ const NAV_TEAM = [
   ["roster", "Roster"],
   ["prospects", "Recruits"],
   ["staff", "Hockey Ops Staff"],
+  ["front-office", "Front Office"],
   ["volunteers", "Volunteers"],
 ];
 
@@ -5576,7 +5648,7 @@ function viewOf(pathname) {
   if (head === "news" && id) return { view: "news", postId: id };
   if (head === "news") return { view: "newsindex" };
   const known = new Set(["home", "schedule", "roster", "stats", "tickets", "recruit",
-    "prospects", "staff", "volunteers", "alumni", "venue", "admin", "newsindex"]);
+    "prospects", "staff", "front-office", "volunteers", "alumni", "venue", "admin", "newsindex"]);
   return known.has(head) ? { view: head } : { view: "home" };
 }
 
@@ -5866,7 +5938,10 @@ export default function CalIceHockey() {
   useEffect(() => {
     if (!remoteAuth) return;
     setAuthed(!!window.auth.user);
-    return window.auth.onChange((user) => setAuthed(!!user));
+    return window.auth.onChange((user) => {
+      setAuthed(!!user);
+      if (user && window.auth.recovery) setView("admin");
+    });
   }, [remoteAuth]);
   useEffect(() => {
     if (remoteAuth) return;
@@ -5964,7 +6039,7 @@ export default function CalIceHockey() {
       s.opponents = (s.opponents || []).map((o) =>
         "logo" in o ? { ...o, logoLight: o.logoLight ?? o.logo, logoDark: o.logoDark ?? null, logo: undefined } : o
       );
-      setSite(s);
+      setSite(addPlayerDetails(s));
       setRecruits(r);
       setAlumni(al);
       loaded.current = true;
@@ -6006,7 +6081,7 @@ export default function CalIceHockey() {
       if (!next || !next.seasons) return;
       if (Number(next.rev || 0) <= Number((siteRef.current || {}).rev || 0)) return;
       fromRemote.current = true;
-      setSite(next);
+      setSite(addPlayerDetails(next));
     };
     window.addEventListener("cal-site-updated", apply);
     return () => window.removeEventListener("cal-site-updated", apply);
@@ -6074,7 +6149,7 @@ export default function CalIceHockey() {
       <header className="hdr">
         <div className="wrap navbar">
           <button className="brand" onClick={() => setView("home")} aria-label="Cal Ice Hockey home">
-            <Logo size={52} />
+            <img src="/logos/cal-ice-hockey-gold.svg" alt="Cal Ice Hockey" width="49" height="52" style={{ display: "block", objectFit: "contain" }} />
           </button>
           <nav className="navlinks" aria-label="Primary">
             {navBar.map((it) => (it.items ? (
@@ -6194,6 +6269,7 @@ export default function CalIceHockey() {
       {view === "roster" && <RosterPage site={pub} onPlayer={openPlayer} />}
       {view === "prospects" && <RecruitsPage site={pub} goto={setView} />}
       {view === "staff" && <StaffPage site={pub} />}
+      {view === "front-office" && <FrontOfficePage site={pub} />}
       {view === "volunteers" && <VolunteersPage site={pub} goto={setView} />}
       {view === "newsindex" && <NewsIndexPage site={pub} openPost={openPost} />}
       {view === "stats" && <StatsPage site={pub} onPlayer={openPlayer} onGame={openGame} />}
@@ -6293,7 +6369,7 @@ export default function CalIceHockey() {
           </div>
           <div className="flegalmark">
             <Logo size={30} color="var(--blue)" />
-            <span className="bsm">Cal Ice Hockey · Prototype</span>
+            <span className="bsm">Cal Ice Hockey</span>
           </div>
         </div>
       </footer>
@@ -7814,7 +7890,7 @@ function GamePage({ site, gameId, onBack, backTo, onPlayer, openPost, onTickets 
                     {stars.map((st, i) => (
                       <div className="gcstar" key={i}>
                         <span className="gcstarart">
-                          <PlayerAvatar size={58} photo={st.p ? st.p.photo : null} seed={st.p ? st.p.id : null} />
+                          <PlayerAvatar size={58} photo={st.p ? st.p.photo : null} />
                           <span className="gcstarnum">{i + 1}</span>
                         </span>
                         <span className="gcstarbody">
@@ -7853,7 +7929,7 @@ function GamePage({ site, gameId, onBack, backTo, onPlayer, openPost, onTickets 
                       <div className="gcgoals">
                         {boxScorers.map(({ p, l }) => (
                           <div className="gcgoal" key={p.id}>
-                            <PlayerAvatar size={46} photo={p.photo} seed={p.id} />
+                            <PlayerAvatar size={46} photo={p.photo} />
                             <span className="gcgoalwho">
                               <span className="gcgoalname">
                                 <button className="pboxname" onClick={() => onPlayer(p.id)}>{p.name}</button>
@@ -7902,7 +7978,7 @@ function GamePage({ site, gameId, onBack, backTo, onPlayer, openPost, onTickets 
                         const mark = x.team === "us" ? org.logo : game.opponentLogo;
                         return (
                           <div className="gcgoal" key={x.id}>
-                            <PlayerAvatar size={46} photo={scorerP ? scorerP.photo : null} seed={scorerP ? scorerP.id : null} />
+                            <PlayerAvatar size={46} photo={scorerP ? scorerP.photo : null} />
                             <span className="gcgoalwho">
                               <span className="gcgoalname">
                                 {x.scorerId
@@ -7971,7 +8047,7 @@ function GamePage({ site, gameId, onBack, backTo, onPlayer, openPost, onTickets 
                           <li className={"sorow " + (mine ? "us" : "them")} key={a.id}>
                             <span className="soface">
                               {mine
-                                ? <PlayerAvatar size={44} photo={p ? p.photo : null} seed={p ? p.id : null} />
+                                ? <PlayerAvatar size={44} photo={p ? p.photo : null} />
                                 : (game.opponentLogo
                                   ? <img className="sooppmark" src={game.opponentLogo} alt="" />
                                   : <OppBadge name={themShort} size={44} />)}
@@ -9014,7 +9090,7 @@ function Scoresheet({ site, season, game, onClose }) {
 const VIEW_LABEL = {
   home: "Home", schedule: "Schedule", roster: "Roster", stats: "Stats",
   newsindex: "News", tickets: "Tickets", recruit: "Interest form",
-  prospects: "Recruits", staff: "Staff", volunteers: "Volunteers",
+  prospects: "Recruits", staff: "Staff", "front-office": "Front Office", volunteers: "Volunteers",
   alumni: "Alumni", venue: "Venue", season: "Season", career: "Career",
 };
 
@@ -9447,10 +9523,10 @@ function LegalPage({ site, which }) {
   const entry = LEGAL.find(([k]) => k === which) || LEGAL[0];
   const body = ((site.settings || {}).legal || {})[entry[0]] || "";
   return (
-    <main style={{ background: "var(--page)", minHeight: "50vh" }}>
-      <section className="section" style={{ paddingTop: 40 }}>
+    <main style={{ background: "#fff", minHeight: "50vh" }}>
+      <section className="section" style={{ paddingTop: 36 }}>
         <div className="wrap" style={{ maxWidth: 760 }}>
-          <h1 className="stitle">{entry[1]}</h1>
+          <h1 className="stitle pagetitle">{entry[1]}</h1>
           {body
             ? <div className="legalbody">{renderArticle(body, () => {})}</div>
             : (
@@ -9577,14 +9653,14 @@ function VenuePage({ site }) {
 
   if (!v.name && !v.address && !ways.length) {
     return (
-      <main style={{ background: "var(--page)", minHeight: "50vh" }}>
-        <section className="section" style={{ paddingTop: 40 }}>
+      <main style={{ background: "#fff", minHeight: "50vh" }}>
+        <section className="section" style={{ paddingTop: 36 }}>
           <div className="wrap" style={{ maxWidth: 900 }}>
-            <h1 className="stitle">Venue</h1>
+            <h1 className="stitle pagetitle">Venue</h1>
             <div className="emptybox">
               <p style={{ margin: 0, fontWeight: 700, color: "var(--ink)" }}>Nothing here yet</p>
               <p className="bsm" style={{ margin: "6px 0 0", color: "var(--muted)" }}>
-                The home rink and how to reach it are set under Settings.
+                Venue details will be available soon.
               </p>
             </div>
           </div>
@@ -9594,11 +9670,11 @@ function VenuePage({ site }) {
   }
 
   return (
-    <main style={{ background: "var(--page)" }}>
-      <section className="section" style={{ paddingTop: 40 }}>
+    <main style={{ background: "#fff" }}>
+      <section className="section" style={{ paddingTop: 36 }}>
         <div className="wrap" style={{ maxWidth: 900 }}>
           <p className="veneyebrow">Home rink</p>
-          <h1 className="stitle">{v.name || "Venue"}</h1>
+          <h1 className="stitle pagetitle">{v.name || "Venue"}</h1>
 
           <div className="venfacts">
             {v.address && (
@@ -10270,7 +10346,7 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
                   tab order rather than a second stop at the same place. */}
               <button className="h2hpic" onClick={() => onPlayer(x.p.id)}
                 tabIndex={-1} aria-hidden="true">
-                <PlayerAvatar size={38} photo={x.p.photo} seed={x.p.id} />
+                <PlayerAvatar size={38} photo={x.p.photo} />
               </button>
               <button className="h2hwho" onClick={() => onPlayer(x.p.id)}>
                 <span className="h2hname">
@@ -10314,12 +10390,8 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
             </div>
           );
         })}
-        {!theirStats && (
-          <p className="bsm gcnone gpnote">
-            {live.loading
-              ? "Reading their season from the league\u2026"
-              : "The league has no box scores for them this season. Paste their totals under Opponents and they appear here."}
-          </p>
+        {!theirStats && live.loading && (
+          <p className="bsm gcnone gpnote">Loading team statistics…</p>
         )}
       </section>
       )}
@@ -10350,7 +10422,7 @@ function GamePreview({ site, game, season, seasonName, onPlayer, onTickets, stor
                         reads as a person. A visiting keeper has no photo to
                         have, so their crest stands in. */}
                     {g.mine
-                      ? <PlayerAvatar size={44} photo={g.photo} seed={g.id} />
+                      ? <PlayerAvatar size={44} photo={g.photo} />
                       : (side.logo
                         ? <img className="gtmark" src={side.logo} alt="" />
                         : <OppBadge name={side.abbr} size={44} />)}
@@ -10688,7 +10760,7 @@ function GameBoxScore({ site, game, roster, schedule, usAbbr, themAbbr, onPlayer
             const num = goalNumber(schedule, p);
             return (
               <div className="qlgoal" key={p.id}>
-                <PlayerAvatar size={42} photo={scorer ? scorer.photo : null} seed={scorer ? scorer.id : null} />
+                <PlayerAvatar size={42} photo={scorer ? scorer.photo : null} />
                 <span className="qlbody">
                   <span className="qlname">
                     {scorer
@@ -10754,7 +10826,7 @@ function GameBoxScore({ site, game, roster, schedule, usAbbr, themAbbr, onPlayer
       <GoalStrip label="Scorers">
         {scorers.map(({ p, l }) => (
           <div className="qlgoal" key={p.id}>
-            <PlayerAvatar size={42} photo={p.photo} seed={p.id} />
+            <PlayerAvatar size={42} photo={p.photo} />
             <span className="qlbody">
               <span className="qlname">
                 <button className="pboxname" onClick={() => onPlayer && onPlayer(p.id)}>{p.name}</button>
@@ -10990,10 +11062,10 @@ function SchedulePage({ site, onPlayer, onGame, goto }) {
   }, [rows]);
 
   return (
-    <main style={{ background: "var(--page)" }}>
-      <section className="section" style={{ paddingTop: 44 }}>
+    <main style={{ background: "#fff" }}>
+      <section className="section" style={{ paddingTop: 36 }}>
         <div className="wrap">
-          <h1 className="stitle">{sel} Schedule</h1>
+          <h1 className="stitle pagetitle">{sel} Schedule</h1>
 
           <div className="sctrl">
             <button className="calbtn" onClick={() => downloadICS(rows, sel, officialName(site))}
@@ -11339,10 +11411,10 @@ function RosterPage({ site, onPlayer }) {
   );
 
   return (
-    <main style={{ background: "var(--page)" }}>
-      <section className="section" style={{ paddingTop: 44 }}>
+    <main style={{ background: "#fff" }}>
+      <section className="section" style={{ paddingTop: 36 }}>
         <div className="wrap">
-          <h1 className="stitle">{sel} Roster</h1>
+          <h1 className="stitle pagetitle">{sel} Roster</h1>
 
           {/* Controls row */}
           <div className="sctrl">
@@ -11365,7 +11437,7 @@ function RosterPage({ site, onPlayer }) {
           </div>
 
           <div style={{ marginTop: 32 }}>
-            {!sorted.length && <p className="blg" style={{ color: "var(--muted)" }}>No roster entered for {sel} yet — add players in the admin panel.</p>}
+            {!sorted.length && <p className="blg" style={{ color: "var(--muted)" }}>The {sel} roster is not available yet.</p>}
 
             {/* LIST VIEW */}
             {mode === "list" && (
@@ -11383,7 +11455,7 @@ function RosterPage({ site, onPlayer }) {
                     <article className="gamecard plaincard" key={p.id}>
                       <div className="gamemain">
                         <span style={{ position: "relative", flex: "0 0 auto" }}>
-                          <PlayerAvatar size={78} photo={p.photo} seed={p.id} />
+                          <PlayerAvatar size={78} photo={p.photo} />
                           {p.number && <span className="numbadge">{p.number}</span>}
                         </span>
                         <div className="rostname">
@@ -11409,27 +11481,22 @@ function RosterPage({ site, onPlayer }) {
 
             {/* CARD VIEW */}
             {mode === "card" && (
-              <div className="cards" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
+              <div className="cards roster-cards">
                 {sorted.map((p) => {
                   const { home, prev } = splitHome(p.hometown);
                   return (
                     <article className="pcard" key={p.id} onClick={() => onPlayer(p.id)} style={{ cursor: "pointer" }}>
                       <div className="pcard-photo" style={{ position: "relative" }}>
-                        <PlayerAvatar size={300} flat photo={p.photo} seed={p.id} />
+                        <PlayerAvatar size={300} flat photo={p.photo} />
                         {p.number && <span className="numbadge numbadge-lg">{p.number}</span>}
                         <span className="pcard-name">{p.name}</span>
                       </div>
-                      <div style={{ padding: "14px 16px" }}>
-                        <p className="bsm" style={{ margin: 0, fontWeight: 700 }}>
-                          <span style={{ color: "var(--blue)", fontWeight: 800 }}>{POS_LABEL[p.position]}</span>
-                          <span style={{ color: "var(--border)", margin: "0 8px" }}>|</span>{p.year}
-                          <span style={{ color: "var(--border)", margin: "0 8px" }}>|</span>{p.height}
-                          {p.weight && <><span style={{ color: "var(--border)", margin: "0 8px" }}>|</span>{p.weight}</>}
-                          <span style={{ color: "var(--border)", margin: "0 8px" }}>|</span>{p.shoots || "—"}
+                      <div className="roster-card-details">
+                        <p className="bsm roster-card-facts">
+                          {[POS_LABEL[p.position], p.year, p.height, p.weight, p.shoots || "—"].filter(Boolean).map((value, index) => <span key={index}>{value}</span>)}
                         </p>
-                        <p className="bsm" style={{ margin: "10px 0 0", color: "var(--muted)" }}>
-                          <IcPin size={13} style={{ marginRight: 5 }} />{home}
-                          {prev && <><span style={{ color: "var(--border)", margin: "0 8px" }}>|</span>{prev}</>}
+                        <p className="bsm roster-card-home">
+                          <IcPin size={13} /><span>{home}{prev && <><br />{prev}</>}</span>
                         </p>
                       </div>
                     </article>
@@ -11560,6 +11627,53 @@ function StaffFace({ person }) {
   return <span className="stmono" aria-hidden="true">{initials || "\u2013"}</span>;
 }
 
+function staffPageFor(person) {
+  return person.staffPage || (person.roleGroup === "operations" ? "front-office" : "staff");
+}
+
+const OFFICE_DEPARTMENTS = [
+  "Executive Management", "Hockey Operations", "Communications", "Administration",
+  "Creative & Content", "Ticketing", "Premium & Business Intelligence",
+];
+function officeDepartmentFor(person) {
+  if (isCoachingStaff(person)) return "Hockey Operations";
+  const saved = String(person.department || "").trim();
+  if (saved) return OFFICE_DEPARTMENTS.find((name) => name.toLowerCase() === saved.toLowerCase()) || saved;
+  if (staffPageFor(person) === "staff") return "Hockey Operations";
+  const title = String(person.title || "").toLowerCase();
+  if (/broadcast|communication/.test(title)) return "Communications";
+  if (/marketing|creative|content/.test(title)) return "Creative & Content";
+  if (/ticket/.test(title)) return "Ticketing";
+  if (/premium|business intelligence/.test(title)) return "Premium & Business Intelligence";
+  if (/manager|president|advisor/.test(title)) return "Executive Management";
+  return "Administration";
+}
+function FrontOfficePage({ site }) {
+  const people = (site.staff || []).filter((person) => String(person.name || "").trim());
+  const departments = [...new Set([...OFFICE_DEPARTMENTS, ...(site.frontOfficeDepartments || []), ...people.map(officeDepartmentFor)])];
+  return <main className="frontoffice" aria-label="Front Office">
+    <header className="fohero"><div className="wrap"><h1 className="pagetitle">Front Office</h1></div></header>
+    <div className="wrap focontent">
+      {departments.map((department) => {
+        const members = people.filter((person) => officeDepartmentFor(person) === department);
+        const subsections = [...new Set(members.map((person) => String(person.subsection || "").trim()))];
+        return <section className="fosection" key={department}>
+          <h2>{department}</h2>
+          {!!members.length && <table className="fotable" aria-label={department + " staff"}>
+            <colgroup><col style={{ width: "42%" }} /><col style={{ width: "58%" }} /></colgroup>
+            {subsections.map((subsection) => <tbody key={subsection}>
+              {subsection && <tr className="fosubsection"><th colSpan={2} scope="rowgroup">{subsection}</th></tr>}
+              {members.filter((person) => String(person.subsection || "").trim() === subsection).map((person) => <tr key={person.id}>
+                <th scope="row">{person.name}</th><td>{person.title}</td>
+              </tr>)}
+            </tbody>)}
+          </table>}
+        </section>;
+      })}
+    </div>
+  </main>;
+}
+
 function StaffPage({ site }) {
   /* Current staff only. There is no archive to browse: the database dropped
    * season_id from staff, so a season picker here would have been a control
@@ -11568,25 +11682,23 @@ function StaffPage({ site }) {
    * per-season shape, left in place by the migration that lifted staff out of
    * seasons — reading it here meant every edit made in the console silently
    * failed to reach this page. */
-  const all = site.staff || [];
+  const all = (site.staff || []).filter((person) => staffPageFor(person) === "staff");
 
   const lead = all.find((c) => c.featured) || null;
   const rest = all.filter((c) => c !== lead);
 
   return (
-    <main style={{ background: "var(--page)" }}>
-      <section className="section" style={{ paddingTop: 40 }}>
+    <main style={{ background: "#fff" }}>
+      <section className="section" style={{ paddingTop: 36 }}>
         <div className="wrap">
           <div className="sctrl" style={{ marginBottom: 26 }}>
-            <h1 className="stitle" style={{ flex: "1 1 auto" }}>Hockey Operations</h1>
+            <h1 className="stitle pagetitle" style={{ flex: "1 1 auto" }}>Hockey Operations</h1>
           </div>
 
           {!all.length && (
             <div className="emptybox">
               <p style={{ margin: 0, fontWeight: 700, color: "var(--ink)" }}>Staff not posted yet</p>
-              <p className="bsm" style={{ margin: "6px 0 0", color: "var(--muted)" }}>
-                Added from the Staff tab in the admin console.
-              </p>
+
             </div>
           )}
 
@@ -11654,10 +11766,10 @@ function VolunteersPage({ site, goto }) {
   const contact = (site.settings || {}).contactEmail;
 
   return (
-    <main style={{ background: "var(--page)" }}>
-      <section className="section" style={{ paddingTop: 40 }}>
+    <main style={{ background: "#fff" }}>
+      <section className="section" style={{ paddingTop: 36 }}>
         <div className="wrap" style={{ maxWidth: 900 }}>
-          <h1 className="stitle">Volunteer with the program</h1>
+          <h1 className="stitle pagetitle">Volunteer with the program</h1>
           <p className="volintro">
             Cal Ice Hockey is student-run. Everything from the scoresheet to the livestream
             is somebody giving up an evening — these are the jobs we need filled.
@@ -11768,10 +11880,10 @@ function NewsIndexPage({ site, openPost }) {
     : live.filter((p) => String(p.tag || "").trim().toUpperCase() === active);
 
   return (
-    <main style={{ background: "var(--page)" }}>
-      <section className="section" style={{ paddingTop: 40 }}>
+    <main style={{ background: "#fff" }}>
+      <section className="section" style={{ paddingTop: 36 }}>
         <div className="wrap">
-          <h1 className="stitle">News</h1>
+          <h1 className="stitle pagetitle">News</h1>
 
           {kinds.length > 1 && (
             <>
@@ -11853,10 +11965,10 @@ function RecruitsPage({ site, goto }) {
   const contact = (site.settings || {}).contactEmail;
 
   return (
-    <main style={{ background: "var(--page)" }}>
-      <section className="section" style={{ paddingTop: 40 }}>
+    <main style={{ background: "#fff" }}>
+      <section className="section" style={{ paddingTop: 36 }}>
         <div className="wrap" style={{ maxWidth: 940 }}>
-          <h1 className="stitle">{r.headline || "Play hockey at Cal"}</h1>
+          <h1 className="stitle pagetitle">{r.headline || "Play hockey at Cal"}</h1>
           {r.intro && <p className="recintro">{r.intro}</p>}
 
           <div className="recgrid2">
@@ -11927,9 +12039,7 @@ function RecruitingEditor({ site, setDraft }) {
 
   return (
     <>
-      <p className="auhint" style={{ marginBottom: 18, maxWidth: 700 }}>
-        What a prospective player sees under Team → Recruits. Sections appear in order.
-      </p>
+      
 
       <div style={{ display: "grid", gap: 16, maxWidth: 760 }}>
         <section className="card">
@@ -12033,31 +12143,24 @@ function Meta({ k, v }) {
   );
 }
 
-/* A handful of backgrounds distinct enough that two blank avatars in the same
- * list read as two different people rather than the same placeholder
- * repeated - the whole reason a roster of blank icons is hard to scan. None
- * of them are navy or gold, so a blank avatar is never mistaken for a badge
- * or a button.
- *
- * Picked by a hash of the player's id, not Math.random(): the same person
- * needs the same color wherever they appear - a roster row, a box score, a
- * three-stars strip - or seeing them twice would look like two people. A
- * fresh random pick on every render would also mean a color that changes
- * every time the page re-renders, which reads as broken rather than blank.
- */
-const AVATAR_COLORS = [
-  "#8E7CC3", "#5B9AA0", "#C9975A", "#7A9E7E", "#B26A7A",
-  "#6E8CAE", "#9C8265", "#7B8794", "#A17FB5", "#5F9E86",
-];
-function avatarColor(seed) {
-  if (!seed) return null;
-  let h = 0;
-  const s = String(seed);
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+/* All players without a photo share the same neutral silhouette. */
+function AccountAvatar({ account = {}, large = false }) {
+  const user = typeof window !== "undefined" && window.auth && window.auth.user;
+  const identity = String((user && (user.id || user.email)) || account.email || account.name || "staff");
+  const colors = ["#7C3AED", "#0891B2", "#EA580C", "#16A34A", "#DB2777", "#2563EB", "#E11D48", "#4F46E5"];
+  let hash = 0;
+  for (let i = 0; i < identity.length; i++) hash = (hash * 31 + identity.charCodeAt(i)) >>> 0;
+  return <span className={"auavatar fallback" + (large ? " lg" : "")}
+    style={{ background: colors[hash % colors.length], color: "#fff" }} aria-hidden="true">
+    <svg width={large ? 36 : 20} height={large ? 36 : 20} viewBox="0 0 24 24"
+      fill="currentColor" focusable="false" aria-hidden="true">
+      <circle cx="12" cy="7.5" r="3.5" />
+      <path d="M5 20v-2a7 5 0 0 1 14 0v2a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1Z" />
+    </svg>
+  </span>;
 }
 
-function PlayerAvatar({ size = 72, flat = false, photo, seed }) {
+function PlayerAvatar({ size = 72, flat = false, photo }) {
   if (photo) {
     return (
       <img src={photo} alt="" aria-hidden="true"
@@ -12068,16 +12171,11 @@ function PlayerAvatar({ size = 72, flat = false, photo, seed }) {
         }} />
     );
   }
-  /* A caller with nobody to seed this from (no id in scope, an opponent
-     with no roster entry) keeps the flat neutral look this always had,
-     rather than a white icon on top of the fallback's own pale background -
-     which reads fine on a color and unreadable on var(--ice). */
-  const bg = avatarColor(seed);
-  const iconFill = bg ? "rgba(255,255,255,0.92)" : "#B9C6D2";
+  const iconFill = "#B9C6D2";
   return (
     <svg width={flat ? "100%" : size} height={flat ? "100%" : size} viewBox="0 0 72 72" aria-hidden="true"
       preserveAspectRatio="xMidYMax slice"
-      style={{ background: bg || "var(--ice)", borderRadius: flat ? 0 : "50%", flex: "0 0 auto", display: "block" }}>
+      style={{ background: "var(--ice)", borderRadius: flat ? 0 : "50%", flex: "0 0 auto", display: "block" }}>
       <circle cx="36" cy="27" r="13" fill={iconFill} />
       <path d="M12 72 C12 52 24 46 36 46 C48 46 60 52 60 72 Z" fill={iconFill} />
     </svg>
@@ -12262,7 +12360,7 @@ function StatsPage({ site, onPlayer, onGame }) {
   const NameCell = ({ p }) => (
     <td>
       <button className="statname" onClick={() => onPlayer(p.id)}>
-        <PlayerAvatar size={30} photo={p.photo} seed={p.id} />
+        <PlayerAvatar size={30} photo={p.photo} />
         <span>{lastFirst(p.name)}</span>
       </button>
     </td>
@@ -12295,7 +12393,7 @@ function StatsPage({ site, onPlayer, onGame }) {
   };
 
   const goalieTable = (list) => (
-    <table className="stats sortable statstable">
+    <table className="stats sortable statstable seasonstats" style={{ minWidth: 272 + (GOALIE_COLS.length - 2) * 76 }}>
       <thead>
         <tr>
           {GOALIE_COLS.map((col) => {
@@ -12381,7 +12479,7 @@ function StatsPage({ site, onPlayer, onGame }) {
   );
 
   const statTable = (list) => (
-    <table className="stats sortable statstable">
+    <table className="stats sortable statstable seasonstats" style={{ minWidth: 272 + (STAT_COLS.length - 2) * 76 }}>
       <thead>
         <tr>
           {STAT_COLS.map((col) => {
@@ -12448,11 +12546,11 @@ function StatsPage({ site, onPlayer, onGame }) {
   );
 
   return (
-    <main style={{ background: "var(--page)", minHeight: "60vh" }}>
-      <section className="section" style={{ paddingTop: 44 }}>
+    <main style={{ background: "#fff", minHeight: "60vh" }}>
+      <section className="section" style={{ paddingTop: 36 }}>
         <div className="wrap">
           <div className="statshead" style={{ display: "flex", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
-            <h1 className="stitle" style={{ flex: "1 1 auto" }}>{sel} Statistics</h1>
+            <h1 className="stitle pagetitle" style={{ flex: "1 1 auto" }}>{sel} Statistics</h1>
             <select className="rsel" value={sel} onChange={(e) => setSel(e.target.value)} aria-label="Season">
               {seasonNames.map((n) => <option key={n}>{n}</option>)}
             </select>
@@ -12619,7 +12717,7 @@ function StatsPage({ site, onPlayer, onGame }) {
                       <p className="cleadcat">{label}</p>
                       {leaders(key).slice(0, 1).map(({ p, v }) => (
                         <button className="cleadtop" key={p.id} onClick={() => onPlayer(p.id)}>
-                          <PlayerAvatar size={56} photo={p.photo} seed={p.id} />
+                          <PlayerAvatar size={56} photo={p.photo} />
                           <span className="cleadtopwho">
                             <span className="cleadtopname">{p.name}</span>
                             <span className="cleadtopmeta">
@@ -12636,7 +12734,7 @@ function StatsPage({ site, onPlayer, onGame }) {
                           <span className="cleadrank">{i + 2}.</span>
                           <button className="statname" style={{ flex: 1 }}
                             onClick={() => onPlayer(p.id)}>
-                            <PlayerAvatar size={26} photo={p.photo} seed={p.id} />
+                            <PlayerAvatar size={26} photo={p.photo} />
                             <span>{lastFirst(p.name)}</span>
                           </button>
                           <span className="cleadval">{v}</span>
@@ -12681,7 +12779,7 @@ function StatsPage({ site, onPlayer, onGame }) {
                 ))}
               </tbody>
             </table>
-            <p className="bsm" style={{ color: "var(--muted)", marginTop: 22 }}>Generated from the Cal Ice Hockey site (prototype)</p>
+            <p className="bsm" style={{ color: "var(--muted)", marginTop: 22 }}>Generated from the Cal Ice Hockey site</p>
           </div>
         </div>
       )}
@@ -12804,10 +12902,11 @@ function PlayerPage({ site, playerId, onBack, backTo, onPlayer, onGame }) {
             </div>
 
             <div className="ppinfo">
-              <span className="ppshot"><PlayerAvatar size={148} photo={player.photo} seed={player.id} /></span>
+              <span className="ppshot"><PlayerAvatar size={148} photo={player.photo} /></span>
               <div className="ppvitals">
                 <p><b>Height:</b> {player.height || "\u2014"}</p>
                 <p><b>Weight:</b> {player.weight || "\u2014"}</p>
+                {player.birthday && <p><b>Born:</b> {player.birthday}</p>}
                 <p><b>Position:</b> {POS_FULL[player.position] || player.position || "\u2014"}</p>
                 <p><b>Shoots:</b> {player.shoots || "\u2014"}</p>
                 <p><b>Class:</b> {player.year || "\u2014"}</p>
@@ -13163,10 +13262,10 @@ function TicketsPage({ site, goto }) {
   const homeGames = [...season.schedule].sort(cmpDate).filter((g) => g.homeAway === "H" && !g.result);
 
   return (
-    <main style={{ background: "var(--page)" }}>
-      <section className="section" style={{ paddingTop: 44 }}>
+    <main style={{ background: "#fff" }}>
+      <section className="section" style={{ paddingTop: 36 }}>
         <div className="wrap">
-          <h1 className="stitle">Tickets</h1>
+          <h1 className="stitle pagetitle">Tickets</h1>
           <p className="blg" style={{ color: "var(--muted)", maxWidth: "62ch", margin: "0 0 30px" }}>
             All home games are played at Oakland Ice Center. Tickets are sold at the door — no advance
             purchase needed. Pricing below is for the {site.currentSeason} season.
@@ -13492,6 +13591,16 @@ const LIGHT_SURFACES = {
 
 const CUSTOM_DEFAULT = { mode: "dark", base: "#101317", accent: "#6366F1" };
 
+const STRAFE_LOGIN_VARS = {
+      "--au-bg": "#141619", "--au-panel": "#1C1E22", "--au-surface": "#202327",
+      "--au-raised": "#282B30", "--au-line": "#393D43", "--au-line-soft": "#282B30",
+      "--au-text": "#F4F2ED", "--au-dim": "#ADB0B5", "--au-faint": "#92969D",
+      "--au-sidebar": "#141619", "--au-sidebar-line": "#282B30",
+      "--au-sidebar-text": "#F4F2ED", "--au-sidebar-dim": "#ADB0B5",
+      "--au-primary": "#FF5A1F", "--au-primary-hot": "#FF713F", "--au-on-primary": "#141619",
+      "--au-topbar": "rgba(20,22,25,0.96)",
+};
+
 const THEMES = {
   midnight: {
     label: "Midnight",
@@ -13657,7 +13766,10 @@ function resolveTheme(account, org) {
 }
 
 function themeVars(account, org) {
-  return resolveTheme(account, org).vars;
+  return { ...resolveTheme(account, org).vars,
+    "--au-sidebar-width": account?.sidebarWidth === "wide" ? "280px" : account?.sidebarWidth === "narrow" ? "200px" : "232px",
+    "--au-content-width": account?.contentWidth === "full" ? "none" : "1500px",
+  };
 }
 
 /** Initials for a school with no logo uploaded — "Cal Ice Hockey" -> "CI". */
@@ -13704,7 +13816,7 @@ const STATS_VIEWS = [
 ];
 
 function StatsEditor({ site, setDraft, updateSeason, onSave, dirty, view, setView }) {
-  const [sel, setSel] = useState(site.currentSeason);
+  const [sel, setSel] = useState(site.seasons[site.account?.defaultSeason] ? site.account.defaultSeason : site.currentSeason);
   const [openBox, setOpenBox] = useState(null);
   const [openPerson, setOpenPerson] = useState(null);
 
@@ -13716,7 +13828,7 @@ function StatsEditor({ site, setDraft, updateSeason, onSave, dirty, view, setVie
     const o = (site.opponents || []).find((x) => x.id === g.opponentId);
     return o ? o.name : "";
   };
-  const linesFor = (gameId) => Object.keys((site.gameStats || {})[gameId] || {}).length;
+  const linesFor = (gameId) => Object.values((site.gameStats || {})[gameId] || {}).filter((line) => line && line.dressed !== false).length;
 
   /* Only games with a final score can carry a box score. */
   const playable = [...schedule].filter((g) => g.result).sort(cmpDate);
@@ -13736,7 +13848,7 @@ function StatsEditor({ site, setDraft, updateSeason, onSave, dirty, view, setVie
 
       <div className="ausettingsbody">
         {view !== "career" && (
-          <SeasonPicker site={site} sel={sel} setSel={setSel} />
+          <><SeasonPicker site={site} sel={sel} setSel={setSel} /><AchaRefresh site={site} setDraft={setDraft} sel={sel} /></>
         )}
 
         {/* ================= BY GAME ================= */}
@@ -13752,9 +13864,7 @@ function StatsEditor({ site, setDraft, updateSeason, onSave, dirty, view, setVie
             {playable.length === 0 && (
               <div className="auempty">
                 <p style={{ margin: 0, fontWeight: 600, color: "var(--au-text)" }}>Nothing to enter</p>
-                <p className="bsm" style={{ margin: "6px 0 0" }}>
-                  Box scores open up once a game has a final score.
-                </p>
+                <></>
               </div>
             )}
 
@@ -13847,7 +13957,7 @@ function SeasonStats({ site, season, sel, roster, updateSeason }) {
     return (
       <div className="auempty">
         <p style={{ margin: 0, fontWeight: 600, color: "var(--au-text)" }}>No roster for {sel}</p>
-        <p className="bsm" style={{ margin: "6px 0 0" }}>Add players on the Roster tab.</p>
+        <></>
       </div>
     );
   }
@@ -13946,10 +14056,7 @@ function CareerStats({ site, openPerson, setOpenPerson }) {
 
   return (
     <>
-      <p className="auhint" style={{ marginBottom: 14 }}>
-        Always calculated — the sum of every season below. Click a player to see the
-        breakdown. To change a number, edit the season or the game it came from.
-      </p>
+      <></>
 
       <div className="austat head" style={{ gridTemplateColumns: cols }}>
         <span>Player</span><span>Seasons</span><span>GP</span><span>G</span>
@@ -14072,12 +14179,8 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
     }
   };
 
-  const acctInitials = (acct.name || "")
-    .trim().split(/\s+/).filter(Boolean).slice(0, 2)
-    .map((w) => w[0].toUpperCase()).join("") || "?";
-
   return (
-    <div className="ausettings">
+    <div className={"ausettings" + (PAGE_SECTIONS.includes(section) ? " ausettings-page" : "")}>
       {!PAGE_SECTIONS.includes(section) && (
         <nav className="ausubnav" aria-label="Settings sections">
           {SETTINGS_SECTIONS.map(([k, label, hint]) => (
@@ -14111,9 +14214,7 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
                     {org.logo && (
                       <button className="btn bGhost bSm" onClick={() => setOrg("logo", null)}>Remove</button>
                     )}
-                    <span className="bsm" style={{ color: "var(--au-faint)" }}>
-                      Shown top-left. A square mark on transparent works best.
-                    </span>
+                    
                   </div>
                 </div>
               </div>
@@ -14122,9 +14223,7 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
                 <label className="h6">Short name</label>
                 <input value={org.name || ""} placeholder="Cal Ice Hockey"
                   onChange={(e) => setOrg("name", e.target.value)} />
-                <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
-                  Used in navigation and headings, where a long name does not fit.
-                </p>
+                <></>
               </div>
 
               <div className="arow" style={{ gridTemplateColumns: "1fr 110px", borderBottom: 0, padding: 0, minWidth: 0, marginTop: 16 }}>
@@ -14143,21 +14242,15 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
                 <label className="h6">Mascot</label>
                 <input value={org.mascot || ""} placeholder="Golden Bears"
                   onChange={(e) => setOrg("mascot", e.target.value)} />
-                <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
-                  Sits above the school name on the game center banner.
-                </p>
+                <></>
               </div>
-              <p className="bsm" style={{ marginTop: -6, marginBottom: 4, color: "var(--au-faint)" }}>
-                Shown beside the opponent on box scores and previews.
-              </p>
+              <></>
 
               <div className="field" style={{ marginTop: 16 }}>
                 <label className="h6">Official name</label>
                 <input value={org.officialName || ""} placeholder="California Golden Bears Ice Hockey"
                   onChange={(e) => setOrg("officialName", e.target.value)} />
-                <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
-                  Printed schedules, PDF headers, calendar feeds and page titles.
-                </p>
+                <></>
               </div>
 
               <div className="arow" style={{ gridTemplateColumns: "1fr 1fr", borderBottom: 0, marginTop: 16, minWidth: 0 }}>
@@ -14170,37 +14263,24 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
                   <ColorField value={org.accent || "#FFC72C"} onChange={(v) => setOrg("accent", v)} />
                 </div>
               </div>
-              <p className="bsm" style={{ marginTop: 8, color: "var(--au-faint)" }}>
-                Used by the “School colors” theme under Appearance.
-              </p>
+              <></>
             </section>
 
             <section className="card">
               <p className="h6" style={{ marginBottom: 6 }}>Browser tab icon</p>
-              <p className="bsm" style={{ marginBottom: 14 }}>
-                Shown in the tab, in bookmarks, and on a phone’s home screen. Two of
-                them, because a tab is either light or dark and one mark cannot read
-                on both — each is named for the browser it appears in, not for the
-                colour it is, so the white version goes under “dark browser”.
-              </p>
+              <></>
               <div className="aufavgrid">
                 <FaviconField mode="light" value={(st.favicon || {}).light || null}
                   onChange={(v) => setTabIcon("light", v)} />
                 <FaviconField mode="dark" value={(st.favicon || {}).dark || null}
                   onChange={(v) => setTabIcon("dark", v)} />
               </div>
-              <p className="bsm" style={{ marginTop: 12, color: "var(--au-faint)" }}>
-                Stored square at 128px as a PNG, so transparency is kept. Set one and it
-                is used for both. Publishing changes it for everyone; a tab already open
-                may keep the old one until it is reloaded.
-              </p>
+              <></>
             </section>
 
             <section className="card">
               <p className="h6" style={{ marginBottom: 6 }}>Social links</p>
-              <p className="bsm" style={{ marginBottom: 14 }}>
-                Only networks with a link are shown in the header.
-              </p>
+              <></>
               {SOCIALS.map(([key, label]) => (
                 <div className="field" key={key} style={{ marginBottom: 12 }}>
                   <label className="h6">{label}</label>
@@ -14220,27 +14300,18 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
               <div className="field">
                 <label className="h6">Tickets URL</label>
                 <input value={st.ticketsUrl || ""} placeholder="https://…" onChange={setSetting("ticketsUrl")} />
-                <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
-                  The Tickets button links straight here. Leave blank to hide it.
-                </p>
+                <></>
               </div>
               <div className="field" style={{ marginTop: 16 }}>
                 <label className="h6">Watch live URL</label>
                 <input value={st.watchUrl || ""} placeholder="https://…" onChange={setSetting("watchUrl")} />
-                <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
-                  The broadcaster's channel for this club. The Watch Live button goes
-                  here whenever it is set; leave it blank and the button falls back to
-                  the nearest game with a stream or replay link.
-                </p>
+                <></>
               </div>
               <div className="field" style={{ marginTop: 16 }}>
                 <label className="h6">Public site address</label>
                 <input value={st.siteUrl || ""} placeholder="https://calicehockey.com"
                   onChange={setSetting("siteUrl")} />
-                <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
-                  Share links on news stories are built from this. Leave it blank and they
-                  point at whatever address the page happens to be open on.
-                </p>
+                <></>
               </div>
               <div className="field" style={{ marginTop: 16 }}>
                 <label className="h6">Game preview before a season starts</label>
@@ -14248,12 +14319,7 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
                   <option value="previous">Show last season's form</option>
                   <option value="current">Show this season only</option>
                 </select>
-                <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
-                  A preview needs numbers and the new season has none yet. Last season's
-                  are shown labelled as last season's, with anyone who graduated left out
-                  of the players to watch. Switch to this season and the cards stay empty
-                  until the first game is played.
-                </p>
+                <></>
               </div>
               <div className="field" style={{ marginTop: 16 }}>
                 <label className="h6">Contact email</label>
@@ -14272,9 +14338,7 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
                     onChange={setSetting("homeCity")} />
                 </div>
               </div>
-              <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
-                Prefilled on new home games. Away games take the opponent's rink and city.
-              </p>
+              <></>
             </section>
           </div>
         )}
@@ -14284,10 +14348,7 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
           <div style={{ display: "grid", gap: 18, maxWidth: 620 }}>
             <section className="card">
               <p className="h6" style={{ marginBottom: 4 }}>Footer pages</p>
-              <p className="bsm" style={{ marginBottom: 6 }}>
-                Terms, privacy and accessibility, linked at the very bottom of every
-                public page. Markdown; a <code>#</code> starts a heading.
-              </p>
+              <></>
               <p className="bsm" style={{ marginBottom: 14, color: "var(--au-warn)" }}>
                 What is here is a draft describing how this site actually behaves. It has
                 not been through anybody legal — have the university read it before launch.
@@ -14309,10 +14370,7 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
           <div style={{ display: "grid", gap: 18, maxWidth: 620 }}>
             <section className="card">
               <p className="h6" style={{ marginBottom: 4 }}>Venue page</p>
-              <p className="bsm" style={{ marginBottom: 14 }}>
-                What the public Venue tab shows. Clear a field and it stops appearing —
-                better an absent line than a wrong one about somebody else's building.
-              </p>
+              <></>
               {[
                 ["name", "Rink name", "Oakland Ice Center"],
                 ["address", "Address", "519 18th Street, Oakland, CA 94612"],
@@ -14334,9 +14392,7 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
               </div>
 
               <p className="h6" style={{ margin: "22px 0 4px" }}>Getting there</p>
-              <p className="bsm" style={{ marginBottom: 10 }}>
-                One card each on the public page. Empty ones are skipped.
-              </p>
+              <></>
               {((st.venue || {}).directions || []).map((d, i) => (
                 <div className="field" key={i} style={{ marginTop: 12 }}>
                   <label className="h6">{d.mode || "Untitled"}</label>
@@ -14354,10 +14410,7 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
           <div style={{ display: "grid", gap: 18, maxWidth: 620 }}>
             <section className="card">
               <p className="h6" style={{ marginBottom: 4 }}>Interest form</p>
-              <p className="bsm" style={{ marginBottom: 14 }}>
-                Where a prospective player's details end up. Not every program wants a
-                dashboard to check.
-              </p>
+              <></>
 
               <div className="auvis">
                 {[
@@ -14381,11 +14434,7 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
                   <label className="h6">Send to</label>
                   <input value={st.recruitEmail || ""} placeholder={st.contactEmail || "coach@berkeley.edu"}
                     onChange={setSetting("recruitEmail")} />
-                  <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
-                    Blank falls back to the contact email above. In the prototype the form
-                    opens the visitor's mail app with the details filled in; the built site
-                    sends it server-side instead, so nothing depends on their having one.
-                  </p>
+                  <></>
                 </div>
               )}
 
@@ -14394,10 +14443,7 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
                   <label className="h6">Form URL</label>
                   <input value={st.recruitFormUrl || ""} placeholder="https://forms.gle/…"
                     onChange={setSetting("recruitFormUrl")} />
-                  <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
-                    Every &ldquo;Interest form&rdquo; button links straight here. Leave blank and the
-                    built-in form comes back, so a bad paste cannot strand the page.
-                  </p>
+                  <></>
                 </div>
               )}
             </section>
@@ -14409,10 +14455,7 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
           <div style={{ display: "grid", gap: 18, maxWidth: 620 }}>
             <section className="card">
               <p className="h6" style={{ marginBottom: 4 }}>Theme</p>
-              <p className="bsm" style={{ marginBottom: 14 }}>
-                Yours alone — teammates keep their own. The sidebar carries the color;
-                data stays on a neutral background so dense rows remain readable.
-              </p>
+              <></>
 
               <div className="authemes">
                 {Object.entries(THEMES).map(([key, t]) => (
@@ -14431,10 +14474,7 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
               </div>
 
               {acct.theme === "school" && (
-                <p className="bsm" style={{ marginTop: 12, color: "var(--au-faint)" }}>
-                  Follows the colors set under Organization. Change them there and this
-                  updates with them.
-                </p>
+                <></>
               )}
 
               {acct.theme === "custom" && (
@@ -14451,11 +14491,27 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
                     onClick={() => setAcct("density", k)}>{label}</button>
                 ))}
               </div>
-              <p className="bsm" style={{ marginTop: 8, color: "var(--au-faint)" }}>
-                Compact fits roughly a third more rows on screen — useful when entering a
-                full roster.
-              </p>
+              <></>
 
+              <div className="aupreferences">
+                <label className="field">Text size
+                  <select value={acct.textSize || "standard"} onChange={(e) => setAcct("textSize", e.target.value)}>
+                    <option value="standard">Standard</option><option value="large">Large</option>
+                  </select>
+                </label>
+                <label className="field">Sidebar width
+                  <select value={acct.sidebarWidth || "standard"} onChange={(e) => setAcct("sidebarWidth", e.target.value)}>
+                    <option value="narrow">Narrow</option><option value="standard">Standard</option><option value="wide">Wide</option>
+                  </select>
+                </label>
+                <label className="field">Content width
+                  <select value={acct.contentWidth || "standard"} onChange={(e) => setAcct("contentWidth", e.target.value)}>
+                    <option value="standard">Standard</option><option value="full">Full width</option>
+                  </select>
+                </label>
+                <label><input type="checkbox" checked={!!acct.reduceMotion}
+                  onChange={(e) => setAcct("reduceMotion", e.target.checked)} /> Reduce motion</label>
+              </div>
               <div className="field" style={{ marginTop: 18 }}>
                 <label className="h6">Season to open on</label>
                 <select value={acct.defaultSeason || ""} onChange={(e) => setAcct("defaultSeason", e.target.value)}>
@@ -14476,30 +14532,15 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
               <p className="h6" style={{ marginBottom: 14 }}>Profile</p>
 
               <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 18 }}>
-                {acct.avatar
-                  ? <img className="auavatar lg" src={acct.avatar} alt="" />
-                  : <span className="auavatar lg fallback">{acctInitials}</span>}
-                <div style={{ display: "grid", gap: 7 }}>
-                  <input type="file" accept="image/*" style={{ fontSize: 12 }}
-                    onChange={(e) => readImage(e.target.files && e.target.files[0],
-                      (d) => setAcct("avatar", d), "avatar")} />
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    {acct.avatar && (
-                      <button className="btn bGhost bSm" onClick={() => setAcct("avatar", null)}>Remove</button>
-                    )}
-                    <span className="bsm" style={{ color: "var(--au-faint)" }}>Any size. Stored small.</span>
-                  </div>
-                </div>
+                <AccountAvatar account={acct} large />
+                
               </div>
 
               <div className="field">
                 <label className="h6">Display name</label>
                 <input value={acct.name || ""} placeholder="Alex Rivera"
                   onChange={(e) => setAcct("name", e.target.value)} />
-                <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
-                  Shown in the console. News bylines are set per article, so this does not
-                  appear on the public site.
-                </p>
+                <></>
               </div>
 
               <div className="field" style={{ marginTop: 16 }}>
@@ -14511,10 +14552,7 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
 
             <section className="card">
               <p className="h6" style={{ marginBottom: 6 }}>Sign-in</p>
-              <p className="bsm" style={{ marginBottom: 14 }}>
-                Accounts support a one-time email link and a password. The link always
-                works, so a forgotten password never locks anyone out mid-season.
-              </p>
+              <></>
               <div className="field">
                 <label className="h6">New password</label>
                 <input type="password" placeholder="At least 10 characters" disabled />
@@ -14524,10 +14562,7 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
                 <input type="password" disabled />
               </div>
               <button className="btn bNavy bSm" style={{ marginTop: 14 }} disabled>Update password</button>
-              <p className="bsm" style={{ marginTop: 10, color: "var(--au-warn)" }}>
-                Inactive in the prototype — there is no real account behind it. Wired up
-                against Supabase Auth in Phase 3.
-              </p>
+              <></>
             </section>
 
             <section className="card">
@@ -14543,9 +14578,7 @@ function SettingsEditor({ site, setDraft, section, setSection, onSignOut }) {
                 }}>
                 Sign out
               </button>
-              <p className="bsm" style={{ marginTop: 10, color: "var(--au-faint)" }}>
-                You stay signed in across reloads until you sign out here.
-              </p>
+              <></>
             </section>
           </div>
         )}
@@ -14709,10 +14742,7 @@ function PageBuilder({ site, setDraft, pageId, onGone }) {
           <input value={page.title || ""}
             onChange={(e) => write((p) => ({ ...p, title: e.target.value }))} />
         </div>
-        <p className="auhint" style={{ margin: "10px 0 0" }}>
-          The title is what the menu bar offers it as until you rename it there.
-          A page is not on the site until it is in the bar.
-        </p>
+        <></>
       </section>
 
       {blocks.map((b, i) => {
@@ -14742,9 +14772,7 @@ function PageBuilder({ site, setDraft, pageId, onGone }) {
       {!blocks.length && (
         <div className="auempty">
           <p style={{ margin: 0, fontWeight: 600, color: "var(--au-text)" }}>No blocks yet</p>
-          <p className="bsm" style={{ margin: "6px 0 0" }}>
-            A page is a stack of blocks. Add the first one below.
-          </p>
+          <></>
         </div>
       )}
 
@@ -14781,7 +14809,8 @@ function PageBuilder({ site, setDraft, pageId, onGone }) {
  */
 const NAV_DESTINATIONS = [
   ["home", "Home"], ["schedule", "Schedule"], ["roster", "Roster"],
-  ["prospects", "Recruits"], ["staff", "Hockey Ops Staff"], ["volunteers", "Volunteers"],
+  ["prospects", "Recruits"], ["staff", "Hockey Ops Staff"],
+  ["front-office", "Front Office"], ["volunteers", "Volunteers"],
   ["stats", "Stats"], ["newsindex", "News"], ["venue", "Venue"], ["alumni", "Alumni"],
   ["recruit", "Interest form"], ["tickets", "Tickets"],
 ];
@@ -14895,9 +14924,7 @@ function NavEditor({ site, setDraft }) {
           const href = e.currentTarget.value.trim();
           if (href) addItem(parentId, { id: uid(), label: "New link", href });
         }} />
-        <p className="bsm" style={{ marginTop: 5, color: "var(--au-faint)" }}>
-          Enter to add, then rename it above.
-        </p>
+        <></>
       </div>
       {!parentId && (
         <button className="btn bGhost bSm" style={{ marginTop: 12 }}
@@ -14939,11 +14966,7 @@ function NavEditor({ site, setDraft }) {
     <div style={{ display: "grid", gap: 18, maxWidth: 760 }}>
       <section className="card">
         <p className="h6" style={{ marginBottom: 6 }}>Menu bar</p>
-        <p className="auhint" style={{ marginTop: 0 }}>
-          The bar across the top of the public site, and the same list the phone
-          menu reads. Hiding an item leaves it here; removing it does not delete
-          the page it points at.
-        </p>
+        <></>
         <div className="aunavlist">
           {bar.map((item, i) => (
             <div key={item.id}>
@@ -15037,10 +15060,7 @@ function CustomTheme({ custom, org, onChange }) {
           <button className="btn bGhost bSm" style={{ marginLeft: "auto" }}
             onClick={() => onChange(CUSTOM_DEFAULT)}>Reset</button>
         </div>
-        <p className="bsm" style={{ marginTop: 8, color: "var(--au-faint)" }}>
-          Copies that theme's colors in so you can adjust from there. Changes apply
-          immediately — what you see is what you get.
-        </p>
+        <></>
       </div>
     </div>
   );
@@ -15331,11 +15351,7 @@ function FaviconField({ value, mode, onChange }) {
               <button className="btn bGhost bSm" onClick={() => onChange(null)}>Remove</button>
             </>
           )}
-          {!busy && !value && (
-            <span className="bsm" style={{ color: "var(--au-faint)" }}>
-              {dark ? "A light mark reads here." : "A dark mark reads here."}
-            </span>
-          )}
+          
         </div>
       </div>
     </div>
@@ -16184,7 +16200,7 @@ function AskDialog({ state, onResolve }) {
  */
 const ADMIN_NAV = [
   ["Season", [["live", "Live scoring"], ["schedule", "Schedule"], ["roster", "Roster"], ["stats", "Stats"]]],
-  ["Team", [["coaches", "Staff"], ["prospects", "Recruits page"], ["volunteers", "Volunteer roles"]]],
+  ["Team", [["front-office", "Front Office"], ["coaches", "Coaching"], ["prospects", "Recruits page"], ["volunteers", "Volunteer roles"]]],
   ["Library", [["opponents", "Opponents"], ["news", "News"], ["sponsors", "Sponsors"]]],
   /* Pages that put words on the public site. They were cards inside Settings
      until each grew past the field or two a settings screen is for. */
@@ -16207,7 +16223,8 @@ const ADMIN_TITLES = {
   schedule: "Schedule & results",
   roster: "Roster",
   stats: "Statistics",
-  coaches: "Staff & volunteers",
+  coaches: "Coaching",
+  "front-office": "Front Office",
   prospects: "Recruits page",
   volunteers: "Volunteer roles",
   opponents: "Opponents",
@@ -16225,9 +16242,56 @@ const ADMIN_TITLES = {
   menubar: "Menu bar",
 };
 
+function PasswordSetup() {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+  const save = async (event) => {
+    event.preventDefault();
+    if (busy) return;
+    if (password !== confirm) { setError("Passwords do not match."); return; }
+    setBusy(true); setError("");
+    try {
+      await window.auth.setPassword(password);
+      setPassword(""); setConfirm(""); setDone(true);
+    } catch (e) { setError(e.message || "Could not save your password. Please try again."); }
+    finally { setBusy(false); }
+  };
+  return <main className="adminui"><div className="augate"><div className="augatecard">
+    <a className="backlink" href="/">Back to site</a>
+    <h1 className="h4">{done ? "Password saved" : "Set your password"}</h1>
+    {done ? <><p>You can now sign in with your email and password.</p>
+      <a className="btn bNavy" href="/admin">Continue to console</a></> :
+      <form onSubmit={save}>
+        <p>Choose a password for your Cal Ice Hockey staff account.</p>
+        <div className="field"><label htmlFor="new-password">New password</label>
+          <input id="new-password" type="password" autoComplete="new-password" minLength={8} required
+            value={password} disabled={busy} onChange={(e) => setPassword(e.target.value)} /></div>
+        <div className="field" style={{ marginTop: 14 }}><label htmlFor="confirm-password">Confirm password</label>
+          <input id="confirm-password" type="password" autoComplete="new-password" minLength={8} required
+            value={confirm} disabled={busy} onChange={(e) => setConfirm(e.target.value)} /></div>
+        {error && <p role="alert" style={{ color: "var(--au-danger)" }}>{error}</p>}
+        <button type="submit" className="btn bNavy" style={{ marginTop: 16, width: "100%" }}
+          disabled={busy || !password || !confirm}>{busy ? "Saving…" : "Save password"}</button>
+      </form>}
+  </div></div></main>;
+}
+
 function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
   pending, setPending, authed, setAuthed, goto }) {
   const [tab, setTab] = useState("schedule");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem("cal-admin-sidebar-collapsed") === "1"; }
+    catch { return false; }
+  });
+  const toggleSidebar = () => {
+    const collapsed = !sidebarCollapsed;
+    setSidebarCollapsed(collapsed);
+    try { localStorage.setItem("cal-admin-sidebar-collapsed", collapsed ? "1" : "0"); }
+    catch { /* The toggle still works when browser storage is unavailable. */ }
+  };
   const [settingsSection, setSettingsSection] = useState("organization");
 
   /* Straight into the editor with a working title. A page called Untitled
@@ -16250,6 +16314,8 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
      anything the server said went wrong. */
   const remoteAuth = typeof window !== "undefined" && window.auth && window.auth.available;
   const [email, setEmail] = useState("");
+  const [authMode, setAuthMode] = useState("password");
+  const [password, setPassword] = useState("");
   const [sent, setSent] = useState(false);
   const [sending, setSending] = useState(false);
   const [authErr, setAuthErr] = useState("");
@@ -16319,6 +16385,20 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
     try {
       await window.auth.signIn(addr);
       setSent(true);
+    } catch (e) {
+      setAuthErr(String((e && e.message) || e));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const signInWithPassword = async () => {
+    if (!email.trim() || !password || sending) return;
+    setSending(true);
+    setAuthErr("");
+    try {
+      await window.auth.signInWithPassword(email.trim(), password);
+      setPassword("");
     } catch (e) {
       setAuthErr(String((e && e.message) || e));
     } finally {
@@ -16437,10 +16517,12 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
 
+  if (remoteAuth && authed && window.auth.recovery) return <PasswordSetup />;
+
   if (!authed) {
     const submit = () => (pass === ADMIN_PASSCODE ? setAuthed(true) : setErr(true));
     return (
-      <main className="adminui">
+      <main className="adminui strafe-login" style={STRAFE_LOGIN_VARS}>
         <div className="augate">
           {/* The gate is where somebody who clicked Admin from the footer
               actually lands, and it had no way out at all - not signed in,
@@ -16449,20 +16531,36 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
             <IcChevL size={15} /> Back to site
           </button>
           <div className="augatecard">
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-              <span className="aumark">{orgInitials(((site.settings || {}).org || {}).name)}</span>
-              <div className="aubrandtext">
-                <span className="auname">Console</span>
-                <span className="auenv">internal · staff only</span>
-              </div>
+            <div className="strafe-brand strafe-gate-brand">
+              <img className="strafe-logo" src="/logos/strafe.svg" alt="Strafe" />
+              <span className="strafe-team">{site.settings?.org?.name || "Team administration"}</span>
             </div>
             {remoteAuth ? (
-              sent ? (
+              authMode === "password" ? (
+                <form onSubmit={(e) => { e.preventDefault(); signInWithPassword(); }}>
+                  <div className="field">
+                    <label className="h6" htmlFor="staff-email">Email</label>
+                    <input id="staff-email" type="email" value={email} autoFocus autoComplete="username" required
+                      placeholder="you@berkeley.edu" disabled={sending}
+                      onChange={(e) => { setEmail(e.target.value); setAuthErr(""); }} />
+                  </div>
+                  <div className="field" style={{ marginTop: 14 }}>
+                    <label className="h6" htmlFor="staff-password">Password</label>
+                    <input id="staff-password" type="password" value={password} autoComplete="current-password" required
+                      disabled={sending} onChange={(e) => { setPassword(e.target.value); setAuthErr(""); }} />
+                  </div>
+                  {authErr && <p role="alert" className="bsm" style={{ color: "var(--au-danger)", marginTop: 8 }}>{authErr}</p>}
+                  <button type="submit" className="btn bNavy" style={{ marginTop: 16, width: "100%" }}
+                    disabled={sending || !email.trim() || !password}>{sending ? "Signing in…" : "Sign in"}</button>
+                  <button type="button" className="btn bGhost" style={{ marginTop: 8, width: "100%" }} disabled={sending}
+                    onClick={() => { setAuthMode("email"); setPassword(""); setAuthErr(""); }}>
+                    Use an email link or code instead
+                  </button>
+                  <></>
+                </form>
+              ) : sent ? (
                 <>
-                  <p className="bsm" style={{ margin: 0 }}>
-                    Enter the code to sign in. It is in the email if one was sent, and it works
-                    whoever it reached you from.
-                  </p>
+                  <></>
                   {/* Shown here too, because this screen is reachable without
                       having typed one - and verifying needs the address the
                       code was made for. */}
@@ -16493,6 +16591,8 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
                     onClick={() => { setSent(false); setCode(""); setAuthErr(""); }}>
                     Start again
                   </button>
+                  <button className="btn bGhost" style={{ marginTop: 8, width: "100%" }} disabled={sending}
+                    onClick={() => { setAuthMode("password"); setSent(false); setCode(""); setAuthErr(""); }}>Use password instead</button>
                 </>
               ) : (
                 <>
@@ -16518,11 +16618,9 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
                     onClick={() => { setSent(true); setAuthErr(""); }}>
                     I already have a code
                   </button>
-                  <p className="bsm" style={{ color: "var(--au-faint)", marginTop: 16, fontSize: 11.5 }}>
-                    Editing is by invitation — an address that has not been given access will
-                    not be sent anything. Every save is recorded against the account that made
-                    it, and the last eight versions are kept.
-                  </p>
+                  <button className="btn bGhost" style={{ marginTop: 8, width: "100%" }} disabled={sending}
+                    onClick={() => { setAuthMode("password"); setAuthErr(""); }}>Use password instead</button>
+                  <></>
                 </>
               )
             ) : (
@@ -16563,9 +16661,6 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
       the database refused the write. {saveFailed}
     </div>
   );
-  const acctInitials = ((draft.account && draft.account.name) || "")
-    .trim().split(/\s+/).filter(Boolean).slice(0, 2)
-    .map((w) => w[0].toUpperCase()).join("") || "?";
   const density = (draft.account && draft.account.density) || "comfortable";
   const org = (draft.settings && draft.settings.org) || {};
 
@@ -16681,10 +16776,10 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
 
   return (
     <AskContext.Provider value={ask}>
-    <main className={"adminui " + density} style={themeVars(draft.account, org)}>
+    <main className={"adminui " + density + (draft.account?.textSize === "large" ? " au-large-text" : "") + (draft.account?.reduceMotion ? " au-reduce-motion" : "")} style={themeVars(draft.account, org)}>
       <AskDialog state={asking} onResolve={answer} />
-      <div className="aushell">
-        <aside className="ausidebar">
+      <div className={"aushell" + (sidebarCollapsed ? " is-collapsed" : "")}>
+        <aside className="ausidebar" id="admin-sidebar">
           <div className="aubrand">
             {org.logo
               ? <img className="aulogo" src={org.logo} alt="" />
@@ -16737,9 +16832,7 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
           <div className="ausidefoot">
             <button className={"auacct " + (tab === "settings" && settingsSection === "account" ? "on" : "")}
               onClick={() => { setTab("settings"); setSettingsSection("account"); }}>
-              {draft.account && draft.account.avatar
-                ? <img className="auavatar" src={draft.account.avatar} alt="" />
-                : <span className="auavatar fallback">{acctInitials}</span>}
+              <AccountAvatar account={draft.account || {}} />
               <span className="auacctname">
                 {(draft.account && draft.account.name) || "Set up your account"}
               </span>
@@ -16749,15 +16842,14 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
 
         <div className="aumain">
           <header className="autop">
-            {/* The one way out. It was at the foot of the sidebar, which is
-                collapsed on a phone and below the fold on a laptop, so the
-                console had no visible exit from the screen you were on; it
-                sits above the title now, where every other page on the site
-                puts one. Only here - two of them in one screen is the thing
-                being fixed, not the fix. Still asks before leaving unsaved
-                work. */}
             <button className="backlink aubacklink" onClick={leave}>
               <IcChevL size={15} /> Back to site
+            </button>
+            <button className="btn bGhost bSm" onClick={toggleSidebar}
+              aria-expanded={!sidebarCollapsed} aria-controls="admin-sidebar"
+              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}>
+              <Ic d={<><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /></>} />
+              {sidebarCollapsed ? "Show menu" : "Hide menu"}
             </button>
             <h1 className="autitle">{adminTitle(tab, draft)}</h1>
             <div className="auactions">
@@ -16826,6 +16918,7 @@ function Admin({ site, setSite, recruits, setRecruits, alumni, setAlumni,
                 onSave={save} dirty={dirty} view={statsView} setView={setStatsView} />
             )}
             {tab === "opponents" && <OpponentsEditor site={draft} setDraft={setDraft} />}
+            {tab === "front-office" && <FrontOfficeEditor site={draft} setDraft={setDraft} />}
             {tab === "coaches" && <CoachesEditor site={draft} setDraft={setDraft} />}
             {tab === "prospects" && <RecruitingEditor site={draft} setDraft={setDraft} />}
             {tab === "volunteers" && <VolunteerRolesEditor site={draft} setDraft={setDraft} />}
@@ -16972,17 +17065,12 @@ function VolunteerRolesEditor({ site, setDraft }) {
 
   return (
     <>
-      <p className="auhint" style={{ marginBottom: 18, maxWidth: 700 }}>
-        What the program needs help with. Everything listed here is public and open —
-        when a role is covered, delete it. They appear on the page in this order.
-      </p>
+      <></>
 
       {!roles.length && (
         <div className="auempty">
           <p style={{ margin: 0, fontWeight: 600, color: "var(--au-text)" }}>No roles listed</p>
-          <p className="bsm" style={{ margin: "6px 0 0" }}>
-            The volunteer page shows an empty state until you add one.
-          </p>
+          <></>
         </div>
       )}
 
@@ -17534,18 +17622,7 @@ function OpponentsEditor({ site, setDraft }) {
   const cols = "1.3fr 70px 0.95fr 36px 1fr 96px 0.9fr 0.9fr 74px auto 28px";
   return (
     <>
-      <p className="auhint" style={{ marginBottom: 18, maxWidth: 720 }}>
-        Two logos per team. The light one is used on white backgrounds, the dark one
-        wherever the site paints a block of team colour — goal bands in the play-by-play,
-        mostly. A crest drawn in one dark ink disappears on its own colour, which is what
-        the second file is for. Upload whichever you have and the other stands in; if you
-        upload an SVG, the white version is made for you. The swatches show exactly what
-        the site will draw, so a stand-in that looks wrong is telling you to upload the
-        other file. This order is the order they appear in every opponent picker, so the
-        teams you play most belong at the top. A home rink and city here fill in the
-        venue and location automatically whenever you schedule a game at their place.
-        Open Roster on a team for their players and their season totals.
-      </p>
+      <></>
 
       <div className="auoppbar">
         <OpponentLibrary list={list} setDraft={setDraft} />
@@ -17563,9 +17640,7 @@ function OpponentsEditor({ site, setDraft }) {
       {!list.length && (
         <div className="auempty">
           <p style={{ margin: 0, fontWeight: 600, color: "var(--au-text)" }}>No opponents yet</p>
-          <p className="bsm" style={{ margin: "6px 0 0" }}>
-            Add a team here before building a schedule.
-          </p>
+          <></>
         </div>
       )}
 
@@ -17737,7 +17812,7 @@ function Home({ site, goto, openPost, openGame }) {
       {/* ---- Next game / live / final ---- */}
       {feature && (
         <section className="section" style={{ paddingTop: 24, paddingBottom: 0 }}>
-          <div className="wrap">
+          <div className="wrap hnextcontainer">
             <div className={"hnext " + featureState}>
               <span className="hnextteams">
                 {org.logo
@@ -17836,7 +17911,7 @@ function Home({ site, goto, openPost, openGame }) {
       {!feature && !hero && (
         <section className="section" style={{ paddingTop: 30, paddingBottom: 56 }}>
           <div className="wrap">
-            <h1 className="stitle">{site.currentSeason} Season</h1>
+            <h1 className="stitle pagetitle">{site.currentSeason} Season</h1>
             <div className="recgrid">
               <div className="reccell"><p className="reclab">Overall</p><p className="recnum">{s.w}-{s.l}{s.t ? `-${s.t}` : ""}</p></div>
               <div className="reccell"><PctRing pct={s.pct} /></div>
@@ -18435,15 +18510,52 @@ function Pac8Mark() {
 }
 
 /* ---------------- Season selector shared by editors ---------------- */
+function AchaRefresh({ site, setDraft, sel }) {
+  const ask = useAsk();
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const lock = useSeasonLock(site, sel);
+  const refresh = async () => {
+    setBusy(true); setMessage("");
+    try {
+      const season = site.seasons[sel];
+      const games = season.schedule.filter((g) => g.achaGameId && g.date <= new Date().toISOString().slice(0, 10));
+      const sheets = [];
+      for (const game of games) {
+        const response = await fetch("/acha?view=gameSummary&game_id=" + encodeURIComponent(game.achaGameId));
+        if (!response.ok) throw new Error("ACHA could not be reached. Try again later.");
+        const sheet = await response.json();
+        if (String(sheet.details?.final) === "1") sheets.push(sheet);
+      }
+      if (!sheets.length) { setMessage("No completed ACHA games found for this season."); return; }
+      mergeAchaGames(site, sel, sheets); // Validate before offering to apply anything.
+      const ok = await ask({ title: "Update " + sel + " from ACHA?",
+        message: sheets.map((s) => s.details.date + ": " + s.homeTeam.stats.goals + "–" + s.visitingTeam.stats.goals).join(" · "),
+        detail: "Replaces results and box scores for " + sheets.length + " completed games, clears their old live scoring, and adds missing players. Player photos and biographies are preserved. Review the draft, then Publish.", confirmLabel: "Update draft" });
+      if (!ok) return;
+      setDraft((current) => mergeAchaGames(current, sel, sheets));
+      setMessage("Updated " + sheets.length + " games from ACHA. Review and publish when ready.");
+    } catch (error) { setMessage(error.message || "Could not read ACHA results."); }
+    finally { setBusy(false); }
+  };
+  return <div style={{ marginBottom: 20 }}>
+    <button className="btn bGhost bSm" onClick={refresh} disabled={busy || lock.locked || !site.seasons[sel]?.achaSeasonId}>
+      {busy ? "Reading ACHA…" : "Refresh ACHA results & stats"}
+    </button>
+    {message && <p className="bsm" role="status">{message}</p>}
+  </div>;
+}
+
 function SeasonPicker({ site, sel, setSel }) {
   return (
-    <div className="tabs" style={{ marginBottom: 20 }}>
-      {Object.keys(site.seasons).sort().reverse().map((s) => (
-        <button key={s} className={`tab ${sel === s ? "on" : ""}`} onClick={() => setSel(s)}>
-          {s}{s === site.currentSeason ? " ★" : ""}
-        </button>
-      ))}
-    </div>
+    <label className="auseasonpicker">
+      <span>Season</span>
+      <select value={sel} onChange={(e) => setSel(e.target.value)}>
+        {Object.keys(site.seasons).sort().reverse().map((season) => (
+          <option key={season} value={season}>{season}{season === site.currentSeason ? " · Current" : ""}</option>
+        ))}
+      </select>
+    </label>
   );
 }
 
@@ -18516,7 +18628,7 @@ function OpponentSeasonStats({ opponent, seasons, setOpp }) {
 /* ---------------- Schedule editor ---------------- */
 function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave, dirty, openLive }) {
   const ask = useAsk();
-  const [sel, setSel] = useState(site.currentSeason);
+  const [sel, setSel] = useState(site.seasons[site.account?.defaultSeason] ? site.account.defaultSeason : site.currentSeason);
   const lock = useSeasonLock(site, sel);
   /* `inert` stops a real user touching a locked season, but a presentational
    * attribute is the wrong place for the only guard — the write path refuses
@@ -18636,6 +18748,7 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
   return (
     <>
       <SeasonPicker site={site} sel={sel} setSel={setSel} />
+      <AchaRefresh site={site} setDraft={setDraft} sel={sel} />
       <ArchivedSeason sel={sel} lock={lock} />
       <div className={lock.locked ? "aulocked" : undefined} inert={lock.locked || undefined}>
 
@@ -18808,19 +18921,14 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
                         </label>
                       ))}
                     </div>
-                    <p className="bsm" style={{ color: "var(--au-faint)", marginTop: 6 }}>
-                      Shown at the top of the game page. Also offered when you end a live game.
-                    </p>
+                    <></>
                   </div>
                 )}
                 <div className="field">
                   <label className="h6">City</label>
                   <input value={g.location || ""} placeholder="City, ST"
                     onChange={(e) => setGame(g.id, { location: e.target.value })} />
-                  <p className="bsm" style={{ marginTop: 6, color: "var(--au-faint)" }}>
-                    Fills itself in from the opponent when you set the side. Shown
-                    beside the venue on the schedule and the game page.
-                  </p>
+                  <></>
                 </div>
                 <div className="field">
                   <label className="h6">Conference game</label>
@@ -18925,18 +19033,14 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
                   <UrlField value={g.streamUrl || ""}
                     placeholder="https://youtube.com/live/…"
                     onChange={(v) => setGame(g.id, { streamUrl: v })} />
-                  <p className="bsm" style={{ color: "var(--au-faint)", marginTop: 5 }}>
-                    Shown on the game before it is marked final.
-                  </p>
+                  <></>
                 </div>
                 <div className="field">
                   <label className="h6">Replay</label>
                   <UrlField value={g.replayUrl || ""}
                     placeholder="https://youtube.com/watch?v=…"
                     onChange={(v) => setGame(g.id, { replayUrl: v })} />
-                  <p className="bsm" style={{ color: "var(--au-faint)", marginTop: 5 }}>
-                    Shown once the game has a final score.
-                  </p>
+                  <></>
                 </div>
                 {/* Every field in here saves as it is typed, so this closes the
                     drawer rather than committing anything - but a panel this
@@ -18972,13 +19076,7 @@ function ScheduleEditor({ site, setDraft, updateSeason: updateSeasonProp, onSave
         })}>
         + Add Game
       </button>
-      <p className="bsm" style={{ color: "var(--au-dim)", marginTop: 12 }}>
-        Tick "Final?" to enter a score, then open Box to record who scored. A game
-        being scored live has its Box open too, so a line can be corrected without
-        waiting for the final. Season and
-        career totals are calculated from those box scores. Playoff games count toward
-        the record and are also reported separately; exhibitions never count.
-      </p>
+      <></>
       </div>
     </>
   );
@@ -19529,11 +19627,7 @@ function LiveLineup({ game, roster, oppName, previous, opponent, setOpp, setGame
             {step === 1 ? "Our lineup" : (oppName || "Away") + " lineup"}
             <span className="alustepof"> · step {step} of 2</span>
           </p>
-          <p className="bsm" style={{ margin: "3px 0 0", color: "var(--au-faint)" }}>
-            {step === 1
-              ? "Everyone checked dresses. Everyone else is a scratch. This writes the box score the moment the game starts."
-              : "The same sheet for them. Their dressed players fill the pickers all game, so goals and penalties against them are two taps rather than typing."}
-          </p>
+          <></>
         </div>
       </div>
 
@@ -19604,7 +19698,7 @@ function LiveLineup({ game, roster, oppName, previous, opponent, setOpp, setGame
       {!roster.length && step === 1 && (
         <div className="auempty">
           <p style={{ margin: 0, fontWeight: 600, color: "var(--au-text)" }}>No roster for this season</p>
-          <p className="bsm" style={{ margin: "6px 0 0" }}>Add players on the Roster tab first.</p>
+          <></>
         </div>
       )}
 
@@ -19920,12 +20014,7 @@ function LiveTab({ site, setDraft, updateSeason, onSave, dirty, setupSeed, onSee
 
   return (
     <>
-      <p className="auhint" style={{ marginBottom: 18, maxWidth: 680 }}>
-        Scoring a game here puts it on the front page and at the front of the score strip,
-        and writes the box score as you go. One game at a time. A game that has already
-        been played can be scored too — same console, but off the air and without
-        touching its result.
-      </p>
+      <></>
 
       {todays.length > 0 && (
         <section style={{ marginBottom: 24 }}>
@@ -19947,20 +20036,14 @@ function LiveTab({ site, setDraft, updateSeason, onSave, dirty, setupSeed, onSee
       {!upcoming.length && (
         <div className="auempty">
           <p style={{ margin: 0, fontWeight: 600, color: "var(--au-text)" }}>No games left to play</p>
-          <p className="bsm" style={{ margin: "6px 0 0" }}>
-            Add one on the Schedule tab, or set a newer season as current.
-          </p>
+          <></>
         </div>
       )}
 
       {played.length > 0 && (
         <section style={{ marginTop: upcoming.length ? 30 : 12 }}>
           <p className="h6" style={{ marginBottom: 6 }}>Games already played</p>
-          <p className="auhint" style={{ marginTop: 0, marginBottom: 10, maxWidth: 680 }}>
-            The same console, on a game that is over. Use it to build a play-by-play and a
-            box score for a night nobody scored live — off the air, with the final score
-            left exactly as it is. Newest first.
-          </p>
+          <></>
           <div className="aulivelist">
             {played.map((g) => <Row g={g} played key={g.id} />)}
           </div>
@@ -21368,10 +21451,7 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
                 </label>
               ))}
             </div>
-            <p className="bsm" style={{ marginTop: 8, color: "var(--au-faint)" }}>
-              Shown at the top of the game page. Leave blank to skip; you can add them
-              later from the schedule.
-            </p>
+            <></>
 
             <div className="aumodalfoot">
               <button className="btn bGhost bSm" onClick={() => setEnding(false)}>Cancel</button>
@@ -22191,10 +22271,7 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
               </span>
             </div>
 
-            <p className="auhint" style={{ marginTop: 8, marginBottom: 12, maxWidth: 680 }}>
-              Who dressed for us on the night. Set on the lineup sheet before the game;
-              anyone ejected comes off the pickers but stays here.
-            </p>
+            <></>
 
             {[["Skaters", skaters.filter((p) => p.position !== "G")],
               ["Goaltenders", skaters.filter((p) => p.position === "G")],
@@ -22410,10 +22487,7 @@ function LiveGame({ game, oppName, opponent, roster, site, setGame, setDraft, pu
               )}
             </div>
             {!plays.length && (
-              <p className="bsm" style={{ color: "var(--au-faint)" }}>
-                Nothing recorded yet. Goals and penalties entered here go straight onto
-                the box score, so there is nothing to type up afterwards.
-              </p>
+              <></>
             )}
             <div className="auplays">
               {sorted.map((p) => (
@@ -23330,10 +23404,7 @@ function GameSheet({ game, oppName, site, setDraft, library, live, setNet }) {
         </span>
       </div>
 
-      <p className="auhint" style={{ marginTop: 8, marginBottom: 12, maxWidth: 680 }}>
-        Who dressed for them on the night. This is the list every picker in the console
-        offers, and it belongs to this game alone.
-      </p>
+      <></>
 
       {rows.length === 0 && (
         <p className="bsm" style={{ color: "var(--au-faint)", margin: "0 0 12px" }}>
@@ -23445,9 +23516,7 @@ function LiveShootout({ game, live, roster, theirs, oppName, usLabel, setGame, p
     return (
       <section className="card ausocard">
         <p className="h6" style={{ marginBottom: 6 }}>Shootout</p>
-        <p className="auhint" style={{ marginTop: 0, marginBottom: 14 }}>
-          Three rounds each, alternating. Sudden death if it is still level after that.
-        </p>
+        <></>
         <p className="h6" style={{ marginBottom: 8 }}>Who shoots first?</p>
         <div className="autoggle">
           <button className="btn bGhost bSm"
@@ -23554,15 +23623,10 @@ function LiveShootout({ game, live, roster, theirs, oppName, usLabel, setGame, p
             {" "}{Math.max(st.goals.us, st.goals.them)}–{Math.min(st.goals.us, st.goals.them)}.
           </p>
           {soGoalPlay ? (
-            <p className="bsm" style={{ margin: "6px 0 0" }}>
-              The winning goal is on the sheet. End the game when you are ready.
-            </p>
+            <></>
           ) : (
             <>
-              <p className="bsm" style={{ margin: "6px 0 10px" }}>
-                A shootout win adds one goal to the final score and nothing to anyone&rsquo;s
-                season totals.
-              </p>
+              <></>
               <button className="btn bNavy bSm" onClick={addWinner}>
                 Add the winning goal
               </button>
@@ -23652,11 +23716,7 @@ function ShootoutEditor({ game, roster, oppLines, oppName, usLabel, setGame }) {
   return (
     <div className="card" style={{ marginTop: 18 }}>
       <p className="h6" style={{ marginBottom: 8 }}>Shootout</p>
-      <p className="auhint" style={{ marginBottom: 14, maxWidth: 620 }}>
-        Attempts in the order they were taken — the running score and the round
-        both come from that order. A shootout decides the game, so the winning
-        side also needs its goal on the scoresheet above.
-      </p>
+      <></>
 
       <div className="arow" style={{ gridTemplateColumns: "120px 1fr 130px auto auto auto", borderBottom: 0, padding: 0, minWidth: 0 }}>
         <div className="field">
@@ -23904,11 +23964,7 @@ function RetroPlays({ game, oppName, roster, lines, oppLines, setGame, usLabel }
         </span>
       </div>
 
-      <p className="auhint" style={{ margin: "0 0 14px", maxWidth: 620 }}>
-        When each goal went in, and who set it up. The box score above stays the
-        record — this only says <em>when</em>, so the pickers offer players with a
-        goal or assist still unaccounted for and the totals never move.
-      </p>
+      <></>
 
       <div className="auretroform">
         <div className="autoggle">
@@ -24406,7 +24462,7 @@ const ACHA_FIELDS = ["number", "position", "height", "weight", "shoots", "hometo
 
 function RosterEditor({ site, updateSeason: updateSeasonProp }) {
   const ask = useAsk();
-  const [sel, setSel] = useState(site.currentSeason);
+  const [sel, setSel] = useState(site.seasons[site.account?.defaultSeason] ? site.account.defaultSeason : site.currentSeason);
   const lock = useSeasonLock(site, sel);
   /* `inert` stops a real user touching a locked season, but a presentational
    * attribute is the wrong place for the only guard — the write path refuses
@@ -24897,6 +24953,11 @@ function RosterEditor({ site, updateSeason: updateSeasonProp }) {
                   </div>
                 </div>
                 <div className="arow" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", borderBottom: 0 }}>
+                  <div>
+                    <label className="h6" style={{ color: "var(--au-dim)" }}>Birthday</label>
+                    <input aria-label={`Birthday for ${p.name}`} value={p.birthday || ""}
+                      onChange={(e) => setP(p.id, { birthday: e.target.value })} />
+                  </div>
                   {PLAYER_SOCIALS.map((sn) => (
                     <div key={sn.key}>
                       <label className="h6" style={{ color: "var(--au-dim)" }}>{sn.label}</label>
@@ -24908,9 +24969,7 @@ function RosterEditor({ site, updateSeason: updateSeasonProp }) {
                     </div>
                   ))}
                 </div>
-                <p className="bsm" style={{ margin: "0 0 14px", color: "var(--au-faint)" }}>
-                  Handles, not links — the address is built for you. Leave blank to hide.
-                </p>
+                <></>
 
                 <div className="auphotos">
                   <div className="field">
@@ -24927,10 +24986,7 @@ function RosterEditor({ site, updateSeason: updateSeasonProp }) {
                 <textarea className="ta" rows={5} value={p.bio || ""}
                   onChange={(e) => setP(p.id, { bio: e.target.value })}
                   placeholder={"# Personal\n- Intends to major in ..."} />
-                <p className="bsm" style={{ color: "var(--au-dim)", marginTop: 6 }}>
-                  Shown on the player's bio page. Lines starting with "# " become section headers,
-                  "- " become bullets. High school and prior team are separate fields above.
-                </p>
+                <></>
               </div>
             )}
           </div>
@@ -24947,18 +25003,96 @@ function RosterEditor({ site, updateSeason: updateSeasonProp }) {
         + Add Player
       </button>
 
-      <p className="bsm" style={{ color: "var(--au-dim)", marginTop: 12 }}>
-        Player statistics live on the Stats tab.
-      </p>
+      <></>
       </div>
     </>
   );
 }
 
 /* ---------------- Coaches editor ---------------- */
+function isCoachingStaff(person) {
+  return person.staffEditor ? person.staffEditor === "coaching" : staffPageFor(person) === "staff";
+}
+function FrontOfficeEditor({ site, setDraft }) {
+  const [query, setQuery] = useState("");
+  const [newSection, setNewSection] = useState("");
+  const [department, setDepartment] = useState("");
+  const people = (site.staff || []).filter((p) => !isCoachingStaff(p));
+  const patch = (id, values) => setDraft((s) => ({ ...s, staff: (s.staff || []).map((p) => p.id === id ? { ...p, staffEditor: "front-office", ...values } : p) }));
+  const groups = [...new Set([...OFFICE_DEPARTMENTS, ...(site.frontOfficeDepartments || []), ...people.map(officeDepartmentFor)])];
+  const addMember = (group) => {
+    setQuery("");
+    setDraft((s) => ({ ...s, staff: [...(s.staff || []), { id: uid(), name: "", title: "", roleGroup: "operations", staffPage: "front-office", staffEditor: "front-office", department: group, subsection: "" }] }));
+  };
+  const addSection = (e) => {
+    e.preventDefault();
+    const name = newSection.trim().replace(/\s+/g, " ");
+    if (!name) return;
+    const existing = groups.find((g) => g.toLowerCase() === name.toLowerCase());
+    if (!existing) setDraft((s) => ({ ...s, frontOfficeDepartments: [...(s.frontOfficeDepartments || []), name] }));
+    setDepartment(existing || name);
+    setQuery("");
+    setNewSection("");
+  };
+  const move = (id, neighbor) => setDraft((s) => {
+    const staff = [...(s.staff || [])];
+    const a = staff.findIndex((p) => p.id === id), b = staff.findIndex((p) => p.id === neighbor);
+    if (a >= 0 && b >= 0) [staff[a], staff[b]] = [staff[b], staff[a]];
+    return { ...s, staff };
+  });
+  return <>
+    <></>
+    <div className="austafffields" style={{ marginBottom: 20 }}>
+      <div className="field"><label className="h6" htmlFor="office-search">Find staff</label><input id="office-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search names or titles" /></div>
+      <div className="field"><label className="h6" htmlFor="office-filter">Filter department</label><select id="office-filter" value={department} onChange={(e) => setDepartment(e.target.value)}><option value="">All departments</option>{groups.map((g) => <option key={g}>{g}</option>)}</select></div>
+      <button className="btn bNavy" onClick={() => addMember(department || "Executive Management")}>+ Add Front Office Staff</button>
+    </div>
+    <form onSubmit={addSection} className="austafffields" style={{ marginBottom: 24, alignItems: "end" }}>
+      <div className="field"><label className="h6" htmlFor="office-new-section">New section</label><input id="office-new-section" value={newSection} onChange={(e) => setNewSection(e.target.value)} placeholder="e.g. Hockey Analytics" /></div>
+      <button className="btn bNavy" type="submit" disabled={!newSection.trim()}>+ Add section</button>
+    </form>
+    <datalist id="office-subsections">{[...new Set(["Analytics", ...people.map((p) => p.subsection).filter(Boolean)])].map((v) => <option key={v} value={v} />)}</datalist>
+    {groups.filter((g) => !department || department === g).map((group) => {
+      const members = people.filter((p) => officeDepartmentFor(p) === group);
+      const sections = [...new Set(members.map((p) => String(p.subsection || "").trim()))];
+      return <section key={group} style={{ marginBottom: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+          <h2 className="h4" style={{ margin: 0 }}>{group}</h2>
+          <button className="btn bSm" aria-label={"Add member to " + group} onClick={() => addMember(group)}>+ Add member</button>
+        </div>
+        {!members.length && <p className="auhint">No members yet.</p>}
+        {sections.map((sub) => {
+          const rows = members.filter((p) => String(p.subsection || "").trim() === sub);
+          return <div key={sub}>{sub && <h3 className="h6" style={{ margin: "16px 0 10px" }}>{sub}</h3>}
+            {rows.map((p, index) => (!query || (p.name + " " + p.title).toLowerCase().includes(query.toLowerCase())) && <div className="card" key={p.id} style={{ marginBottom: 12 }}>
+              <div className="austafffields">
+                {[["name", "Name"], ["title", "Title"]].map(([key, label]) => <div className="field" key={key}><label className="h6" htmlFor={p.id + key}>{label}</label><input id={p.id + key} value={p[key] || ""} onChange={(e) => patch(p.id, { [key]: e.target.value })} /></div>)}
+                <div className="field"><label className="h6" htmlFor={p.id + "section"}>Section</label><select id={p.id + "section"} value={p.roleGroup || "operations"} onChange={(e) => patch(p.id, { roleGroup: e.target.value })}>{ROLE_GROUPS.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></div>
+                <div className="field"><label className="h6" htmlFor={p.id + "profile"}>Profile page</label><select id={p.id + "profile"} value={staffPageFor(p)} onChange={(e) => patch(p.id, { staffPage: e.target.value })}><option value="front-office">Directory only</option><option value="staff">Hockey Operations + directory</option></select></div>
+                <div className="field"><label className="h6" htmlFor={p.id + "department"}>Department</label><select id={p.id + "department"} value={officeDepartmentFor(p)} onChange={(e) => patch(p.id, { department: e.target.value, subsection: "" })}>{groups.map((g) => <option key={g}>{g}</option>)}</select></div>
+                <div className="field"><label className="h6" htmlFor={p.id + "subsection"}>Subsection</label><input id={p.id + "subsection"} list="office-subsections" defaultValue={p.subsection || ""} placeholder="Optional" onBlur={(e) => { if (e.target.value !== (p.subsection || "")) patch(p.id, { subsection: e.target.value.trim() }); }} /></div>
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                <button className="btn bSm" disabled={index === 0} aria-label={"Move " + (p.name || "staff member") + " up"} onClick={() => move(p.id, rows[index - 1].id)}>↑ Move up</button>
+                <button className="btn bSm" disabled={index === rows.length - 1} aria-label={"Move " + (p.name || "staff member") + " down"} onClick={() => move(p.id, rows[index + 1].id)}>↓ Move down</button>
+                <button className="btn bDanger bSm" onClick={() => setDraft((s) => ({ ...s, staff: (s.staff || []).filter((person) => person.id !== p.id) }))}>Remove</button>
+              </div>
+            </div>)}
+          </div>;
+        })}
+      </section>;
+    })}
+    {!people.length && <></>}
+  </>;
+}
+
 function CoachesEditor({ site, setDraft }) {
-  const coaches = site.staff || [];
-  const setStaff = (next) => setDraft((s) => ({ ...s, staff: next }));
+  const coaches = (site.staff || []).filter(isCoachingStaff);
+  const setStaff = (next) => setDraft((s) => {
+    const remaining = next.map((person) => ({ ...person, staffEditor: "coaching" }));
+    const staff = (s.staff || []).flatMap((person) => isCoachingStaff(person) ? (remaining.length ? [remaining.shift()] : []) : [person]);
+    return { ...s, staff: [...staff, ...remaining] };
+  });
   const setC = (id, patch) => setStaff(coaches.map((c) => (c.id === id ? { ...c, ...patch } : c)));
   /* Kept for the call sites below; staff are not season-scoped any more. */
   const updateSeason = (_name, patch) => setStaff(patch.coaches);
@@ -24966,11 +25100,9 @@ function CoachesEditor({ site, setDraft }) {
 
   return (
     <>
-      <p className="auhint" style={{ marginBottom: 18, maxWidth: 700 }}>
-        The program's current staff. This is one list — it does not reset when you
-        add a season, and there is no historical record kept.
-      </p>
+      <></>
       <div>
+      <datalist id="staff-subsections">{[...new Set(["Analytics", ...coaches.map((c) => String(c.subsection || "").trim()).filter(Boolean)])].map((name) => <option key={name} value={name} />)}</datalist>
       <div style={{ display: "grid", gap: 18 }}>
         {coaches.map((c) => (
           <div className="card" key={c.id} style={{ display: "grid", gap: 10 }}>
@@ -25014,7 +25146,7 @@ function CoachesEditor({ site, setDraft }) {
                     onChange={(e) => {
                       /* Only one lead: the page gives it the whole top block. */
                       updateSeason(sel, {
-                        coaches: coaches.map((x) => ({ ...x, featured: x.id === c.id ? e.target.checked : false })),
+                        coaches: coaches.map((x) => ({ ...x, featured: x.id === c.id ? e.target.checked : staffPageFor(x) === staffPageFor(c) ? false : x.featured })),
                       });
                     }} />
                   Feature at the top
@@ -25027,7 +25159,7 @@ function CoachesEditor({ site, setDraft }) {
         ))}
       </div>
       <button className="btn bNavy bSm" style={{ marginTop: 18 }}
-        onClick={() => updateSeason(sel, { coaches: [...coaches, { id: uid(), name: "", title: "", email: "", bio: "", category: "hockey_ops", photo: null }] })}>
+        onClick={() => updateSeason(sel, { coaches: [...coaches, { id: uid(), name: "", title: "", email: "", bio: "", category: "hockey_ops", staffEditor: "coaching", staffPage: "staff", roleGroup: "coaching", photo: null }] })}>
         + Add Staff Member
       </button>
       </div>
@@ -25114,6 +25246,11 @@ function SeasonManager({ site, setSite }) {
 
   return (
     <>
+      <div style={{ display: "flex", gap: 10, marginBottom: 22, maxWidth: 420 }}>
+        <input className="ta" aria-label="New season" placeholder="2027-28" value={name} onChange={(e) => setName(e.target.value)} />
+        <button className="btn bGold" onClick={addSeason}>Add new season</button>
+      </div>
+      {msg && <p className="bsm" style={{ color: "var(--au-danger)", marginTop: 12, fontWeight: 600 }}>{msg}</p>}
       <label className="auvisrow auoffseason">
         <input type="checkbox" checked={offSeason}
           onChange={(e) => setSite((s) => ({ ...s, settings: { ...(s.settings || {}), offSeason: e.target.checked } }))} />
@@ -25150,14 +25287,7 @@ function SeasonManager({ site, setSite }) {
           </div>
         ))}
       </div>
-      <div style={{ display: "flex", gap: 10, marginTop: 22, maxWidth: 420 }}>
-        <input className="ta" placeholder="2026-27" value={name} onChange={(e) => setName(e.target.value)} />
-        <button className="btn bGold" onClick={addSeason}>Add Season</button>
-      </div>
-      {msg && <p className="bsm" style={{ color: "var(--au-danger)", marginTop: 12, fontWeight: 600 }}>{msg}</p>}
-      <p className="bsm" style={{ color: "var(--au-dim)", marginTop: 12 }}>
-        The ★ season is what the public site shows on Home. Archives stay browsable via the season tabs.
-      </p>
+      <></>
     </>
   );
 }
@@ -25213,11 +25343,7 @@ function Importer({ site, updateSeason }) {
 
   return (
     <>
-      <p className="bsm" style={{ color: "var(--au-dim)", marginBottom: 18, maxWidth: "70ch" }}>
-        Artifacts can't fetch achahockey.org directly (cross-origin), so copy rows from the ACHA site or a
-        spreadsheet and paste them here. Pipe, tab, and comma delimiters are auto-detected. Production replaces
-        this with a scheduled server-side sync job.
-      </p>
+      <></>
       <SeasonPicker site={site} sel={sel} setSel={setSel} />
       <div className="tabs" style={{ marginBottom: 14 }}>
         {["schedule", "roster", "coaches"].map((t) => (
@@ -25657,9 +25783,7 @@ function NewsEditor({ site, setSite, alumni, setAlumni }) {
               <p className="h6" style={{ marginBottom: 12 }}>Cover photo</p>
               <ImageField value={editing.image} preset="cover" label="cover photo" aspect="wide"
                 onChange={(v) => setN(editing.id, { image: v })} />
-              <p className="bsm" style={{ color: "var(--au-faint)", marginTop: 8 }}>
-                Used on the homepage hero, cards and the article header.
-              </p>
+              <></>
             </div>
           </aside>
         </div>
@@ -25973,11 +26097,7 @@ function ArticleBody({ post, setN, site, alumni, linkPerson }) {
             ? linked.size + " player" + (linked.size === 1 ? "" : "s") + " linked: " + [...linked].join(", ")
             : "No players linked yet."}
         </p>
-        <p className="bsm" style={{ color: "var(--au-faint)", marginTop: 2 }}>
-          Any player from any season can be mentioned — {(groups[0] || [""])[0]} is offered
-          first because that is the season this story is about. Link players wraps names
-          from that season only.
-        </p>
+        <></>
       </div>
     </div>
   );
@@ -26037,17 +26157,12 @@ function SponsorsEditor({ site, setDraft }) {
 
   return (
     <>
-      <p className="bsm" style={{ marginBottom: 18 }}>
-        Shown in a band above the copyright line, in this order. A sponsor with no
-        logo appears as its name.
-      </p>
+      <></>
 
       {!list.length && (
         <div className="auempty">
           <p style={{ margin: 0, fontWeight: 600, color: "var(--au-text)" }}>No sponsors yet</p>
-          <p className="bsm" style={{ margin: "6px 0 0" }}>
-            The band stays hidden until there is at least one.
-          </p>
+          <></>
         </div>
       )}
 
@@ -26162,6 +26277,7 @@ function UsersEditor({ data, onReload }) {
   };
 
   const setEditorRole = async (e, next) => {
+    if (next === e.role || busy || e.email === data.you) return;
     if (next === "admin") {
       const ok = await ask({
         title: "Make " + e.email + " an admin?",
@@ -26224,17 +26340,16 @@ function UsersEditor({ data, onReload }) {
                     {" · last in "}{e.lastSignIn ? e.lastSignIn.slice(0, 10) : "—"}
                   </p>
                 </div>
-                {isSelf ? (
-                  <span className="bsm" style={{ color: "var(--au-faint)" }}>
-                    {e.role === "admin" ? "Admin" : "Editor"}
-                  </span>
-                ) : (
-                  <button className="btn bGhost bSm"
-                    disabled={busy === e.email + ":role"}
-                    onClick={() => setEditorRole(e, e.role === "admin" ? "editor" : "admin")}>
-                    {e.role === "admin" ? "Admin — make editor" : "Editor — make admin"}
-                  </button>
-                )}
+                <div className="field" style={{ minWidth: 130 }}>
+                  <label className="h6" htmlFor={"staff-role-" + e.email}>Role</label>
+                  <select id={"staff-role-" + e.email} aria-label={"Role for " + e.email}
+                    value={e.role} disabled={isSelf || !!busy}
+                    title={isSelf ? "Another admin must change your role." : undefined}
+                    onChange={(event) => setEditorRole(e, event.target.value)}>
+                    <option value="admin">Admin</option>
+                    <option value="editor">Editor</option>
+                  </select>
+                </div>
                 {!isSelf && (
                   <button className="btn bDanger bSm" disabled={busy === e.email + ":remove"}
                     onClick={() => remove(e)}>Remove</button>
@@ -26263,10 +26378,7 @@ function UsersEditor({ data, onReload }) {
           disabled={busy === "invite" || !email.trim()} onClick={invite}>
           {busy === "invite" ? "Inviting…" : "Invite"}
         </button>
-        <p className="bsm" style={{ marginTop: 10, color: "var(--au-faint)" }}>
-          Creates their account and puts them on the editors list in one step. They sign
-          in the same way anyone does — the console's own sign-in screen sends them a code.
-        </p>
+        <></>
       </div>
     </>
   );
@@ -26331,9 +26443,7 @@ function AlumniInbox({ alumni, setAlumni }) {
       {!alumni.length && (
         <div className="auempty">
           <p style={{ margin: 0, fontWeight: 600, color: "var(--au-text)" }}>Nobody on the list yet</p>
-          <p className="bsm" style={{ margin: "6px 0 0" }}>
-            Sign-ups from More → Alumni on the public site land here.
-          </p>
+          <></>
         </div>
       )}
       {alumni.length > 0 && !list.length && (
@@ -26418,9 +26528,7 @@ function Inbox({ recruits, setRecruits }) {
       {!recruits.length && (
         <div className="auempty">
           <p style={{ margin: 0, fontWeight: 600, color: "var(--au-text)" }}>No submissions yet</p>
-          <p className="bsm" style={{ margin: "6px 0 0" }}>
-            Share the Join the Team page with prospects and they will land here.
-          </p>
+          <></>
         </div>
       )}
       {recruits.length > 0 && !list.length && (

@@ -1,0 +1,284 @@
+{
+  "season": "2026-27",
+  "source": "https://californiaicehockey.com/roster",
+  "players": [
+    {
+      "id": "acha-73-player-22010",
+      "name": "Brendan Baker",
+      "fields": {
+        "height": "5′8″",
+        "shoots": "R",
+        "hometown": "New York City, NY",
+        "year": "Sr",
+        "photo": "/photos/roster/brendan-baker.webp"
+      }
+    },
+    {
+      "id": "piejd5y",
+      "name": "Bryan Bartolo",
+      "fields": {
+        "height": "5′9″",
+        "shoots": "R",
+        "hometown": "La Puente, CA",
+        "year": "Sr",
+        "photo": "/photos/roster/bryan-bartolo.webp"
+      }
+    },
+    {
+      "id": "acha-73-player-17403",
+      "name": "Roy Chebaclo",
+      "fields": {
+        "height": "6′0″",
+        "shoots": "R",
+        "hometown": "Twin Cities, MN",
+        "year": "Sr",
+        "photo": "/photos/roster/roy-chebaclo.webp"
+      }
+    },
+    {
+      "id": "h7ivlnj",
+      "name": "Liam Collins",
+      "fields": {
+        "height": "6′0″",
+        "shoots": "R",
+        "hometown": "Thousand Oaks, CA",
+        "year": "So",
+        "photo": "/photos/roster/liam-collins.webp"
+      }
+    },
+    {
+      "id": "5dsh7c8",
+      "name": "Aidan Comeau",
+      "fields": {
+        "height": "5′9″",
+        "shoots": "L",
+        "hometown": "Newport Beach, CA",
+        "year": "Jr",
+        "photo": "/photos/roster/aidan-comeau.webp"
+      }
+    },
+    {
+      "id": "6tm4sqe",
+      "name": "Henry Conlin",
+      "fields": {
+        "height": "6′3″",
+        "shoots": "R",
+        "hometown": "Chicago, IL",
+        "year": "Sr",
+        "photo": "/photos/roster/henry-conlin.webp"
+      }
+    },
+    {
+      "id": "t05ujjq",
+      "name": "Colten Fazio",
+      "fields": {
+        "height": "6′4″",
+        "shoots": "L",
+        "hometown": "Trabuco Canyon, CA",
+        "year": "So",
+        "photo": "/photos/roster/colten-fazio.webp"
+      }
+    },
+    {
+      "id": "8as9yo6",
+      "name": "Lucas Fung",
+      "fields": {
+        "height": "5′10″",
+        "shoots": "R",
+        "hometown": "Los Angeles, CA",
+        "year": "Jr",
+        "photo": "/photos/roster/lucas-fung.webp"
+      }
+    },
+    {
+      "id": "1ltyqbz",
+      "name": "Enzo Goebel",
+      "fields": {
+        "height": "5′8″",
+        "shoots": "R",
+        "hometown": "Arcadia, CA",
+        "year": "Sr",
+        "photo": "/photos/roster/enzo-goebel.webp"
+      }
+    },
+    {
+      "id": "mcmsdas",
+      "name": "Connor Kanas",
+      "fields": {
+        "height": "5′11″",
+        "shoots": "L",
+        "hometown": "Chula Vista, CA",
+        "year": "So",
+        "photo": "/photos/roster/connor-kanas.webp"
+      }
+    },
+    {
+      "id": "tilkd8f",
+      "name": "Kodai Mizuno",
+      "fields": {
+        "height": "5′9″",
+        "shoots": "R",
+        "hometown": "San Jose, CA",
+        "year": "Jr",
+        "photo": "/photos/roster/kodai-mizuno.webp"
+      }
+    },
+    {
+      "id": "acha-73-player-43576",
+      "name": "Sean Lohmeier",
+      "fields": {
+        "height": "5′10″",
+        "shoots": "R",
+        "hometown": "Berkeley, CA",
+        "year": "Fr"
+      }
+    },
+    {
+      "id": "h5off7z",
+      "name": "Simon Mantoani",
+      "fields": {
+        "height": "6′2″",
+        "shoots": "R",
+        "hometown": "San Diego, CA",
+        "year": "So",
+        "photo": "/photos/roster/simon-mantoani.webp"
+      }
+    },
+    {
+      "id": "acha-73-player-43577",
+      "name": "Kaiden Montero",
+      "fields": {
+        "height": "5′8″",
+        "shoots": "L",
+        "hometown": "Berkeley, CA",
+        "year": "Fr"
+      }
+    },
+    {
+      "id": "acha-73-player-43578",
+      "name": "Aidan Myers",
+      "fields": {
+        "height": "6′0″",
+        "shoots": "R",
+        "hometown": "Berkeley, CA",
+        "year": "Fr"
+      }
+    },
+    {
+      "id": "1p6gs6n",
+      "name": "Arya Nahavandi",
+      "fields": {
+        "height": "5′8″",
+        "shoots": "L",
+        "hometown": "San Diego, CA",
+        "year": "Jr",
+        "photo": "/photos/roster/arya-nahavandi.webp"
+      }
+    },
+    {
+      "id": "acha-73-player-31987",
+      "name": "Eamon Navin",
+      "fields": {
+        "height": "6′0″",
+        "shoots": "L",
+        "hometown": "San Francisco, CA",
+        "year": "So"
+      }
+    },
+    {
+      "id": "acha-73-player-43585",
+      "name": "Cole Nelson",
+      "fields": {
+        "height": "5′8″",
+        "shoots": "L",
+        "hometown": "Chicago, IL",
+        "year": "Fr"
+      }
+    },
+    {
+      "id": "3q70nfe",
+      "name": "Ellis O'Dowd",
+      "fields": {
+        "height": "5′7″",
+        "shoots": "L",
+        "hometown": "Reno, NV",
+        "year": "Sr",
+        "photo": "/photos/roster/ellis-o-dowd.webp"
+      }
+    },
+    {
+      "id": "ie1qkt5",
+      "name": "Mark Rejna",
+      "fields": {
+        "height": "6′0″",
+        "shoots": "L",
+        "hometown": "Prague, Czech Republic",
+        "year": "Sr",
+        "photo": "/photos/roster/mark-rejna.webp"
+      }
+    },
+    {
+      "id": "q4fqlw7",
+      "name": "Kayden Roloff",
+      "fields": {
+        "height": "5′11″",
+        "shoots": "L",
+        "hometown": "Berkeley, CA",
+        "year": "Sr",
+        "photo": "/photos/roster/kayden-roloff.webp"
+      }
+    },
+    {
+      "id": "k495m59",
+      "name": "Dominik Sedlak-Braude",
+      "fields": {
+        "height": "6′0″",
+        "shoots": "R",
+        "hometown": "Gaithersburg, MD",
+        "year": "So",
+        "photo": "/photos/roster/dominik-sedlak-braude.webp"
+      }
+    },
+    {
+      "id": "acha-73-player-43581",
+      "name": "Anthony Sergeyev",
+      "fields": {
+        "height": "5′10″",
+        "shoots": "L",
+        "hometown": "Dover, MA",
+        "year": "Fr"
+      }
+    },
+    {
+      "id": "eu3ws8u",
+      "name": "Trent Teruya",
+      "fields": {
+        "height": "5′8″",
+        "shoots": "R",
+        "hometown": "Redlands, CA",
+        "year": "Jr",
+        "photo": "/photos/roster/trent-teruya.webp"
+      }
+    },
+    {
+      "id": "acha-73-player-43582",
+      "name": "Tsan Lam Wang",
+      "fields": {
+        "height": "6′0″",
+        "shoots": "L",
+        "hometown": "Hong Kong, China",
+        "year": "Fr"
+      }
+    },
+    {
+      "id": "acha-73-player-43583",
+      "name": "Eddie Yu",
+      "fields": {
+        "height": "5′8″",
+        "shoots": "R",
+        "hometown": "Hinsdale, IL",
+        "year": "Fr"
+      }
+    }
+  ]
+}

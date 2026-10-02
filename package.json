@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "packageManager": "pnpm@11.24.0",
   "scripts": {
+    "build:site": "node prototype/build.mjs --production && node prototype/dist.mjs",
     "dev:web": "pnpm --filter @cal/web dev",
     "dev:admin": "pnpm --filter @cal/admin dev",
     "build": "pnpm -r build",
